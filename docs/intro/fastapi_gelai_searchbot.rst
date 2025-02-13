@@ -30,140 +30,165 @@ The end result is going to look something like this:
 1. Initialize the project
 =========================
 
-We're going to start by installing `uv <https://docs.astral.sh/uv/>`_ - a Python
-package manager that's going to simplify environment management for us. You can
-follow their `installation instructions
-<https://docs.astral.sh/uv/getting-started/installation/>`_ or simply run:
+.. edb:split-section::
 
-.. code-block:: bash
+  We're going to start by installing `uv <https://docs.astral.sh/uv/>`_ - a Python
+  package manager that's going to simplify environment management for us. You can
+  follow their `installation instructions
+  <https://docs.astral.sh/uv/getting-started/installation/>`_ or simply run:
 
-    $ curl -LsSf https://astral.sh/uv/install.sh | sh
+  .. code-block:: bash
 
-Once that is done, we can use uv to create scaffolding for our project following
-the `documentation <https://docs.astral.sh/uv/guides/projects/>`_:
+      $ curl -LsSf https://astral.sh/uv/install.sh | sh
 
-.. code-block:: bash
+.. edb:split-section::
 
-    $ uv init searchbot \
-      && cd searchbot
+  Once that is done, we can use uv to create scaffolding for our project following
+  the `documentation <https://docs.astral.sh/uv/guides/projects/>`_:
 
-For now, we know we're going to need Gel and FastAPI, so let's add those
-following uv's instructions on `managing dependencies
-<https://docs.astral.sh/uv/concepts/projects/dependencies/#optional-dependencies>`_,
-as well as FastAPI's `installation docs
-<https://fastapi.tiangolo.com/#installation>`_. Running ``uv sync`` after that
-will create our virtual environment in a ``.venv`` directory and ensure it's
-ready. As a last step, we'll activate the environment and get started.
+  .. code-block:: bash
 
-.. code-block:: bash
+      $ uv init searchbot \
+        && cd searchbot
 
-    $ uv add "fastapi[standard]" \
-      && uv add gel \
-      && uv sync \
-      && source .venv/bin/activate
+.. edb:split-section::
 
-.. note::
+  For now, we know we're going to need Gel and FastAPI, so let's add those
+  following uv's instructions on `managing dependencies
+  <https://docs.astral.sh/uv/concepts/projects/dependencies/#optional-dependencies>`_,
+  as well as FastAPI's `installation docs
+  <https://fastapi.tiangolo.com/#installation>`_. Running ``uv sync`` after that
+  will create our virtual environment in a ``.venv`` directory and ensure it's
+  ready. As a last step, we'll activate the environment and get started.
 
-    Make sure to source the environment every time you open a new terminal
-    session before running ``python``, ``gel`` or ``fastapi``-related commands.
+  .. note::
+
+      Make sure to source the environment every time you open a new terminal
+      session before running ``python``, ``gel`` or ``fastapi``-related commands.
+
+  .. code-block:: bash
+
+      $ uv add "fastapi[standard]" \
+        && uv add gel \
+        && uv sync \
+        && source .venv/bin/activate
 
 
 2. Get started with FastAPI
 ===========================
 
-At this stage we need to follow FastAPI's `tutorial
-<https://fastapi.tiangolo.com/tutorial/>`_ to create the foundation of our app.
+.. edb:split-section::
 
-We're going to make a super simple web API with one endpoint that takes in a
-user query as an input and echoes it as an output. First, let's make a directory
-called ``app`` in our project root, and put an empty ``__init__.py`` there.
+  At this stage we need to follow FastAPI's `tutorial
+  <https://fastapi.tiangolo.com/tutorial/>`_ to create the foundation of our app.
 
-.. code-block:: bash
+  We're going to make a super simple web API with one endpoint that takes in a
+  user query as an input and echoes it as an output. First, let's make a directory
+  called ``app`` in our project root, and put an empty ``__init__.py`` there.
 
-   $ mkdir app && touch app/__init__.py
+  .. code-block:: bash
 
-Now let's create a file called ``main.py`` inside the ``app`` directory and put
-the "Hello World" example in it:
+     $ mkdir app && touch app/__init__.py
 
-.. code-block:: python
-    :caption: app/main.py
+.. edb:split-section::
 
-    from fastapi import FastAPI
+  Now let's create a file called ``main.py`` inside the ``app`` directory and put
+  the "Hello World" example in it:
 
-    app = FastAPI()
+  .. code-block:: python
+      :caption: app/main.py
 
+      from fastapi import FastAPI
 
-    @app.get("/")
-    async def root():
-        return {"message": "Hello World"}
-
-To start the server, we'll run:
-
-.. code-block:: bash
-
-    $ fastapi dev app/main.py
-
-Once the server gets up and running, we can make sure it works using FastAPI's
-built-in UI at <http://127.0.0.1:8000/docs>_, or manually by using ``curl``:
-
-.. code-block:: bash
-
-    $ curl -X 'GET' \
-      'http://127.0.0.1:8000/' \
-      -H 'accept: application/json'
-
-    {"message":"Hello World"}
-
-Now, in order to create the endpoint we set out to create, we need to pass our
-query as a parameter to it. We'd prefer to have it in the body of the request
-since user messages can get pretty long.
-
-In FastAPI land this is done by creating a Pydantic schema and making it the
-type of the input parameter. `Pydantic <https://docs.pydantic.dev/latest/>`_ is
-a data validation library for Python. It has many features, but we don't
-actually need to know about them for now. All we need to know is that FastAPI
-uses Pydantic types to automatically figure out schemas for `input
-<https://fastapi.tiangolo.com/tutorial/body/>`_, as well as `output
-<https://fastapi.tiangolo.com/tutorial/response-model/>`_.
-
-Let's add the following to our ``main.py``:
-
-.. code-block:: python
-    :caption: app/main.py
-
-    from pydantic import BaseModel
+      app = FastAPI()
 
 
-    class SearchTerms(BaseModel):
-        query: str
+      @app.get("/")
+      async def root():
+          return {"message": "Hello World"}
 
-    class SearchResult(BaseModel):
-        response: str | None = None
 
-Now we can define our endpoint and set the two classes we just added as its
-argument and return type.
+.. edb:split-section::
 
-.. code-block:: python
-    :caption: app/main.py
+  To start the server, we'll run:
 
-    @app.post("/search")
-    async def search(search_terms: SearchTerms) -> SearchResult:
-        return SearchResult(response=search_terms.query)
+  .. code-block:: bash
 
-Same as before, we can test the endpoint using the UI, or by sending a request
-with ``curl``:
+      $ fastapi dev app/main.py
 
-.. code-block:: bash
 
-   $ curl -X 'POST' \
-      'http://127.0.0.1:8000/search' \
-      -H 'accept: application/json' \
-      -H 'Content-Type: application/json' \
-      -d '{ "query": "string" }'
+.. edb:split-section::
 
-    {
-      "response": "string",
-    }
+  Once the server gets up and running, we can make sure it works using FastAPI's
+  built-in UI at <http://127.0.0.1:8000/docs>_, or manually by using ``curl``:
+
+  .. code-block:: bash
+
+      $ curl -X 'GET' \
+        'http://127.0.0.1:8000/' \
+        -H 'accept: application/json'
+
+      {"message":"Hello World"}
+
+
+.. edb:split-section::
+
+  Now, in order to create the endpoint we set out to create, we need to pass our
+  query as a parameter to it. We'd prefer to have it in the body of the request
+  since user messages can get pretty long.
+
+  In FastAPI land this is done by creating a Pydantic schema and making it the
+  type of the input parameter. `Pydantic <https://docs.pydantic.dev/latest/>`_ is
+  a data validation library for Python. It has many features, but we don't
+  actually need to know about them for now. All we need to know is that FastAPI
+  uses Pydantic types to automatically figure out schemas for `input
+  <https://fastapi.tiangolo.com/tutorial/body/>`_, as well as `output
+  <https://fastapi.tiangolo.com/tutorial/response-model/>`_.
+
+  Let's add the following to our ``main.py``:
+
+  .. code-block:: python
+      :caption: app/main.py
+
+      from pydantic import BaseModel
+
+
+      class SearchTerms(BaseModel):
+          query: str
+
+      class SearchResult(BaseModel):
+          response: str | None = None
+
+
+.. edb:split-section::
+
+  Now we can define our endpoint and set the two classes we just added as its
+  argument and return type.
+
+  .. code-block:: python
+      :caption: app/main.py
+
+      @app.post("/search")
+      async def search(search_terms: SearchTerms) -> SearchResult:
+          return SearchResult(response=search_terms.query)
+
+
+.. edb:split-section::
+
+  Same as before, we can test the endpoint using the UI, or by sending a request
+  with ``curl``:
+
+  .. code-block:: bash
+
+     $ curl -X 'POST' \
+        'http://127.0.0.1:8000/search' \
+        -H 'accept: application/json' \
+        -H 'Content-Type: application/json' \
+        -d '{ "query": "string" }'
+
+      {
+        "response": "string",
+      }
 
 3. Implement web search
 =======================
@@ -171,160 +196,168 @@ with ``curl``:
 Now that we have our web app infrastructure in place, let's add some substance
 to it by implementing web search capabilities.
 
-There're many powerful feature-rich products for LLM-driven web search. But in
-this tutorial we're going to use a much more reliable source of real-world
-information that is comment threads on Hacker News. Their web API is free of
-charge and doesn't require an account. Below is a simple function that requests
-a full-text search for a string query and extracts a nice sampling of comment
-threads from each of the stories that came up in the result.
+.. edb:split-section::
 
-.. note::
+  There're many powerful feature-rich products for LLM-driven web search. But in
+  this tutorial we're going to use a much more reliable source of real-world
+  information that is comment threads on Hacker News. Their web API is free of
+  charge and doesn't require an account. Below is a simple function that requests
+  a full-text search for a string query and extracts a nice sampling of comment
+  threads from each of the stories that came up in the result.
 
-    Link to HN
+  .. note::
 
-We are not going to cover this code sample in too much depth. Feel free to grab
-it save it to ``app/web.py``, or make your own.
+      Link to HN
 
+  We are not going to cover this code sample in too much depth. Feel free to grab
+  it save it to ``app/web.py``, or make your own.
 
-.. code-block:: python
-    :caption: app/web.py
-    :class: collapsible
+  Notice that we've created another Pydantic type called ``WebSource`` to store
+  our web search results. There's no framework-related reason for that, it's just
+  nicer than passing dictionaries around.
 
-    import requests
-    from pydantic import BaseModel
-    from datetime import datetime
-    import html
+  .. code-block:: python
+      :caption: app/web.py
+      :class: collapsible
 
-
-    class WebSource(BaseModel):
-        url: str | None = None
-        title: str | None = None
-        text: str | None = None
-
-
-    def extract_comment_thread(
-        comment: dict,
-        max_depth: int = 3,
-        current_depth: int = 0,
-        max_children=3,
-    ) -> list[str]:
-        """
-        Recursively extract comments from a thread up to max_depth.
-        Returns a list of formatted comment strings.
-        """
-        if not comment or current_depth > max_depth:
-            return []
-
-        results = []
-
-        if comment["text"]:
-            timestamp = datetime.fromisoformat(comment["created_at"].replace("Z", "+00:00"))
-            author = comment["author"]
-            text = html.unescape(comment["text"])
-            formatted_comment = f"[{timestamp.strftime('%Y-%m-%d %H:%M')}] {author}: {text}"
-            results.append(("  " * current_depth) + formatted_comment)
-
-        if comment.get("children"):
-            for child in comment["children"][:max_children]:
-                child_comments = extract_comment_thread(child, max_depth, current_depth + 1)
-                results.extend(child_comments)
-
-        return results
+      import requests
+      from pydantic import BaseModel
+      from datetime import datetime
+      import html
 
 
-    def fetch_web_sources(query: str, limit: int = 5) -> list[WebSource]:
-        search_url = "http://hn.algolia.com/api/v1/search_by_date"
-
-        response = requests.get(
-            search_url,
-            params={
-                "query": query,
-                "tags": "story",
-                "hitsPerPage": limit,
-                "page": 0,
-            },
-        )
-
-        response.raise_for_status()
-        search_result = response.json()
-
-        web_sources = []
-        for hit in search_result.get("hits", []):
-            item_url = f"https://hn.algolia.com/api/v1/items/{hit['story_id']}"
-            response = requests.get(item_url)
-            response.raise_for_status()
-            item_result = response.json()
-
-            site_url = f"https://news.ycombinator.com/item?id={hit['story_id']}"
-            title = hit["title"]
-            comments = extract_comment_thread(item_result)
-            text = "\n".join(comments) if len(comments) > 0 else None
-            web_sources.append(
-                WebSource(url=site_url, title=title, text=text)
-            )
-
-        return web_sources
+      class WebSource(BaseModel):
+          url: str | None = None
+          title: str | None = None
+          text: str | None = None
 
 
-    if __name__ == "__main__":
-        web_sources = fetch_web_sources("edgedb", limit=5)
+      def extract_comment_thread(
+          comment: dict,
+          max_depth: int = 3,
+          current_depth: int = 0,
+          max_children=3,
+      ) -> list[str]:
+          """
+          Recursively extract comments from a thread up to max_depth.
+          Returns a list of formatted comment strings.
+          """
+          if not comment or current_depth > max_depth:
+              return []
 
-        for source in web_sources:
-            print(source.url)
-            print(source.title)
-            print(source.text)
+          results = []
 
+          if comment["text"]:
+              timestamp = datetime.fromisoformat(comment["created_at"].replace("Z", "+00:00"))
+              author = comment["author"]
+              text = html.unescape(comment["text"])
+              formatted_comment = f"[{timestamp.strftime('%Y-%m-%d %H:%M')}] {author}: {text}"
+              results.append(("  " * current_depth) + formatted_comment)
 
-Notice that we've created another Pydantic type called ``WebSource`` to store
-our web search results. There's no framework-related reason for that, it's just
-nicer than passing dictionaries around.
+          if comment.get("children"):
+              for child in comment["children"][:max_children]:
+                  child_comments = extract_comment_thread(child, max_depth, current_depth + 1)
+                  results.extend(child_comments)
 
-One more note: this snippet comes with an extra dependency called ``requests``,
-which is a library for making HTTP requests. Let's add it by running:
-
-.. code-block:: bash
-
-    $ uv add requests
-
-
-Now we can test our web search on its own by running it like this:
-
-
-.. code-block:: bash
-
-    $ python3 app/web.py
-
-
-It's time to reflect the new capabilities in our web app. We're going to hack
-our way around the fact that many stories on HN come with no comment threads.
-
-.. code-block:: python
-     :caption: app/main.py
-
-     from .web import fetch_web_sources, WebSource
-
-     async def search_web(query: str) -> list[WebSource]:
-         raw_souces = fetch_web_sources(query, limit=30)
-         return [s for s in raw_souces if s.text is not None][:5]
+          return results
 
 
-Now we can update the ``/search`` endpoint as follows:
+      def fetch_web_sources(query: str, limit: int = 5) -> list[WebSource]:
+          search_url = "http://hn.algolia.com/api/v1/search_by_date"
 
-.. code-block:: python-diff
-    :caption: app/main.py
+          response = requests.get(
+              search_url,
+              params={
+                  "query": query,
+                  "tags": "story",
+                  "hitsPerPage": limit,
+                  "page": 0,
+              },
+          )
 
-      class SearchResult(BaseModel):
-          response: str | None = None
-    +     sources: list[WebSource] | None = None
+          response.raise_for_status()
+          search_result = response.json()
+
+          web_sources = []
+          for hit in search_result.get("hits", []):
+              item_url = f"https://hn.algolia.com/api/v1/items/{hit['story_id']}"
+              response = requests.get(item_url)
+              response.raise_for_status()
+              item_result = response.json()
+
+              site_url = f"https://news.ycombinator.com/item?id={hit['story_id']}"
+              title = hit["title"]
+              comments = extract_comment_thread(item_result)
+              text = "\n".join(comments) if len(comments) > 0 else None
+              web_sources.append(
+                  WebSource(url=site_url, title=title, text=text)
+              )
+
+          return web_sources
 
 
-      @app.post("/search")
-      async def search(search_terms: SearchTerms) -> SearchResult:
-    +     web_sources = await search_web(search_terms.query)
-    -     return SearchResult(response=search_terms.query)
-    +     return SearchResult(
-    +         response=search_terms.query, sources=web_sources
-    +     )
+      if __name__ == "__main__":
+          web_sources = fetch_web_sources("edgedb", limit=5)
+
+          for source in web_sources:
+              print(source.url)
+              print(source.title)
+              print(source.text)
+
+
+.. edb:split-section::
+
+  One more note: this snippet comes with an extra dependency called ``requests``,
+  which is a library for making HTTP requests. Let's add it by running:
+
+  .. code-block:: bash
+
+      $ uv add requests
+
+
+.. edb:split-section::
+
+  Now we can test our web search on its own by running it like this:
+
+  .. code-block:: bash
+
+      $ python3 app/web.py
+
+
+.. edb:split-section::
+
+  It's time to reflect the new capabilities in our web app. We're going to hack
+  our way around the fact that many stories on HN come with no comment threads.
+
+  .. code-block:: python
+       :caption: app/main.py
+
+       from .web import fetch_web_sources, WebSource
+
+       async def search_web(query: str) -> list[WebSource]:
+           raw_souces = fetch_web_sources(query, limit=30)
+           return [s for s in raw_souces if s.text is not None][:5]
+
+
+.. edb:split-section::
+
+  Now we can update the ``/search`` endpoint as follows:
+
+  .. code-block:: python-diff
+      :caption: app/main.py
+
+        class SearchResult(BaseModel):
+            response: str | None = None
+      +     sources: list[WebSource] | None = None
+
+
+        @app.post("/search")
+        async def search(search_terms: SearchTerms) -> SearchResult:
+      +     web_sources = await search_web(search_terms.query)
+      -     return SearchResult(response=search_terms.query)
+      +     return SearchResult(
+      +         response=search_terms.query, sources=web_sources
+      +     )
 
 
 4. Connect to the LLM
@@ -333,128 +366,140 @@ Now we can update the ``/search`` endpoint as follows:
 Now that we're capable of scraping text from search results, we can forward
 those results to the LLM to get a nice-looking summary.
 
-There's a million different LLMs accessible via a web API, feel free to choose
-whichever you prefer. In this tutorial we will roll with OpenAI, primarily for
-how ubiquitous it is. To keep things somewhat provider-agnostic, we're going to
-get completions via raw HTTP requests. Let's grab API descriptions from
-OpenAI's `API documentation
-<https://platform.openai.com/docs/api-reference/chat/create>`_, and set up LLM
-generation like this:
+.. edb:split-section::
 
-.. code-block:: python
-    :caption: app/main.py
+  There's a million different LLMs accessible via a web API, feel free to choose
+  whichever you prefer. In this tutorial we will roll with OpenAI, primarily for
+  how ubiquitous it is. To keep things somewhat provider-agnostic, we're going to
+  get completions via raw HTTP requests. Let's grab API descriptions from
+  OpenAI's `API documentation
+  <https://platform.openai.com/docs/api-reference/chat/create>`_, and set up LLM
+  generation like this:
 
-    import requests
-    from dotenv import load_dotenv
+  .. code-block:: python
+      :caption: app/main.py
 
-    _ = load_dotenv()
+      import requests
+      from dotenv import load_dotenv
 
-
-    def get_llm_completion(system_prompt: str, messages: list[dict[str, str]]) -> str:
-        api_key = os.getenv("OPENAI_API_KEY")
-        url = "https://api.openai.com/v1/chat/completions"
-        headers = {"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"}
-
-        response = requests.post(
-            url,
-            headers=headers,
-            json={
-                "model": "gpt-4o-mini",
-                "messages": [
-                    {"role": "developer", "content": system_prompt},
-                    *messages,
-                ],
-            },
-        )
-        response.raise_for_status()
-        result = response.json()
-        return result["choices"][0]["message"]["content"]
+      _ = load_dotenv()
 
 
-Note that this cloud LLM API (and many others) requires a secret key to be set
-as an environment variable. A common way to manage those is to use the
-``python-dotenv`` library in combinations with a ``.env`` file. Feel free to
-browse `the readme
-<https://github.com/theskumar/python-dotenv?tab=readme-ov-file#getting-started>`_,
-although it's also quite simple to use. Create a file called ``.env`` in the
-root directory and put your api key in there:
+      def get_llm_completion(system_prompt: str, messages: list[dict[str, str]]) -> str:
+          api_key = os.getenv("OPENAI_API_KEY")
+          url = "https://api.openai.com/v1/chat/completions"
+          headers = {"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"}
 
-.. code-block:: .env
-    :caption: .env
-
-    OPENAI_API_KEY="sk-..."
-
-
-Don't forget to add the new dependency to the environment:
-
-.. code-snippet:: bash
-
-    uv add python-dotenv
-
-
-And now we can integrate this LLM-related code with the rest of the app. First,
-let's set up the function that prepares LLM inputs:
+          response = requests.post(
+              url,
+              headers=headers,
+              json={
+                  "model": "gpt-4o-mini",
+                  "messages": [
+                      {"role": "developer", "content": system_prompt},
+                      *messages,
+                  ],
+              },
+          )
+          response.raise_for_status()
+          result = response.json()
+          return result["choices"][0]["message"]["content"]
 
 
-.. code-block:: python
-    :caption: app/main.py
+.. edb:split-section::
 
-    async def generate_answer(
-        query: str,
-        web_sources: list[WebSource],
-    ) -> SearchResult:
-        system_prompt = (
-            "You are a helpful assistant that answers user's questions"
-            + " by finding relevant information in HackerNews threads."
-            + " When answering the question, describe conversations that people have around the subject,"
-            + " provided to you as a context, or say i don't know if they are completely irrelevant."
-        )
+  Note that this cloud LLM API (and many others) requires a secret key to be set
+  as an environment variable. A common way to manage those is to use the
+  ``python-dotenv`` library in combinations with a ``.env`` file. Feel free to
+  browse `the readme
+  <https://github.com/theskumar/python-dotenv?tab=readme-ov-file#getting-started>`_,
+  although it's also quite simple to use. Create a file called ``.env`` in the
+  root directory and put your api key in there:
 
-        prompt = f"User search query: {query}\n\nWeb search results:\n"
+  .. code-block:: .env
+      :caption: .env
 
-        for i, source in enumerate(web_sources):
-            prompt += f"Result {i} (URL: {source.url}):\n"
-            prompt += f"{source.text}\n\n"
-
-        messages = [{"role": "user", "content": prompt}]
-
-        llm_response = get_llm_completion(
-            system_prompt=system_prompt,
-            messages=messages,
-        )
-
-        search_result = SearchResult(
-            response=llm_response,
-            sources=web_sources,
-        )
-
-        return search_result
+      OPENAI_API_KEY="sk-..."
 
 
-Then we can plug that function into the ``/search`` endpoint:
+.. edb:split-section::
 
-.. code-block:: python-diff
-    :caption: app/main.py
+  Don't forget to add the new dependency to the environment:
 
-      @app.post("/search")
-      async def search(search_terms: SearchTerms) -> SearchResult:
-          web_sources = await search_web(search_terms.query)
-    +     search_result = await generate_answer(search_terms.query, web_sources)
-    +     return search_result
-    -     return SearchResult(
-    -         response=search_terms.query, sources=web_sources
-    -     )
+  .. code-block:: bash
+
+      uv add python-dotenv
 
 
-And now we can test the result as usual.
+.. edb:split-section::
 
-.. code-block:: bash
+  And now we can integrate this LLM-related code with the rest of the app. First,
+  let's set up the function that prepares LLM inputs:
 
-    $ curl -X 'POST' \
-        'http://127.0.0.1:8000/search' \
-        -H 'accept: application/json' \
-        -H 'Content-Type: application/json' \
-        -d '{ "query": "gel" }'
+
+  .. code-block:: python
+      :caption: app/main.py
+
+      async def generate_answer(
+          query: str,
+          web_sources: list[WebSource],
+      ) -> SearchResult:
+          system_prompt = (
+              "You are a helpful assistant that answers user's questions"
+              + " by finding relevant information in HackerNews threads."
+              + " When answering the question, describe conversations that people have around the subject,"
+              + " provided to you as a context, or say i don't know if they are completely irrelevant."
+          )
+
+          prompt = f"User search query: {query}\n\nWeb search results:\n"
+
+          for i, source in enumerate(web_sources):
+              prompt += f"Result {i} (URL: {source.url}):\n"
+              prompt += f"{source.text}\n\n"
+
+          messages = [{"role": "user", "content": prompt}]
+
+          llm_response = get_llm_completion(
+              system_prompt=system_prompt,
+              messages=messages,
+          )
+
+          search_result = SearchResult(
+              response=llm_response,
+              sources=web_sources,
+          )
+
+          return search_result
+
+
+.. edb:split-section::
+
+  Then we can plug that function into the ``/search`` endpoint:
+
+  .. code-block:: python-diff
+      :caption: app/main.py
+
+        @app.post("/search")
+        async def search(search_terms: SearchTerms) -> SearchResult:
+            web_sources = await search_web(search_terms.query)
+      +     search_result = await generate_answer(search_terms.query, web_sources)
+      +     return search_result
+      -     return SearchResult(
+      -         response=search_terms.query, sources=web_sources
+      -     )
+
+
+.. edb:split-section::
+
+  And now we can test the result as usual.
+
+  .. code-block:: bash
+
+      $ curl -X 'POST' \
+          'http://127.0.0.1:8000/search' \
+          -H 'accept: application/json' \
+          -H 'Content-Type: application/json' \
+          -d '{ "query": "gel" }'
 
 
 5. Use Gel to implement chat history
@@ -471,13 +516,15 @@ infer the query from the context of the entire conversation.
 
 Now's a good time to introduce Gel.
 
-In case you need installation instructions, take a look at the :ref:`Quickstart
-<ref_quickstart>`. Once Gel CLI is present in your system, initialize the
-project like this:
+.. edb:split-section::
 
-.. code-block:: bash
+  In case you need installation instructions, take a look at the :ref:`Quickstart
+  <ref_quickstart>`. Once Gel CLI is present in your system, initialize the
+  project like this:
 
-    $ gel project init --non-interactive
+  .. code-block:: bash
+
+      $ gel project init --non-interactive
 
 
 This command is going to put some project scaffolding inside our app, spin up a
@@ -495,205 +542,225 @@ declaratively. The :ref:`gel project init <ref_cli_edgedb_project_init>`
 command has created a file called ``dbchema/default.esdl``, which we're going to
 use to define our types.
 
-We obviously want to keep track of messages, so we need to represent those in
-the schema. By convention established in the LLM space, each message is going to
-have a role in addition to the message content itself. We can also get Gel to
-automatically keep track of message's creation time by adding a property callled
-``timestamp`` and setting its :ref:`default value <ref_datamodel_props>` to the
-output of the :ref:`datetime_current() <ref_std_datetime>` function. Finally,
-LLM messages in our searchbot have souce URLs associated with them. Let's keep
-track of those too, by adding a :ref:`multi-link property
-<ref_datamodel_links>`.
+.. edb:split-section::
 
-.. code-block:: sdl
-    :caption: dbschema/default.esdl
+  We obviously want to keep track of messages, so we need to represent those in
+  the schema. By convention established in the LLM space, each message is going to
+  have a role in addition to the message content itself. We can also get Gel to
+  automatically keep track of message's creation time by adding a property callled
+  ``timestamp`` and setting its :ref:`default value <ref_datamodel_props>` to the
+  output of the :ref:`datetime_current() <ref_std_datetime>` function. Finally,
+  LLM messages in our searchbot have souce URLs associated with them. Let's keep
+  track of those too, by adding a :ref:`multi-link property
+  <ref_datamodel_links>`.
 
-    type Message {
-        role: str;
-        body: str;
-        timestamp: datetime {
-            default := datetime_current();
-        }
-        multi sources: str;
-    }
+  .. code-block:: sdl
+      :caption: dbschema/default.esdl
 
-Messages are grouped together into a chat, so let's add that entity to our
-schema too.
-
-.. code-block:: sdl
-    :caption: dbschema/default.esdl
-
-    type Chat {
-        multi messages: Message;
-    }
-
-And chats all belong to a certain user, making up their chat history. One other
-thing we'd like to keep track of about our users is their username, and it would
-make sense for us to make sure that it's unique by using an ``excusive``
-:ref:`constraint <ref_datamodel_constraints>`.
+      type Message {
+          role: str;
+          body: str;
+          timestamp: datetime {
+              default := datetime_current();
+          }
+          multi sources: str;
+      }
 
 
-.. code-block:: sdl
-    :caption: dbschema/default.esdl
+.. edb:split-section::
 
-    type User {
-        name: str {
-            constraint exclusive;
-        }
-        multi chats: Chat;
-    }
+  Messages are grouped together into a chat, so let's add that entity to our
+  schema too.
 
-We're going to keep our schema super simple. One cool thing about Gel is that
-it will enable us to easily implement advanced features such as authentication
-or AI down the road, but we're gonna come back to that later.
+  .. code-block:: sdl
+      :caption: dbschema/default.esdl
 
-For now, this is the entire schema we came up with:
+      type Chat {
+          multi messages: Message;
+      }
 
-.. code-block:: sdl
-    :caption: dbschema/default.esdl
 
-    module default {
-        type Message {
-            role: str;
-            body: str;
-            timestamp: datetime {
-                default := datetime_current();
-            }
-            multi sources: str;
-        }
+.. edb:split-section::
 
-        type Chat {
-            multi messages: Message;
-        }
+  And chats all belong to a certain user, making up their chat history. One other
+  thing we'd like to keep track of about our users is their username, and it would
+  make sense for us to make sure that it's unique by using an ``excusive``
+  :ref:`constraint <ref_datamodel_constraints>`.
 
-        type User {
-            name: str {
-                constraint exclusive;
-            }
-            multi chats: Chat;
-        }
-    }
+  .. code-block:: sdl
+      :caption: dbschema/default.esdl
 
-Let's use the :ref:`gel migration create <ref_cli_edgedb_migration_create>` CLI
-command, followed by :ref:`gel migrate <ref_cli_edgedb_migrate>` in order to
-migrate to our new schema and proceed to writing some queries.
+      type User {
+          name: str {
+              constraint exclusive;
+          }
+          multi chats: Chat;
+      }
 
-.. code-block:: bash
 
-    $ gel migration create
+.. edb:split-section::
 
-.. code-block:: bash
+  We're going to keep our schema super simple. One cool thing about Gel is that
+  it will enable us to easily implement advanced features such as authentication
+  or AI down the road, but we're gonna come back to that later.
 
-    $ gel migrate
+  For now, this is the entire schema we came up with:
 
-Now that our schema is applied, let's quickly populate the database with some
-fake data in order to be able to test the queries. We're going to explore
-writing queries in a bit, but for now you can just run the following command in
-the shell:
+  .. code-block:: sdl
+      :caption: dbschema/default.esdl
 
-.. code-block:: bash
-    :class: collapsible
+      module default {
+          type Message {
+              role: str;
+              body: str;
+              timestamp: datetime {
+                  default := datetime_current();
+              }
+              multi sources: str;
+          }
 
-    $ mkdir app/sample_data && cat << 'EOF' > app/sample_data/inserts.edgeql
-    # Create users first
-    insert User {
-        name := 'alice',
-    };
-    insert User {
-        name := 'bob',
-    };
-    # Insert chat histories for Alice
-    update User
-    filter .name = 'alice'
-    set {
-        chats := {
-            (insert Chat {
-                messages := {
-                    (insert Message {
-                        role := 'user',
-                        body := 'What are the main differences between GPT-3 and GPT-4?',
-                        timestamp := <datetime>'2024-01-07T10:00:00Z',
-                        sources := {'arxiv:2303.08774', 'openai.com/research/gpt-4'}
-                    }),
-                    (insert Message {
-                        role := 'assistant',
-                        body := 'The key differences include improved reasoning capabilities, better context understanding, and enhanced safety features...',
-                        timestamp := <datetime>'2024-01-07T10:00:05Z',
-                        sources := {'openai.com/blog/gpt-4-details', 'arxiv:2303.08774'}
-                    })
-                }
-            }),
-            (insert Chat {
-                messages := {
-                    (insert Message {
-                        role := 'user',
-                        body := 'Can you explain what policy gradient methods are in RL?',
-                        timestamp := <datetime>'2024-01-08T14:30:00Z',
-                        sources := {'Sutton-Barto-RL-Book-Ch13', 'arxiv:1904.12901'}
-                    }),
-                    (insert Message {
-                        role := 'assistant',
-                        body := 'Policy gradient methods are a class of reinforcement learning algorithms that directly optimize the policy...',
-                        timestamp := <datetime>'2024-01-08T14:30:10Z',
-                        sources := {'Sutton-Barto-RL-Book-Ch13', 'spinning-up.openai.com'}
-                    })
-                }
-            })
-        }
-    };
-    # Insert chat histories for Bob
-    update User
-    filter .name = 'bob'
-    set {
-        chats := {
-            (insert Chat {
-                messages := {
-                    (insert Message {
-                        role := 'user',
-                        body := 'What are the pros and cons of different sharding strategies?',
-                        timestamp := <datetime>'2024-01-05T16:15:00Z',
-                        sources := {'martin-kleppmann-ddia-ch6', 'aws.amazon.com/sharding-patterns'}
-                    }),
-                    (insert Message {
-                        role := 'assistant',
-                        body := 'The main sharding strategies include range-based, hash-based, and directory-based sharding...',
-                        timestamp := <datetime>'2024-01-05T16:15:08Z',
-                        sources := {'martin-kleppmann-ddia-ch6', 'mongodb.com/docs/sharding'}
-                    }),
-                    (insert Message {
-                        role := 'user',
-                        body := 'Could you elaborate on hash-based sharding?',
-                        timestamp := <datetime>'2024-01-05T16:16:00Z',
-                        sources := {'mongodb.com/docs/sharding'}
-                    })
-                }
-            })
-        }
-    };
-    EOF
+          type Chat {
+              multi messages: Message;
+          }
 
-This created the ``app/sample_data/inserts.edgeql`` file, which we can now execute
-using the CLI like this:
+          type User {
+              name: str {
+                  constraint exclusive;
+              }
+              multi chats: Chat;
+          }
+      }
 
-.. code-block:: bash
 
-    $ gel query -f app/sample_data/inserts.edgeql
+.. edb:split-section::
 
-    {"id": "862de904-de39-11ef-9713-4fab09220c4a"}
-    {"id": "862e400c-de39-11ef-9713-2f81f2b67013"}
-    {"id": "862de904-de39-11ef-9713-4fab09220c4a"}
-    {"id": "862e400c-de39-11ef-9713-2f81f2b67013"}
+  Let's use the :ref:`gel migration create <ref_cli_edgedb_migration_create>` CLI
+  command, followed by :ref:`gel migrate <ref_cli_edgedb_migrate>` in order to
+  migrate to our new schema and proceed to writing some queries.
 
-The :ref:`gel query <ref_cli_edgedb_query>` command is one of many ways we can
-execute a query in Gel. Now that we've done it, there's stuff in the database.
-Let's verify it by running:
+  .. code-block:: bash
 
-.. code-block:: bash
+      $ gel migration create
+      $ gel migrate
 
-    $ gel query "select User { name };"
 
-    {"name": "alice"}
-    {"name": "bob"}
+.. edb:split-section::
+
+  Now that our schema is applied, let's quickly populate the database with some
+  fake data in order to be able to test the queries. We're going to explore
+  writing queries in a bit, but for now you can just run the following command in
+  the shell:
+
+  .. code-block:: bash
+      :class: collapsible
+
+      $ mkdir app/sample_data && cat << 'EOF' > app/sample_data/inserts.edgeql
+      # Create users first
+      insert User {
+          name := 'alice',
+      };
+      insert User {
+          name := 'bob',
+      };
+      # Insert chat histories for Alice
+      update User
+      filter .name = 'alice'
+      set {
+          chats := {
+              (insert Chat {
+                  messages := {
+                      (insert Message {
+                          role := 'user',
+                          body := 'What are the main differences between GPT-3 and GPT-4?',
+                          timestamp := <datetime>'2024-01-07T10:00:00Z',
+                          sources := {'arxiv:2303.08774', 'openai.com/research/gpt-4'}
+                      }),
+                      (insert Message {
+                          role := 'assistant',
+                          body := 'The key differences include improved reasoning capabilities, better context understanding, and enhanced safety features...',
+                          timestamp := <datetime>'2024-01-07T10:00:05Z',
+                          sources := {'openai.com/blog/gpt-4-details', 'arxiv:2303.08774'}
+                      })
+                  }
+              }),
+              (insert Chat {
+                  messages := {
+                      (insert Message {
+                          role := 'user',
+                          body := 'Can you explain what policy gradient methods are in RL?',
+                          timestamp := <datetime>'2024-01-08T14:30:00Z',
+                          sources := {'Sutton-Barto-RL-Book-Ch13', 'arxiv:1904.12901'}
+                      }),
+                      (insert Message {
+                          role := 'assistant',
+                          body := 'Policy gradient methods are a class of reinforcement learning algorithms that directly optimize the policy...',
+                          timestamp := <datetime>'2024-01-08T14:30:10Z',
+                          sources := {'Sutton-Barto-RL-Book-Ch13', 'spinning-up.openai.com'}
+                      })
+                  }
+              })
+          }
+      };
+      # Insert chat histories for Bob
+      update User
+      filter .name = 'bob'
+      set {
+          chats := {
+              (insert Chat {
+                  messages := {
+                      (insert Message {
+                          role := 'user',
+                          body := 'What are the pros and cons of different sharding strategies?',
+                          timestamp := <datetime>'2024-01-05T16:15:00Z',
+                          sources := {'martin-kleppmann-ddia-ch6', 'aws.amazon.com/sharding-patterns'}
+                      }),
+                      (insert Message {
+                          role := 'assistant',
+                          body := 'The main sharding strategies include range-based, hash-based, and directory-based sharding...',
+                          timestamp := <datetime>'2024-01-05T16:15:08Z',
+                          sources := {'martin-kleppmann-ddia-ch6', 'mongodb.com/docs/sharding'}
+                      }),
+                      (insert Message {
+                          role := 'user',
+                          body := 'Could you elaborate on hash-based sharding?',
+                          timestamp := <datetime>'2024-01-05T16:16:00Z',
+                          sources := {'mongodb.com/docs/sharding'}
+                      })
+                  }
+              })
+          }
+      };
+      EOF
+
+
+.. edb:split-section::
+
+  This created the ``app/sample_data/inserts.edgeql`` file, which we can now execute
+  using the CLI like this:
+
+  .. code-block:: bash
+
+      $ gel query -f app/sample_data/inserts.edgeql
+
+      {"id": "862de904-de39-11ef-9713-4fab09220c4a"}
+      {"id": "862e400c-de39-11ef-9713-2f81f2b67013"}
+      {"id": "862de904-de39-11ef-9713-4fab09220c4a"}
+      {"id": "862e400c-de39-11ef-9713-2f81f2b67013"}
+
+
+.. edb:split-section::
+
+  The :ref:`gel query <ref_cli_edgedb_query>` command is one of many ways we can
+  execute a query in Gel. Now that we've done it, there's stuff in the database.
+  Let's verify it by running:
+
+  .. code-block:: bash
+
+      $ gel query "select User { name };"
+
+      {"name": "alice"}
+      {"name": "bob"}
+
 
 Writing queries
 ---------------
@@ -707,424 +774,470 @@ generate typesafe function that we can plug directly into out Python code. If
 you are completely unfamiliar with EdgeQL, now is a good time to check out the
 basics before proceeding.
 
-Let's move on. First, we'll create a directory inside ``app`` called
-``queries``. This is where we're going to put all of the EdgeQL-related stuff.
 
-We're going to start by writing a query that fetches all of the users. In
-``queries`` create a file named ``get_users.edgeql`` and put the following query
-in there:
+.. edb:split-section::
 
-.. code-block:: edgeql
-    :caption: app/queries/get_users.edgeql
+  Let's move on. First, we'll create a directory inside ``app`` called
+  ``queries``. This is where we're going to put all of the EdgeQL-related stuff.
 
-    select User { name };
+  We're going to start by writing a query that fetches all of the users. In
+  ``queries`` create a file named ``get_users.edgeql`` and put the following query
+  in there:
 
-Now run the code generator from the shell:
+  .. code-block:: edgeql
+      :caption: app/queries/get_users.edgeql
 
-.. code-block:: bash
-
-    $ gel-py
-
-It's going to automatically locate the ``.edgeql`` file and generate types for
-it. We can inspect generated code in ``app.queries/get_users_async_edgeql.py``.
-Once that is done, let's use those types to create the endpoint in ``main.py``:
-
-.. code-block:: python
-    :caption: app/main.py
-
-    from edgedb import create_async_client
-    from .queries.get_users_async_edgeql import get_users as get_users_query, GetUsersResult
+      select User { name };
 
 
-    gel_client = create_async_client()
+.. edb:split-section::
 
-    @app.get("/users")
-    async def get_users() -> list[GetUsersResult]:
-        return await get_users_query(gel_client)
+  Now run the code generator from the shell:
 
-Let's verify it that works as expected:
+  .. code-block:: bash
 
-.. code-block:: bash
+      $ gel-py
 
-    $ curl -X 'GET' \
-    'http://127.0.0.1:8000/users' \
-    -H 'accept: application/json'
 
-    [
+.. edb:split-section::
+
+  It's going to automatically locate the ``.edgeql`` file and generate types for
+  it. We can inspect generated code in ``app.queries/get_users_async_edgeql.py``.
+  Once that is done, let's use those types to create the endpoint in ``main.py``:
+
+  .. code-block:: python
+      :caption: app/main.py
+
+      from edgedb import create_async_client
+      from .queries.get_users_async_edgeql import get_users as get_users_query, GetUsersResult
+
+
+      gel_client = create_async_client()
+
+      @app.get("/users")
+      async def get_users() -> list[GetUsersResult]:
+          return await get_users_query(gel_client)
+
+
+.. edb:split-section::
+
+  Let's verify it that works as expected:
+
+  .. code-block:: bash
+
+      $ curl -X 'GET' \
+      'http://127.0.0.1:8000/users' \
+      -H 'accept: application/json'
+
+      [
+        {
+          "id": "862de904-de39-11ef-9713-4fab09220c4a",
+          "name": "alice"
+        },
+        {
+          "id": "862e400c-de39-11ef-9713-2f81f2b67013",
+          "name": "bob"
+        }
+      ]
+
+
+.. edb:split-section::
+
+  While we're at it, let's also implement the option to fetch a user by their
+  username. In order to do that, we need to write a new query in a separate file
+  ``app/queries/get_user_by_name.edgeql``:
+
+  .. code-block:: edgeql
+      :caption: app/queries/get_user_by_name.edgeql
+
+      select User { name }
+      filter .name = <str>$name;
+
+
+.. edb:split-section::
+
+  After that, we will run the code generator again by calling ``gel-py``. In the
+  app, we are going to reuse the same endpoint that fetches the list of all users.
+  From now on, if the user calls it without any arguments (e.g.
+  ``http://127.0.0.1/users``), they are going to receive the list of all users,
+  same as before. But if they pass a username as a query argument like this:
+  ``http://127.0.0.1/users?username=bob``, the system will attempt to fetch a user
+  named ``bob``.
+
+  In order to achieve this, we're going to need to add a ``Query``-type argument
+  to our endpoint function. You can learn more about how to configure this type of
+  arguments in `FastAPI's docs
+  <https://fastapi.tiangolo.com/tutorial/query-params/>`_. It's default value is
+  going to be ``None``, which will enable us to implement our conditional logic:
+
+  .. code-block:: python
+      :caption: app/main.py
+
+      from fastapi import Query, HTTPException
+      from http import HTTPStatus
+      from .queries.get_user_by_name_async_edgeql import (
+          get_user_by_name as get_user_by_name_query,
+          GetUserByNameResult,
+      )
+
+
+      @app.get("/users")
+      async def get_users(
+          username: str = Query(None),
+      ) -> list[GetUsersResult] | GetUserByNameResult:
+          """List all users or get a user by their username"""
+          if username:
+              user = await get_user_by_name_query(gel_client, name=username)
+              if not user:
+                  raise HTTPException(
+                      HTTPStatus.NOT_FOUND,
+                      detail={"error": f"Error: user {username} does not exist."},
+                  )
+              return user
+          else:
+              return await get_users_query(gel_client)
+
+
+.. edb:split-section::
+
+  And once again, let's verify that everything works:
+
+  .. code-block:: bash
+
+      $ curl -X 'GET' \
+        'http://127.0.0.1:8000/users?username=alice' \
+        -H 'accept: application/json'
+
       {
         "id": "862de904-de39-11ef-9713-4fab09220c4a",
         "name": "alice"
-      },
-      {
-        "id": "862e400c-de39-11ef-9713-2f81f2b67013",
-        "name": "bob"
       }
-    ]
 
 
-While we're at it, let's also implement the option to fetch a user by their
-username. In order to do that, we need to write a new query in a separate file
-``app/queries/get_user_by_name.edgeql``:
+.. edb:split-section::
 
-.. code-block:: edgeql
-    :caption: app/queries/get_user_by_name.edgeql
+  Finally, let's also implement the option to add a new user. For this, just as
+  before, we'll create a new file ``app/queries/create_user.edgeql``, add a query
+  to it and run code generation.
 
-    select User { name }
-    filter .name = <str>$name;
+  Note that in this query we've wrapped the ``insert`` in a ``select`` statement.
+  This is a common pattern in EdgeQL, that can be used whenever you would like to
+  get something other than object ID when you just inserted it.
 
-After that, we will run the code generator again by calling ``gel-py``. In the
-app, we are going to reuse the same endpoint that fetches the list of all users.
-From now on, if the user calls it without any arguments (e.g.
-``http://127.0.0.1/users``), they are going to receive the list of all users,
-same as before. But if they pass a username as a query argument like this:
-``http://127.0.0.1/users?username=bob``, the system will attempt to fetch a user
-named ``bob``.
+  .. code-block:: edgeql
+      :caption: app/queries/create_user.edgeql
 
-In order to achieve this, we're going to need to add a ``Query``-type argument
-to our endpoint function. You can learn more about how to configure this type of
-arguments in `FastAPI's docs
-<https://fastapi.tiangolo.com/tutorial/query-params/>`_. It's default value is
-going to be ``None``, which will enable us to implement our conditional logic:
-
-.. code-block:: python
-    :caption: app/main.py
-
-    from fastapi import Query, HTTPException
-    from http import HTTPStatus
-    from .queries.get_user_by_name_async_edgeql import (
-        get_user_by_name as get_user_by_name_query,
-        GetUserByNameResult,
-    )
+      select(
+          insert User {
+              name := <str>$username
+          }
+      ) {
+          name
+      }
 
 
-    @app.get("/users")
-    async def get_users(
-        username: str = Query(None),
-    ) -> list[GetUsersResult] | GetUserByNameResult:
-        """List all users or get a user by their username"""
-        if username:
-            user = await get_user_by_name_query(gel_client, name=username)
-            if not user:
-                raise HTTPException(
-                    HTTPStatus.NOT_FOUND,
-                    detail={"error": f"Error: user {username} does not exist."},
-                )
-            return user
-        else:
-            return await get_users_query(gel_client)
+
+.. edb:split-section::
+
+  In order to integrate this query into our app, we're going to add a new
+  endpoint. Note that this one has the same name ``/users``, but is for the POST
+  HTTP method.
+
+  .. code-block:: python
+      :caption: app/main.py
+
+      from gel import ConstraintViolationError
+      from .queries.create_user_async_edgeql import (
+          create_user as create_user_query,
+          CreateUserResult,
+      )
+
+      @app.post("/users", status_code=HTTPStatus.CREATED)
+      async def post_user(username: str = Query()) -> CreateUserResult:
+          try:
+              return await create_user_query(gel_client, username=username)
+          except ConstraintViolationError:
+              raise HTTPException(
+                  status_code=HTTPStatus.BAD_REQUEST,
+                  detail={"error": f"Username '{username}' already exists."},
+              )
 
 
-And once again, let's verify that everything works:
+.. edb:split-section::
 
-.. code-block:: bash
+  Once more, let's verify that the new endpoint works as expected:
 
-    $ curl -X 'GET' \
-      'http://127.0.0.1:8000/users?username=alice' \
-      -H 'accept: application/json'
+  .. code-block:: bash
 
-    {
-      "id": "862de904-de39-11ef-9713-4fab09220c4a",
-      "name": "alice"
-    }
+      $ curl -X 'POST' \
+        'http://127.0.0.1:8000/users?username=charlie' \
+        -H 'accept: application/json' \
+        -d ''
+
+      {
+        "id": "20372a1a-ded5-11ef-9a08-b329b578c45c",
+        "name": "charlie"
+      }
 
 
-Finally, let's also implement the option to add a new user. For this, just as
-before, we'll create a new file ``app/queries/create_user.edgeql``, add a query
-to it and run code generation.
+.. edb:split-section::
 
-.. code-block:: edgeql
-    :caption: app/queries/create_user.edgeql
+  This wraps things up for our user-related functionality. Of course, we now need
+  to deal with Chats and Messages, too. We're not going to go in depth for those,
+  since the process would be quite similar to what we've just done. Instead, feel
+  free to implement those endpoints yourself as an exercise, or copy the code
+  below if you are in rush.
 
-    select(
-        insert User {
-            name := <str>$username
-        }
-    ) {
-        name
-    }
+  .. code-block:: bash
 
-Note that in this query we've wrapped the ``insert`` in a ``select`` statement.
-This is a common pattern in EdgeQL, that can be used whenever you would like to
-get something other than object ID when you just inserted it.
+      $ echo 'select Chat {
+          messages: { role, body, sources },
+          user := .<chats[is User],
+      } filter .user.name = <str>$username;' > app/queries/get_chats.edgeql && echo 'select Chat {
+          messages: { role, body, sources },
+          user := .<chats[is User],
+      } filter .user.name = <str>$username and .id = <uuid>$chat_id;' > app/queries/get_chat_by_id.edgeql && echo 'with new_chat := (insert Chat)
+      select (
+          update User filter .name = <str>$username
+          set {
+              chats := assert_distinct(.chats union new_chat)
+          }
+      ) {
+          new_chat_id := new_chat.id
+      }' > app/queries/create_chat.edgeql && echo 'with
+          user := (select User filter .name = <str>$username),
+          chat := (
+              select Chat filter .<chats[is User] = user and .id = <uuid>$chat_id
+          )
+      select Message {
+          role,
+          body,
+          sources,
+          chat := .<messages[is Chat]
+      } filter .chat = chat;' > app/queries/get_messages.edgeql && echo 'with
+          user := (select User filter .name = <str>$username),
+      update Chat
+      filter .id = <uuid>$chat_id and .<chats[is User] = user
+      set {
+          messages := assert_distinct(.messages union (
+              insert Message {
+                  role := <str>$message_role,
+                  body := <str>$message_body,
+                  sources := array_unpack(<array<str>>$sources)
+              }
+          ))
+      }' > app/queries/add_message.edgeql
 
-In order to integrate this query into our app, we're going to add a new
-endpoint. Note that this one has the same name ``/users``, but is for the POST
-HTTP method.
 
-.. code-block:: python
-    :caption: app/main.py
+.. edb:split-section::
 
-    from gel import ConstraintViolationError
-    from .queries.create_user_async_edgeql import (
-        create_user as create_user_query,
-        CreateUserResult,
-    )
+  And these are the endpoint definitions, provided in bulk.
 
-    @app.post("/users", status_code=HTTPStatus.CREATED)
-    async def post_user(username: str = Query()) -> CreateUserResult:
-        try:
-            return await create_user_query(gel_client, username=username)
-        except ConstraintViolationError:
-            raise HTTPException(
-                status_code=HTTPStatus.BAD_REQUEST,
-                detail={"error": f"Username '{username}' already exists."},
+  .. code-block:: python
+      :caption: app/main.py
+
+      from .queries.get_chats_async_edgeql import get_chats as get_chats_query, GetChatsResult
+      from .queries.get_chat_by_id_async_edgeql import (
+          get_chat_by_id as get_chat_by_id_query,
+          GetChatByIdResult,
+      )
+      from .queries.get_messages_async_edgeql import (
+          get_messages as get_messages_query,
+          GetMessagesResult,
+      )
+      from .queries.create_chat_async_edgeql import (
+          create_chat as create_chat_query,
+          CreateChatResult,
+      )
+      from .queries.add_message_async_edgeql import (
+          add_message as add_message_query,
+      )
+
+
+      @app.get("/chats")
+      async def get_chats(
+          username: str = Query(), chat_id: str = Query(None)
+      ) -> list[GetChatsResult] | GetChatByIdResult:
+          """List user's chats or get a chat by username and id"""
+          if chat_id:
+              chat = await get_chat_by_id_query(
+                  gel_client, username=username, chat_id=chat_id
+              )
+              if not chat:
+                  raise HTTPException(
+                      HTTPStatus.NOT_FOUND,
+                      detail={"error": f"Chat {chat_id} for user {username} does not exist."},
+                  )
+              return chat
+          else:
+              return await get_chats_query(gel_client, username=username)
+
+
+      @app.post("/chats", status_code=HTTPStatus.CREATED)
+      async def post_chat(username: str) -> CreateChatResult:
+          return await create_chat_query(gel_client, username=username)
+
+
+      @app.get("/messages")
+      async def get_messages(
+          username: str = Query(), chat_id: str = Query()
+      ) -> list[GetMessagesResult]:
+          """Fetch all messages from a chat"""
+          return await get_messages_query(gel_client, username=username, chat_id=chat_id)
+
+
+.. edb:split-section::
+
+  For the ``post_messages`` function we're going to do something a little bit
+  different though. Since this is now the primary way for the user to add their
+  queries to the system, it functionally superceeds the ``/search`` endpoint we
+  made before. To this end, this function is where we're going to handle saving
+  messages, retrieving chat history, invoking web search and generating the
+  answer.
+
+  .. code-block:: python-diff
+      :caption: app/main.py
+
+      - @app.post("/search")
+      - async def search(search_terms: SearchTerms) -> SearchResult:
+      -     web_sources = await search_web(search_terms.query)
+      -     search_result = await generate_answer(search_terms.query, web_sources)
+      -     return search_result
+
+      + @app.post("/messages", status_code=HTTPStatus.CREATED)
+      + async def post_messages(
+      +     search_terms: SearchTerms,
+      +     username: str = Query(),
+      +     chat_id: str = Query(),
+      + ) -> SearchResult:
+      +     chat_history = await get_messages_query(
+      +         gel_client, username=username, chat_id=chat_id
+      +     )
+
+      +     _ = await add_message_query(
+      +         gel_client,
+      +         username=username,
+      +         message_role="user",
+      +         message_body=search_terms.query,
+      +         sources=[],
+      +         chat_id=chat_id,
+      +     )
+
+      +     search_query = search_terms.query
+      +     web_sources = await search_web(search_query)
+
+      +     search_result = await generate_answer(
+      +         search_terms.query, chat_history, web_sources
+      +     )
+
+      +     _ = await add_message_query(
+      +         gel_client,
+      +         username=username,
+      +         message_role="assistant",
+      +         message_body=search_result.response,
+      +         sources=search_result.sources,
+      +         chat_id=chat_id,
+      +     )
+
+      +     return search_result
+
+
+.. edb:split-section::
+
+  Let's not forget to modify the ``generate_answer`` function, so it can also be
+  history-aware.
+
+  .. code-block:: python-diff
+      :caption: app/main.py
+
+        async def generate_answer(
+            query: str,
+      +     chat_history: list[GetMessagesResult],
+            web_sources: list[WebSource],
+        ) -> SearchResult:
+            system_prompt = (
+                "You are a helpful assistant that answers user's questions"
+                + " by finding relevant information in HackerNews threads."
+                + " When answering the question, describe conversations that people have around the subject,"
+                + " provided to you as a context, or say i don't know if they are completely irrelevant."
             )
 
-Once more, let's verify that the new endpoint works as expected:
+            prompt = f"User search query: {query}\n\nWeb search results:\n"
 
-.. code-block:: bash
+            for i, source in enumerate(web_sources):
+                prompt += f"Result {i} (URL: {source.url}):\n"
+                prompt += f"{source.text}\n\n"
 
-    $ curl -X 'POST' \
-      'http://127.0.0.1:8000/users?username=charlie' \
-      -H 'accept: application/json' \
-      -d ''
+      -     messages = [{"role": "user", "content": prompt}]
+      +     messages = [
+      +         {"role": message.role, "content": message.body} for message in chat_history
+      +     ]
+      +     messages.append({"role": "user", "content": prompt})
 
-    {
-      "id": "20372a1a-ded5-11ef-9a08-b329b578c45c",
-      "name": "charlie"
-    }
-
-This wraps things up for our user-related functionality. Of course, we now need
-to deal with Chats and Messages, too. We're not going to go in depth for those,
-since the process would be quite similar to what we've just done. Instead, feel
-free to implement those endpoints yourself as an exercise, or copy the code
-below if you are in rush.
-
-.. code-block:: bash
-
-    $ echo 'select Chat {
-        messages: { role, body, sources },
-        user := .<chats[is User],
-    } filter .user.name = <str>$username;' > app/queries/get_chats.edgeql && echo 'select Chat {
-        messages: { role, body, sources },
-        user := .<chats[is User],
-    } filter .user.name = <str>$username and .id = <uuid>$chat_id;' > app/queries/get_chat_by_id.edgeql && echo 'with new_chat := (insert Chat)
-    select (
-        update User filter .name = <str>$username
-        set {
-            chats := assert_distinct(.chats union new_chat)
-        }
-    ) {
-        new_chat_id := new_chat.id
-    }' > app/queries/create_chat.edgeql && echo 'with
-        user := (select User filter .name = <str>$username),
-        chat := (
-            select Chat filter .<chats[is User] = user and .id = <uuid>$chat_id
-        )
-    select Message {
-        role,
-        body,
-        sources,
-        chat := .<messages[is Chat]
-    } filter .chat = chat;' > app/queries/get_messages.edgeql && echo 'with
-        user := (select User filter .name = <str>$username),
-    update Chat
-    filter .id = <uuid>$chat_id and .<chats[is User] = user
-    set {
-        messages := assert_distinct(.messages union (
-            insert Message {
-                role := <str>$message_role,
-                body := <str>$message_body,
-                sources := array_unpack(<array<str>>$sources)
-            }
-        ))
-    }' > app/queries/add_message.edgeql
-
-.. code-block:: python
-    :caption: app/main.py
-
-    from .queries.get_chats_async_edgeql import get_chats as get_chats_query, GetChatsResult
-    from .queries.get_chat_by_id_async_edgeql import (
-        get_chat_by_id as get_chat_by_id_query,
-        GetChatByIdResult,
-    )
-    from .queries.get_messages_async_edgeql import (
-        get_messages as get_messages_query,
-        GetMessagesResult,
-    )
-    from .queries.create_chat_async_edgeql import (
-        create_chat as create_chat_query,
-        CreateChatResult,
-    )
-    from .queries.add_message_async_edgeql import (
-        add_message as add_message_query,
-    )
-
-
-    @app.get("/chats")
-    async def get_chats(
-        username: str = Query(), chat_id: str = Query(None)
-    ) -> list[GetChatsResult] | GetChatByIdResult:
-        """List user's chats or get a chat by username and id"""
-        if chat_id:
-            chat = await get_chat_by_id_query(
-                gel_client, username=username, chat_id=chat_id
+            llm_response = get_llm_completion(
+                system_prompt=system_prompt,
+                messages=messages,
             )
-            if not chat:
-                raise HTTPException(
-                    HTTPStatus.NOT_FOUND,
-                    detail={"error": f"Chat {chat_id} for user {username} does not exist."},
-                )
-            return chat
-        else:
-            return await get_chats_query(gel_client, username=username)
+
+            search_result = SearchResult(
+                response=llm_response,
+                sources=web_sources,
+            )
+
+            return search_result
 
 
-    @app.post("/chats", status_code=HTTPStatus.CREATED)
-    async def post_chat(username: str) -> CreateChatResult:
-        return await create_chat_query(gel_client, username=username)
+.. edb:split-section::
+
+  Ok, this should be it for setting up the chat history. Let's test it. First, we
+  are going to start a new chat for our user:
+
+  .. code-block:: bash
+
+      $ curl -X 'POST' \
+        'http://127.0.0.1:8000/chats?username=charlie' \
+        -H 'accept: application/json' \
+        -d ''
+
+      {
+        "id": "20372a1a-ded5-11ef-9a08-b329b578c45c",
+        "new_chat_id": "544ef3f2-ded8-11ef-ba16-f7f254b95e36"
+      }
 
 
-    @app.get("/messages")
-    async def get_messages(
-        username: str = Query(), chat_id: str = Query()
-    ) -> list[GetMessagesResult]:
-        """Fetch all messages from a chat"""
-        return await get_messages_query(gel_client, username=username, chat_id=chat_id)
+.. edb:split-section::
+
+  Next, let's add a couple messages and wait for the bot to respond:
+
+  .. code-block:: bash
+
+      $ curl -X 'POST' \
+        'http://127.0.0.1:8000/messages?username=charlie&chat_id=544ef3f2-ded8-11ef-ba16-f7f254b95e36' \
+        -H 'accept: application/json' \
+        -H 'Content-Type: application/json' \
+        -d '{
+        "query": "best database in existence"
+      }'
+
+      $ curl -X 'POST' \
+        'http://127.0.0.1:8000/messages?username=charlie&chat_id=544ef3f2-ded8-11ef-ba16-f7f254b95e36' \
+        -H 'accept: application/json' \
+        -H 'Content-Type: application/json' \
+        -d '{
+        "query": "gel"
+      }'
 
 
-For the ``post_messages`` function we're going to do something a little bit
-different though. Since this is now the primary way for the user to add their
-queries to the system, it functionally superceeds the ``/search`` endpoint we
-made before. To this end, this function is where we're going to handle saving
-messages, retrieving chat history, invoking web search and generating the
-answer.
+.. edb:split-section::
 
-.. code-block:: python-diff
-    :caption: app/main.py
+  Finally, let's check that the messages we saw are in fact stored in the chat
+  history:
 
-    - @app.post("/search")
-    - async def search(search_terms: SearchTerms) -> SearchResult:
-    -     web_sources = await search_web(search_terms.query)
-    -     search_result = await generate_answer(search_terms.query, web_sources)
-    -     return search_result
+  .. code-block:: bash
 
-    + @app.post("/messages", status_code=HTTPStatus.CREATED)
-    + async def post_messages(
-    +     search_terms: SearchTerms,
-    +     username: str = Query(),
-    +     chat_id: str = Query(),
-    + ) -> SearchResult:
-    +     chat_history = await get_messages_query(
-    +         gel_client, username=username, chat_id=chat_id
-    +     )
-
-    +     _ = await add_message_query(
-    +         gel_client,
-    +         username=username,
-    +         message_role="user",
-    +         message_body=search_terms.query,
-    +         sources=[],
-    +         chat_id=chat_id,
-    +     )
-
-    +     search_query = search_terms.query
-    +     web_sources = await search_web(search_query)
-
-    +     search_result = await generate_answer(
-    +         search_terms.query, chat_history, web_sources
-    +     )
-
-    +     _ = await add_message_query(
-    +         gel_client,
-    +         username=username,
-    +         message_role="assistant",
-    +         message_body=search_result.response,
-    +         sources=search_result.sources,
-    +         chat_id=chat_id,
-    +     )
-
-    +     return search_result
-
-
-Let's not forget to modify the ``generate_answer`` function, so it can also be
-history-aware.
-
-.. code-block:: python-diff
-    :caption: app/main.py
-
-      async def generate_answer(
-          query: str,
-    +     chat_history: list[GetMessagesResult],
-          web_sources: list[WebSource],
-      ) -> SearchResult:
-          system_prompt = (
-              "You are a helpful assistant that answers user's questions"
-              + " by finding relevant information in HackerNews threads."
-              + " When answering the question, describe conversations that people have around the subject,"
-              + " provided to you as a context, or say i don't know if they are completely irrelevant."
-          )
-
-          prompt = f"User search query: {query}\n\nWeb search results:\n"
-
-          for i, source in enumerate(web_sources):
-              prompt += f"Result {i} (URL: {source.url}):\n"
-              prompt += f"{source.text}\n\n"
-
-    -     messages = [{"role": "user", "content": prompt}]
-    +     messages = [
-    +         {"role": message.role, "content": message.body} for message in chat_history
-    +     ]
-    +     messages.append({"role": "user", "content": prompt})
-
-          llm_response = get_llm_completion(
-              system_prompt=system_prompt,
-              messages=messages,
-          )
-
-          search_result = SearchResult(
-              response=llm_response,
-              sources=web_sources,
-          )
-
-          return search_result
-
-
-Ok, this should be it for setting up the chat history. Let's test it. First, we
-are going to start a new chat for our user:
-
-.. code-block:: bash
-
-    $ curl -X 'POST' \
-      'http://127.0.0.1:8000/chats?username=charlie' \
-      -H 'accept: application/json' \
-      -d ''
-
-    {
-      "id": "20372a1a-ded5-11ef-9a08-b329b578c45c",
-      "new_chat_id": "544ef3f2-ded8-11ef-ba16-f7f254b95e36"
-    }
-
-
-Next, let's add a couple messages and wait for the bot to respond:
-
-.. code-block:: bash
-
-    $ curl -X 'POST' \
-      'http://127.0.0.1:8000/messages?username=charlie&chat_id=544ef3f2-ded8-11ef-ba16-f7f254b95e36' \
-      -H 'accept: application/json' \
-      -H 'Content-Type: application/json' \
-      -d '{
-      "query": "best database in existence"
-    }'
-
-    $ curl -X 'POST' \
-      'http://127.0.0.1:8000/messages?username=charlie&chat_id=544ef3f2-ded8-11ef-ba16-f7f254b95e36' \
-      -H 'accept: application/json' \
-      -H 'Content-Type: application/json' \
-      -d '{
-      "query": "gel"
-    }'
-
-
-Finally, let's check that the messages we saw are in fact stored in the chat
-history:
-
-.. code-block:: bash
-
-    $ curl -X 'GET' \
-      'http://127.0.0.1:8000/messages?username=charlie&chat_id=544ef3f2-ded8-11ef-ba16-f7f254b95e36' \
-      -H 'accept: application/json'
+      $ curl -X 'GET' \
+        'http://127.0.0.1:8000/messages?username=charlie&chat_id=544ef3f2-ded8-11ef-ba16-f7f254b95e36' \
+        -H 'accept: application/json'
 
 
 In reality this workflow would've been handled by the frontend, providing the
@@ -1149,126 +1262,133 @@ Let's implement an extra step in which the LLM is going to produce a query for
 us based on the entire chat history. That way we can be sure we're progressively
 working on our query rather than rewriting it from scratch every time.
 
-This is what we need to do: every time the user submits a message, we need to
-fetch the chat history, extract a search query from it using the LLM, and the
-other steps are going to the the same as before. Let's make the follwing
-modifications to the ``main.py``: first we need to create a function that
-prepares LLM inputs for the search query inference.
+
+.. edb:split-section::
+
+  This is what we need to do: every time the user submits a message, we need to
+  fetch the chat history, extract a search query from it using the LLM, and the
+  other steps are going to the the same as before. Let's make the follwing
+  modifications to the ``main.py``: first we need to create a function that
+  prepares LLM inputs for the search query inference.
 
 
-.. code-block:: python
-    :caption: app/main.py
+  .. code-block:: python
+      :caption: app/main.py
 
-    async def generate_search_query(
-        query: str, message_history: list[GetMessagesResult]
-    ) -> str:
-        system_prompt = (
-            "You are a helpful assistant."
-            + " Your job is to extract a keyword search query"
-            + " from a chat between an AI and a human."
-            + " Make sure it's a single most relevant keyword to maximize matching."
-            + " Only provide the query itself as your response."
-        )
-
-        formatted_history = "\n---\n".join(
-            [
-                f"{message.role}: {message.body} (sources: {message.sources})"
-                for message in message_history
-            ]
-        )
-        prompt = f"Chat history: {formatted_history}\n\nUser message: {query} \n\n"
-
-        llm_response = get_llm_completion(
-            system_prompt=system_prompt, messages=[{"role": "user", "content": prompt}]
-        )
-
-        return llm_response
-
-
-And now we can use this function in ``post_messages`` in order to get our
-search query:
-
-
-.. code-block:: python-diff
-    :caption: app/main.py
-
-      class SearchResult(BaseModel):
-          response: str | None = None
-    +     search_query: str | None = None
-          sources: list[WebSource] | None = None
-
-
-      @app.post("/messages", status_code=HTTPStatus.CREATED)
-      async def post_messages(
-          search_terms: SearchTerms,
-          username: str = Query(),
-          chat_id: str = Query(),
-      ) -> SearchResult:
-          # 1. Fetch chat history
-          chat_history = await get_messages_query(
-              gel_client, username=username, chat_id=chat_id
+      async def generate_search_query(
+          query: str, message_history: list[GetMessagesResult]
+      ) -> str:
+          system_prompt = (
+              "You are a helpful assistant."
+              + " Your job is to extract a keyword search query"
+              + " from a chat between an AI and a human."
+              + " Make sure it's a single most relevant keyword to maximize matching."
+              + " Only provide the query itself as your response."
           )
 
-          # 2. Add incoming message to Gel
-          _ = await add_message_query(
-              gel_client,
-              username=username,
-              message_role="user",
-              message_body=search_terms.query,
-              sources=[],
-              chat_id=chat_id,
+          formatted_history = "\n---\n".join(
+              [
+                  f"{message.role}: {message.body} (sources: {message.sources})"
+                  for message in message_history
+              ]
+          )
+          prompt = f"Chat history: {formatted_history}\n\nUser message: {query} \n\n"
+
+          llm_response = get_llm_completion(
+              system_prompt=system_prompt, messages=[{"role": "user", "content": prompt}]
           )
 
-          # 3. Generate a query and perform googling
-    -     search_query = search_terms.query
-    +     search_query = await generate_search_query(search_terms.query, chat_history)
-    +     web_sources = await search_web(search_query)
+          return llm_response
 
 
-          # 5. Generate answer
-          search_result = await generate_answer(
-              search_terms.query,
-              chat_history,
-              web_sources,
-          )
-    +     search_result.search_query = search_query  # add search query to the output
-    +                                                # to see what the bot is searching for
-          # 6. Add LLM response to Gel
-          _ = await add_message_query(
-              gel_client,
-              username=username,
-              message_role="assistant",
-              message_body=search_result.response,
-              sources=[s.url for s in search_result.sources],
-              chat_id=chat_id,
-          )
+.. edb:split-section::
 
-          # 7. Send result back to the client
-          return search_result
+  And now we can use this function in ``post_messages`` in order to get our
+  search query:
 
 
-Done! We've now fully integrated the chat history into out app and enabled
-natural language conversations. As before, let's quickly test out the
-improvements before moving on:
+  .. code-block:: python-diff
+      :caption: app/main.py
+
+        class SearchResult(BaseModel):
+            response: str | None = None
+      +     search_query: str | None = None
+            sources: list[WebSource] | None = None
 
 
-.. code-block:: bash
+        @app.post("/messages", status_code=HTTPStatus.CREATED)
+        async def post_messages(
+            search_terms: SearchTerms,
+            username: str = Query(),
+            chat_id: str = Query(),
+        ) -> SearchResult:
+            # 1. Fetch chat history
+            chat_history = await get_messages_query(
+                gel_client, username=username, chat_id=chat_id
+            )
 
-    $ curl -X 'POST' \
-        'http://localhost:8000/messages?username=alice&chat_id=d4eed420-e903-11ef-b8a7-8718abdafbe1' \
-        -H 'accept: application/json' \
-        -H 'Content-Type: application/json' \
-        -d '{
-        "query": "what are people saying about gel"
-      }'
+            # 2. Add incoming message to Gel
+            _ = await add_message_query(
+                gel_client,
+                username=username,
+                message_role="user",
+                message_body=search_terms.query,
+                sources=[],
+                chat_id=chat_id,
+            )
 
-    $ curl -X 'POST' \
-        'http://localhost:8000/messages?username=alice&chat_id=d4eed420-e903-11ef-b8a7-8718abdafbe1' \
-        -H 'accept: application/json' \
-        -H 'Content-Type: application/json' \
-        -d '{
-        "query": "do they like it or not"
-      }'
+            # 3. Generate a query and perform googling
+      -     search_query = search_terms.query
+      +     search_query = await generate_search_query(search_terms.query, chat_history)
+      +     web_sources = await search_web(search_query)
+
+
+            # 5. Generate answer
+            search_result = await generate_answer(
+                search_terms.query,
+                chat_history,
+                web_sources,
+            )
+      +     search_result.search_query = search_query  # add search query to the output
+      +                                                # to see what the bot is searching for
+            # 6. Add LLM response to Gel
+            _ = await add_message_query(
+                gel_client,
+                username=username,
+                message_role="assistant",
+                message_body=search_result.response,
+                sources=[s.url for s in search_result.sources],
+                chat_id=chat_id,
+            )
+
+            # 7. Send result back to the client
+            return search_result
+
+
+.. edb:split-section::
+
+  Done! We've now fully integrated the chat history into out app and enabled
+  natural language conversations. As before, let's quickly test out the
+  improvements before moving on:
+
+
+  .. code-block:: bash
+
+      $ curl -X 'POST' \
+          'http://localhost:8000/messages?username=alice&chat_id=d4eed420-e903-11ef-b8a7-8718abdafbe1' \
+          -H 'accept: application/json' \
+          -H 'Content-Type: application/json' \
+          -d '{
+          "query": "what are people saying about gel"
+        }'
+
+      $ curl -X 'POST' \
+          'http://localhost:8000/messages?username=alice&chat_id=d4eed420-e903-11ef-b8a7-8718abdafbe1' \
+          -H 'accept: application/json' \
+          -H 'Content-Type: application/json' \
+          -d '{
+          "query": "do they like it or not"
+        }'
 
 
 6. Use Gel's advanced features to create a RAG
@@ -1291,250 +1411,273 @@ what they are looking for.
 Gel enables us to implement such a system with only minor modifications to the
 schema.
 
-We begin by enabling the ``ai`` extension by adding the following like on top of
-the ``dbschema/default.esdl``:
 
-.. code-block:: sdl-diff
-    :caption: dbschema/default.esdl
+.. edb:split-section::
 
-    + using extension ai;
+  We begin by enabling the ``ai`` extension by adding the following like on top of
+  the ``dbschema/default.esdl``:
 
-... and do the migration:
+  .. code-block:: sdl-diff
+      :caption: dbschema/default.esdl
+
+      + using extension ai;
 
 
-.. code-block:: bash
+.. edb:split-section::
 
-    $ gel migration create
-    $ gel migrate
+  ... and do the migration:
 
-Next, we need to configure the API key in Gel for whatever embedding provider
-we're going to be using. As per documentation, let's open up the CLI by typing
-``gel`` and run the following command (assuming we're using OpenAI):
 
-.. code-block:: edgeql-repl
+  .. code-block:: bash
 
-    searchbot:main> configure current database
-    insert ext::ai::OpenAIProviderConfig {
-      secret := 'sk-....',
-    };
+      $ gel migration create
+      $ gel migrate
 
-    OK: CONFIGURE DATABASE
 
-In order to get Gel to automatically keep track of creating and updating message
-embeddings, all we need to do is create a deferred index like this:
+.. edb:split-section::
 
-.. code-block:: sdl-diff
+  Next, we need to configure the API key in Gel for whatever embedding provider
+  we're going to be using. As per documentation, let's open up the CLI by typing
+  ``gel`` and run the following command (assuming we're using OpenAI):
 
-      type Message {
-          role: str;
-          body: str;
-          timestamp: datetime {
-              default := datetime_current();
+  .. code-block:: edgeql-repl
+
+      searchbot:main> configure current database
+      insert ext::ai::OpenAIProviderConfig {
+        secret := 'sk-....',
+      };
+
+      OK: CONFIGURE DATABASE
+
+
+.. edb:split-section::
+
+  In order to get Gel to automatically keep track of creating and updating
+  message embeddings, all we need to do is create a deferred index like this.
+  Don't forget to run a migration one more time!
+
+  .. code-block:: sdl-diff
+
+        type Message {
+            role: str;
+            body: str;
+            timestamp: datetime {
+                default := datetime_current();
+            }
+            multi sources: str;
+
+      +     deferred index ext::ai::index(embedding_model := 'text-embedding-3-small')
+      +         on (.body);
+        }
+
+
+.. edb:split-section::
+
+  And we're done! Gel is going to cook in the background for a while and generate
+  embedding vectors for our queries. To make sure nothing broke we can follow
+  Gel's AI documentation and take a look at instance logs:
+
+  .. code-block:: bash
+
+      $ gel instance logs -I searchbot | grep api.openai.com
+
+      INFO 50121 searchbot 2025-01-30T14:39:53.364 httpx: HTTP Request: POST https://api.openai.com/v1/embeddings "HTTP/1.1 200 OK"
+
+
+.. edb:split-section::
+
+  It's time to create the second half of the similarity search - the search query.
+  The query needs to fetch ``k`` chats in which there're messages that are most
+  similar to our current message. This can be a little difficult to visualize in
+  your head, so here's the query itself:
+
+  .. code-block:: edgeql
+      :caption: app/queries/search_chats.edgeql
+
+      with
+          user := (select User filter .name = <str>$username),
+              chats := (
+                  select Chat
+                  filter .<chats[is User] = user
+                         and .id != <uuid>$current_chat_id
+              )
+
+      select chats {
+          distance := min(
+              ext::ai::search(
+                  .messages,
+                  <array<float32>>$embedding,
+              ).distance,
+          ),
+          messages: {
+              role, body, sources
           }
-          multi sources: str;
-
-    +     deferred index ext::ai::index(embedding_model := 'text-embedding-3-small')
-    +         on (.body);
       }
 
-... and run a migration one more time.
+      order by .distance
+      limit <int64>$limit;
 
-And we're done! Gel is going to cook in the background for a while and generate
-embedding vectors for our queries. To make sure nothing broke we can follow
-Gel's AI documentation and take a look at instance logs:
 
-.. code-block:: bash
+.. edb:split-section::
 
-    $ gel instance logs -I searchbot | grep api.openai.com
+  .. note::
 
-    INFO 50121 searchbot 2025-01-30T14:39:53.364 httpx: HTTP Request: POST https://api.openai.com/v1/embeddings "HTTP/1.1 200 OK"
+     Before we can integrate this query into our Python app, we also need to add a
+     new dependency for the Python binding: ``httpx-sse``. It's enables streaming
+     outputs, which we're not going to use right now, but we won't be able to
+     create the AI client without it.
 
-It's time to create the second half of the similarity search - the search query.
-The query needs to fetch ``k`` chats in which there're messages that are most
-similar to our current message. This can be a little difficult to visualize in
-your head, so here's the query itself:
+  Let's place in in ``app/queries/search_chats.edgeql``, run the codegen and modify
+  our ``post_messages`` endpoint to keep track of those similar chats.
 
-.. code-block:: edgeql
-    :caption: app/queries/search_chats.edgeql
+  .. code-block:: python-diff
+      :caption: app.main.py
 
-    with
-        user := (select User filter .name = <str>$username),
-            chats := (
-                select Chat
-                filter .<chats[is User] = user
-                       and .id != <uuid>$current_chat_id
+      + from edgedb.ai import create_async_ai, AsyncEdgeDBAI
+      + from .queries.search_chats_async_edgeql import (
+      +     search_chats as search_chats_query,
+      + )
+
+        class SearchResult(BaseModel):
+            response: str | None = None
+            search_query: str | None = None
+            sources: list[WebSource] | None = None
+      +     similar_chats: list[str] | None = None
+
+
+        @app.post("/messages", status_code=HTTPStatus.CREATED)
+        async def post_messages(
+            search_terms: SearchTerms,
+            username: str = Query(),
+            chat_id: str = Query(),
+        ) -> SearchResult:
+            # 1. Fetch chat history
+            chat_history = await get_messages_query(
+                gel_client, username=username, chat_id=chat_id
             )
 
-    select chats {
-        distance := min(
-            ext::ai::search(
-                .messages,
-                <array<float32>>$embedding,
-            ).distance,
-        ),
-        messages: {
-            role, body, sources
-        }
-    }
+            # 2. Add incoming message to Gel
+            _ = await add_message_query(
+                gel_client,
+                username=username,
+                message_role="user",
+                message_body=search_terms.query,
+                sources=[],
+                chat_id=chat_id,
+            )
 
-    order by .distance
-    limit <int64>$limit;
+            # 3. Generate a query and perform googling
+            search_query = await generate_search_query(search_terms.query, chat_history)
+            web_sources = await search_web(search_query)
 
+      +     # 4. Fetch similar chats
+      +     db_ai: AsyncEdgeDBAI = await create_async_ai(gel_client, model="gpt-4o-mini")
+      +     embedding = await db_ai.generate_embeddings(
+      +         search_query, model="text-embedding-3-small"
+      +     )
+      +     similar_chats = await search_chats_query(
+      +         gel_client,
+      +         username=username,
+      +         current_chat_id=chat_id,
+      +         embedding=embedding,
+      +         limit=1,
+      +     )
 
-.. note::
+            # 5. Generate answer
+            search_result = await generate_answer(
+                search_terms.query,
+                chat_history,
+                web_sources,
+      +         similar_chats,
+            )
+            search_result.search_query = search_query  # add search query to the output
+                                                       # to see what the bot is searching for
+            # 6. Add LLM response to Gel
+            _ = await add_message_query(
+                gel_client,
+                username=username,
+                message_role="assistant",
+                message_body=search_result.response,
+                sources=[s.url for s in search_result.sources],
+                chat_id=chat_id,
+            )
 
-   Before we can integrate this query into our Python app, we also need to add a
-   new dependency for the Python binding: ``httpx-sse``. It's enables streaming
-   outputs, which we're not going to use right now, but we won't be able to
-   create the AI client without it.
-
-Let's place in in ``app/queries/search_chats.edgeql``, run the codegen and modify
-our ``post_messages`` endpoint to keep track of those similar chats.
-
-.. code-block:: python-diff
-    :caption: app.main.py
-
-    + from edgedb.ai import create_async_ai, AsyncEdgeDBAI
-    + from .queries.search_chats_async_edgeql import (
-    +     search_chats as search_chats_query,
-    + )
-
-      class SearchResult(BaseModel):
-          response: str | None = None
-          search_query: str | None = None
-          sources: list[WebSource] | None = None
-    +     similar_chats: list[str] | None = None
-
-
-      @app.post("/messages", status_code=HTTPStatus.CREATED)
-      async def post_messages(
-          search_terms: SearchTerms,
-          username: str = Query(),
-          chat_id: str = Query(),
-      ) -> SearchResult:
-          # 1. Fetch chat history
-          chat_history = await get_messages_query(
-              gel_client, username=username, chat_id=chat_id
-          )
-
-          # 2. Add incoming message to Gel
-          _ = await add_message_query(
-              gel_client,
-              username=username,
-              message_role="user",
-              message_body=search_terms.query,
-              sources=[],
-              chat_id=chat_id,
-          )
-
-          # 3. Generate a query and perform googling
-          search_query = await generate_search_query(search_terms.query, chat_history)
-          web_sources = await search_web(search_query)
-
-    +     # 4. Fetch similar chats
-    +     db_ai: AsyncEdgeDBAI = await create_async_ai(gel_client, model="gpt-4o-mini")
-    +     embedding = await db_ai.generate_embeddings(
-    +         search_query, model="text-embedding-3-small"
-    +     )
-    +     similar_chats = await search_chats_query(
-    +         gel_client,
-    +         username=username,
-    +         current_chat_id=chat_id,
-    +         embedding=embedding,
-    +         limit=1,
-    +     )
-
-          # 5. Generate answer
-          search_result = await generate_answer(
-              search_terms.query,
-              chat_history,
-              web_sources,
-    +         similar_chats,
-          )
-          search_result.search_query = search_query  # add search query to the output
-                                                     # to see what the bot is searching for
-          # 6. Add LLM response to Gel
-          _ = await add_message_query(
-              gel_client,
-              username=username,
-              message_role="assistant",
-              message_body=search_result.response,
-              sources=[s.url for s in search_result.sources],
-              chat_id=chat_id,
-          )
-
-          # 7. Send result back to the client
-          return search_result
+            # 7. Send result back to the client
+            return search_result
 
 
-Finally, the answer generator needs to get updated one more time, since we need
-to inject the additional messages into the prompt.
+.. edb:split-section::
 
-.. code-block:: python-diff
-    :caption: app/main.py
+  Finally, the answer generator needs to get updated one more time, since we need
+  to inject the additional messages into the prompt.
 
-      async def generate_answer(
-          query: str,
-          chat_history: list[GetMessagesResult],
-          web_sources: list[WebSource],
-    +     similar_chats: list[list[GetMessagesResult]],
-      ) -> SearchResult:
-          system_prompt = (
-              "You are a helpful assistant that answers user's questions"
-              + " by finding relevant information in HackerNews threads."
-              + " When answering the question, describe conversations that people have around the subject, provided to you as a context, or say i don't know if they are completely irrelevant."
-    +         + " You can reference previous conversation with the user that"
-    +         + " are provided to you, if they are relevant, by explicitly referring"
-    +         + " to them by saying as we discussed in the past."
-          )
+  .. code-block:: python-diff
+      :caption: app/main.py
 
-          prompt = f"User search query: {query}\n\nWeb search results:\n"
+        async def generate_answer(
+            query: str,
+            chat_history: list[GetMessagesResult],
+            web_sources: list[WebSource],
+      +     similar_chats: list[list[GetMessagesResult]],
+        ) -> SearchResult:
+            system_prompt = (
+                "You are a helpful assistant that answers user's questions"
+                + " by finding relevant information in HackerNews threads."
+                + " When answering the question, describe conversations that people have around the subject, provided to you as a context, or say i don't know if they are completely irrelevant."
+      +         + " You can reference previous conversation with the user that"
+      +         + " are provided to you, if they are relevant, by explicitly referring"
+      +         + " to them by saying as we discussed in the past."
+            )
 
-          for i, source in enumerate(web_sources):
-              prompt += f"Result {i} (URL: {source.url}):\n"
-              prompt += f"{source.text}\n\n"
+            prompt = f"User search query: {query}\n\nWeb search results:\n"
 
-    +     prompt += "Similar chats with the same user:\n"
+            for i, source in enumerate(web_sources):
+                prompt += f"Result {i} (URL: {source.url}):\n"
+                prompt += f"{source.text}\n\n"
 
-    +     formatted_chats = []
-    +     for i, chat in enumerate(similar_chats):
-    +         formatted_chat = f"Chat {i}: \n"
-    +         for message in chat.messages:
-    +             formatted_chat += f"{message.role}: {message.body}\n"
-    +         formatted_chats.append(formatted_chat)
+      +     prompt += "Similar chats with the same user:\n"
 
-    +     prompt += "\n".join(formatted_chats)
+      +     formatted_chats = []
+      +     for i, chat in enumerate(similar_chats):
+      +         formatted_chat = f"Chat {i}: \n"
+      +         for message in chat.messages:
+      +             formatted_chat += f"{message.role}: {message.body}\n"
+      +         formatted_chats.append(formatted_chat)
 
-          messages = [
-              {"role": message.role, "content": message.body} for message in chat_history
-          ]
-          messages.append({"role": "user", "content": prompt})
+      +     prompt += "\n".join(formatted_chats)
 
-          llm_response = get_llm_completion(
-              system_prompt=system_prompt,
-              messages=messages,
-          )
+            messages = [
+                {"role": message.role, "content": message.body} for message in chat_history
+            ]
+            messages.append({"role": "user", "content": prompt})
 
-          search_result = SearchResult(
-              response=llm_response,
-              sources=web_sources,
-    +         similar_chats=formatted_chats,
-          )
+            llm_response = get_llm_completion(
+                system_prompt=system_prompt,
+                messages=messages,
+            )
 
-          return search_result
+            search_result = SearchResult(
+                response=llm_response,
+                sources=web_sources,
+      +         similar_chats=formatted_chats,
+            )
+
+            return search_result
 
 
-And one last time, let's check to make sure everything works:
+.. edb:split-section::
 
-.. code-block:: bash
+  And one last time, let's check to make sure everything works:
 
-    $ curl -X 'POST' \
-        'http://localhost:8000/messages?username=alice&chat_id=d4eed420-e903-11ef-b8a7-8718abdafbe1' \
-        -H 'accept: application/json' \
-        -H 'Content-Type: application/json' \
-        -d '{
-              "query": "remember that cool db i was talking to you about?"
-            }'
+  .. code-block:: bash
+
+      $ curl -X 'POST' \
+          'http://localhost:8000/messages?username=alice&chat_id=d4eed420-e903-11ef-b8a7-8718abdafbe1' \
+          -H 'accept: application/json' \
+          -H 'Content-Type: application/json' \
+          -d '{
+                "query": "remember that cool db i was talking to you about?"
+              }'
 
 
 Keep going!
