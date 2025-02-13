@@ -299,11 +299,6 @@ Working with the data
     + );
     +
       export async function addCard(formData: FormData) {
-    +   const client = await getAuthenticatedClient();
-    +   if (!client) {
-    +     return;
-    +   }
-    +
         const deckId = formData.get("deckId");
         const front = formData.get("front");
         const back = formData.get("back");
@@ -341,11 +336,6 @@ Working with the data
     + );
     +
       export async function deleteCard(formData: FormData) {
-    +   const client = await getAuthenticatedClient();
-    +   if (!client) {
-    +     return;
-    +   }
-    +
         const cardId = formData.get("cardId");
 
         if (typeof cardId !== "string") {
