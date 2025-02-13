@@ -43,4 +43,5 @@ Administrative commands for managing EdgeDB:
     configure
     databases
     roles
+    statistics_update
     vacuum

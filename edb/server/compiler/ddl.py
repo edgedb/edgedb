@@ -1734,7 +1734,7 @@ def administer_statistics_update(
 
     return dbstate.MaintenanceQuery(
         sql=command.encode('utf-8'),
-        is_transactional=False,
+        is_transactional=True,
     )
 
 
