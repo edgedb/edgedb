@@ -416,10 +416,7 @@ class Connection(options._OptionsMixin, abstract.AsyncIOExecutor):
             # since that *ought* to be done at the transaction level.
             # Though in reality in the test suite it is usually done at the
             # test runner level.
-            except (
-                errors.TransactionConflictError,
-                errors.TransactionSerializationError,
-            ):
+            except errors.TransactionConflictError:
                 if i >= 10 or self.is_in_transaction():
                     raise
                 await asyncio.sleep(
