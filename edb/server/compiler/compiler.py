@@ -1746,18 +1746,7 @@ def _compile_ql_administer(
     script_info: Optional[irast.ScriptInfo] = None,
 ) -> dbstate.BaseQuery:
     if ql.expr.func == 'statistics_update':
-        if not ctx.is_testmode():
-            raise errors.QueryError(
-                'statistics_update() can only be executed in test mode',
-                span=ql.span)
-
-        if ql.expr.args or ql.expr.kwargs:
-            raise errors.QueryError(
-                'statistics_update() does not take arguments',
-                span=ql.expr.span,
-            )
-
-        return dbstate.MaintenanceQuery(sql=b'ANALYZE')
+        return ddl.administer_statistics_update(ctx, ql)
     elif ql.expr.func == 'schema_repair':
         return ddl.administer_repair_schema(ctx, ql)
     elif ql.expr.func == 'reindex':

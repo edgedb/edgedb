@@ -1554,39 +1554,20 @@ def administer_reindex(
     return dbstate.MaintenanceQuery(sql=block.to_string().encode("utf-8"))
 
 
-def administer_vacuum(
+def _identify_administer_tables_and_cols(
     ctx: compiler.CompileContext,
-    ql: qlast.AdministerStmt,
-) -> dbstate.BaseQuery:
+    call: qlast.FunctionCall,
+) -> list[str]:
     from edb.ir import ast as irast
     from edb.ir import typeutils as irtypeutils
     from edb.schema import objtypes as s_objtypes
 
-    # check that the kwargs are valid
-    kwargs: Dict[str, str] = {}
-    for name, val in ql.expr.kwargs.items():
-        if name != 'full':
-            raise errors.QueryError(
-                f'unrecognized keyword argument {name!r} for vacuum()',
-                span=val.span,
-            )
-        elif (
-            not isinstance(val, qlast.Constant)
-            or val.kind != qlast.ConstantKind.BOOLEAN
-        ):
-            raise errors.QueryError(
-                f'argument {name!r} for vacuum() must be a boolean literal',
-                span=val.span,
-            )
-        kwargs[name] = val.value
-
-    # Next go over the args (if any) and convert paths to tables/columns
     args: List[Tuple[irast.Pointer | None, s_objtypes.ObjectType]] = []
     current_tx = ctx.state.current_tx()
     schema = current_tx.get_schema(ctx.compiler_state.std_schema)
     modaliases = current_tx.get_modaliases()
 
-    for arg in ql.expr.args:
+    for arg in call.args:
         match arg:
             case qlast.Path(
                 steps=[qlast.ObjectRef()],
@@ -1643,7 +1624,7 @@ def administer_vacuum(
 
     tables: set[s_pointers.Pointer | s_objtypes.ObjectType] = set()
 
-    for arg, (rptr, obj) in zip(ql.expr.args, args):
+    for arg, (rptr, obj) in zip(call.args, args):
         if not rptr:
             # On a type, we just vacuum the type and its descendants
             tables.update({obj} | {
@@ -1688,17 +1669,68 @@ def administer_vacuum(
             }
             tables.update(ptrclses)
 
-    tables_and_columns = [
+    return [
         pg_common.get_backend_name(schema, table)
         for table in tables
     ]
 
-    if kwargs.get('full', '').lower() == 'true':
-        options = 'FULL'
-    else:
-        options = ''
 
-    command = f'VACUUM {options} ' + ', '.join(tables_and_columns)
+def administer_vacuum(
+    ctx: compiler.CompileContext,
+    ql: qlast.AdministerStmt,
+) -> dbstate.BaseQuery:
+    # check that the kwargs are valid
+    kwargs: Dict[str, str] = {}
+    for name, val in ql.expr.kwargs.items():
+        if name not in ('statistics_update', 'full'):
+            raise errors.QueryError(
+                f'unrecognized keyword argument {name!r} for vacuum()',
+                span=val.span,
+            )
+        elif (
+            not isinstance(val, qlast.Constant)
+            or val.kind != qlast.ConstantKind.BOOLEAN
+        ):
+            raise errors.QueryError(
+                f'argument {name!r} for vacuum() must be a boolean literal',
+                span=val.span,
+            )
+        kwargs[name] = val.value
+
+    option_map = {
+        "statistics_update": "ANALYZE",
+        "full": "FULL",
+    }
+    command = "VACUUM"
+    options = ",".join(
+        f"{option_map[k.lower()]} {v.upper()}"
+        for k, v in kwargs.items()
+    )
+    if options:
+        command += f" ({options})"
+    command += " " + ", ".join(
+        _identify_administer_tables_and_cols(ctx, ql.expr),
+    )
+
+    return dbstate.MaintenanceQuery(
+        sql=command.encode('utf-8'),
+        is_transactional=False,
+    )
+
+
+def administer_statistics_update(
+    ctx: compiler.CompileContext,
+    ql: qlast.AdministerStmt,
+) -> dbstate.BaseQuery:
+    for name, val in ql.expr.kwargs.items():
+        raise errors.QueryError(
+            f'unrecognized keyword argument {name!r} for statistics_update()',
+            span=val.span,
+        )
+
+    command = "ANALYZE " + ", ".join(
+        _identify_administer_tables_and_cols(ctx, ql.expr),
+    )
 
     return dbstate.MaintenanceQuery(
         sql=command.encode('utf-8'),
