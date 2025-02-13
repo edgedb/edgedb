@@ -12,11 +12,6 @@ Adding Shared Properties
     :caption: dbschema/default.gel
 
       module default {
-        single optional global access_token: str;
-        single optional global current_user := (
-          select AccessToken filter .token = access_token
-        ).user;
-
     +   abstract type Timestamped {
     +     required created_at: datetime {
     +       default := datetime_of_statement();
@@ -26,33 +21,15 @@ Adding Shared Properties
     +     };
     +   }
     +
-    -   type User {
-    +   type User extending Timestamped {
-          required name: str;
-        }
-
-    -   type AccessToken {
-    +   type AccessToken extending Timestamped {
-          required user: User;
-          required token: str {
-            constraint exclusive;
-          };
-        }
-
     -   type Deck {
     +   type Deck extending Timestamped {
           required name: str;
           description: str;
 
-          creator: User;
-
-          cards := (select .<deck[is Card] order by .order);
-
-          access policy creator_has_full_access
-            allow all
-            using (
-              .creator ?= global current_user
-            );
+          cards := (
+            select .<deck[is Card]
+            order by .order
+          );
         };
 
     -   type Card {
@@ -62,12 +39,6 @@ Adding Shared Properties
           required back: str;
 
           required deck: Deck;
-
-          access policy deck_creator_has_full_access
-            allow all
-            using (
-              .deck.creator ?= global current_user
-            );
         }
       }
 
@@ -80,10 +51,6 @@ Adding Shared Properties
     $ npx gel migration create
     did you create object type 'default::Timestamped'? [y,n,l,c,b,s,q,?]
     > y
-    did you alter object type 'default::AccessToken'? [y,n,l,c,b,s,q,?]
-    > y
-    did you alter object type 'default::User'? [y,n,l,c,b,s,q,?]
-    > y
     did you alter object type 'default::Card'? [y,n,l,c,b,s,q,?]
     > y
     did you alter object type 'default::Deck'? [y,n,l,c,b,s,q,?]
@@ -94,6 +61,54 @@ Adding Shared Properties
     Applying m1d2m5n5ajkalyijrxdliioyginonqbtfzihvwdfdmfwodunszstya (00004-m1d2m5n.edgeql)
     ... parsed
     ... applied
+    Generating query builder...
+    Detected tsconfig.json, generating TypeScript files.
+      To override this, use the --target flag.
+      Run `npx @gel/generate --help` for full options.
+    Introspecting database schema...
+    Generating runtime spec...
+    Generating cast maps...
+    Generating scalars...
+    Generating object types...
+    Generating function types...
+    Generating operators...
+    Generating set impl...
+    Generating globals...
+    Generating index...
+    Writing files to ./dbschema/edgeql-js
+    Generation complete! 🤘
+
+.. edb:split-section::
+
+  Update the ``getDecks`` query to sort the decks by ``updated_at`` in descending order.
+
+  .. code-block:: typescript-diff
+      :caption: app/queries.ts
+
+        import { client } from "@/lib/gel";
+        import e from "@/dbschema/edgeql-js";
+
+      - const getDecksQuery = e.select(e.Deck, () => ({
+      + const getDecksQuery = e.select(e.Deck, (deck) => ({
+          id: true,
+          name: true,
+          description: true,
+          cards: {
+            id: true,
+            front: true,
+            back: true,
+          },
+      +   order_by: {
+      +     expression: deck.updated_at,
+      +     direction: e.DESC,
+      +   },
+        }));
+
+        export async function getDecks() {
+          const decks = await getDecksQuery.run(client);
+
+          return decks;
+        }
 
 .. edb:split-section::
 

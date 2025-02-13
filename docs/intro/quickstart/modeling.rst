@@ -1,31 +1,51 @@
 .. _ref_quickstart_modeling:
 
 =================
-Modeling your data
+Modeling the data
 =================
 
 .. edb:split-section::
 
   The flashcards application has a simple data model, but it's interesting enough to get a taste of many of the features of the Gel schema language. You have a ``Card`` type that describes a single flashcard, which for now contains two required string properties: ``front`` and ``back``. Each ``Card`` belongs to a ``Deck``, and there is an explicit ordering to the cards in a given deck.
 
-  Starting with this simple model, express these types in the ``default.gel`` schema file.
+  Looking at the mock data, you can see this structure in the JSON.
+
+  .. code-block:: typescript
+
+    interface Card {
+      front: string;
+      back: string;
+    }
+
+    interface Deck {
+      name: string;
+      description: string | null;
+      cards: Card[];
+    }
+
+.. edb:split-section::
+
+  Starting with this simple model, add these types to the ``default.gel`` schema file. As you can see, the types closely mirror the JSON mock data.
+
+  Also of note, the link between ``Card`` and ``Deck`` objects creates a "1-to-n" relationship, where each ``Deck`` object has a link to zero or more ``Card`` objects. When you query the ``Deck.cards`` link, the cards will be unordered, so the ``Card`` type needs an explicit ``order`` property to allow sorting them at query time.
 
   .. code-block:: sdl-diff
     :caption: dbschema/default.gel
 
       module default {
-    +   type Deck {
-    +     required name: str;
-    +     description: str;
-    +   };
-
     +   type Card {
     +     required order: int64;
     +     required front: str;
     +     required back: str;
-
-    +     required deck: Deck;
-    +   }
+    +   };
+    +
+    +   type Deck {
+    +     required name: str;
+    +     description: str;
+    +     multi cards: Card {
+    +       constraint exclusive;
+    +     };
+    +   };
       };
 
 .. edb:split-section::

@@ -20,7 +20,7 @@ Setting up your environment
 
 .. edb:split-section::
 
-  Quickly take a poke around the empty database with the CLI REPL.
+  Explore the empty database by starting our REPL from the project root.
 
   .. code-block:: sh
 
@@ -56,12 +56,12 @@ Setting up your environment
 
 .. edb:split-section::
 
-  Fun! You will create a proper data model for the application in the next step, but for now, take a look around the project you've just created. Most of the project files will be familiar if you've worked with Next.js before. Focus on the new files that integrate Gel.
+  Fun! You will create a proper data model for the application in the next step, but for now, take a look around the project you've just created. Most of the project files will be familiar if you've worked with Next.js before. Here are the new files that integrate Gel:
 
-  - ``gel.toml``: This is the configuration file for the Gel project instance.
+  - ``gel.toml``: The configuration file for the Gel project instance.
   - ``dbschema/``: This directory contains the schema for the database, and later supporting files like migrations, and generated code.
-  - ``dbschema/default.gel``: This is the default schema file that you'll use to define your data model. It is empty for now, but you'll add your data model to this file in the next step.
-  - ``lib/gel.ts``: This file contains the Gel client, which you'll use to interact with the database.
+  - ``dbschema/default.gel``: The default schema file that you'll use to define your data model. It is empty for now, but you'll add your data model to this file in the next step.
+  - ``lib/gel.ts``: A utility module that exports the Gel client, which you'll use to interact with the database.
 
   .. code-block:: sh
 

@@ -11,13 +11,10 @@ Quickstart
   setup
   modeling
   working
-  workflow
-  access
   inheritance
-  dynamic
 
 
-Welcome to the quickstart tutorial! You will create a simple Flashcards application using Next.js and Gel. The application will let users build and manage their own study decks, with each flashcard featuring customizable text on both sides - making it perfect for studying, memorization practice, or creating educational games.
+Welcome to the quickstart tutorial! In this tutorial, you will update a simple Next.js application to use Gel as your data layer. The application will let users build and manage their own study decks, with each flashcard featuring customizable text on both sides - making it perfect for studying, memorization practice, or creating educational games.
 
 Don't worry if you're new to Gel - you will be up and running with a working Next.js application and a local Gel database in just about **5 minutes**. From there, you will replace the static mock data with a Gel powered data layer in roughly 30-45 minutes.
 
