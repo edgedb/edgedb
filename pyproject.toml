@@ -18,7 +18,6 @@ dependencies = [
     'psutil~=5.8',
     'setproctitle~=1.2',
 
-    'hishel==0.0.24',
     'webauthn~=2.0.0',
     'argon2-cffi~=23.1.0',
     'aiosmtplib~=3.0',

@@ -17,7 +17,7 @@ tokio.workspace = true
 pyo3_util.workspace = true
 conn_pool = { workspace = true, features = [ "python_extension" ] }
 pgrust = { workspace = true, features = [ "python_extension" ] }
-http = { workspace = true, features = [ "python_extension" ] }
+gel-http = { workspace = true, features = [ "python_extension" ] }
 
 [lib]
 crate-type = ["lib", "cdylib"]
