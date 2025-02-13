@@ -165,21 +165,21 @@ async def get_remote_jwtset(
     the cache.
     """
     is_fresh, jwtset = jwtset_cache.get(url)
-    if is_fresh and jwtset is not None:
-        return jwtset
+    match (is_fresh, jwtset):
+        case (_, None):
+            jwtset = await fetch_lambda(url)
+            jwtset_cache.set(url, jwtset)
+            return jwtset
+        case (True, jwtset):
+            return jwtset
+        case (False, jwtset):
+            # Run fetch in background to refresh cache
+            async def refresh_cache(url: str) -> None:
+                try:
+                    new_jwtset = await fetch_lambda(url)
+                    jwtset_cache.set(url, new_jwtset)
+                except Exception:
+                    logger.exception("Failed to refresh JWKSet cache for %s", url)
 
-    if jwtset is None:
-        jwtset = await fetch_lambda(url)
-        jwtset_cache.set(url, jwtset)
-        return jwtset
-
-    # Run fetch in background to refresh cache
-    async def refresh_cache(url: str) -> None:
-        try:
-            new_jwtset = await fetch_lambda(url)
-            jwtset_cache.set(url, new_jwtset)
-        except Exception:
-            logger.exception("Failed to refresh JWKSet cache for %s", url)
-
-    asyncio.create_task(refresh_cache(url))
-    return jwtset
+            asyncio.create_task(refresh_cache(url))
+            return jwtset
