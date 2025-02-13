@@ -745,12 +745,34 @@ class TestServerOps(tb.TestCaseWithHttpClient, tb.CLITestCaseMixin):
                 con = await sd.connect()
                 try:
                     qry = 'select schema::Object { name }'
+                    sql = '''
+                        SELECT
+                            n.nspname::text AS table_schema,
+                            c.relname::text AS table_name,
+                            CASE
+                                WHEN c.relkind = 'r' THEN 'table'
+                                WHEN c.relkind = 'v' THEN 'view'
+                                WHEN c.relkind = 'm' THEN 'materialized_view'
+                            END AS type,
+                            c.relrowsecurity AS rls_enabled
+                        FROM
+                            pg_catalog.pg_class c
+                        JOIN
+                            pg_catalog.pg_namespace n
+                                ON n.oid::text = c.relnamespace::text
+                        WHERE
+                            c.relkind IN ('r', 'v', 'm')
+                            AND n.nspname = 'public';
+                    '''
 
                     await con.query(qry)
+                    await con.query_sql(sql)
 
                     # Querying a second time should hit the cache
                     with self.assertChange(measure_compilations(sd), 0):
                         await con.query(qry)
+                    with self.assertChange(measure_sql_compilations(sd), 0):
+                        await con.query_sql(sql)
 
                     await con.query('''
                         create type X
@@ -763,6 +785,14 @@ class TestServerOps(tb.TestCaseWithHttpClient, tb.CLITestCaseMixin):
                         await con.query(qry)
                     with self.assertChange(measure_compilations(sd), 0):
                         await con.query(qry)
+
+                    # The SQL cache is reset after DDL, because recompiling SQL
+                    # requires backend connection for amending in/out tids, and
+                    # we don't have the infra for that yet.
+                    with self.assertChange(measure_sql_compilations(sd), 1):
+                        await con.query_sql(sql)
+                    with self.assertChange(measure_sql_compilations(sd), 0):
+                        await con.query_sql(sql)
 
                     # TODO: this does not behave the way I thing it should
                     # with self.assertChange(measure_compilations(sd), 1):
@@ -802,24 +832,24 @@ class TestServerOps(tb.TestCaseWithHttpClient, tb.CLITestCaseMixin):
 
                     # Now, a similar thing for SQL queries
 
-                    with self.assertChange(measure_compilations(sd), 1):
+                    with self.assertChange(measure_sql_compilations(sd), 1):
                         await con.query_sql('select 1')
 
                     # cache hit
-                    with self.assertChange(measure_compilations(sd), 0):
+                    with self.assertChange(measure_sql_compilations(sd), 0):
                         await con.query_sql('select 1')
 
                     # changing globals: cache hit
-                    with self.assertChange(measure_compilations(sd), 0):
+                    with self.assertChange(measure_sql_compilations(sd), 0):
                         con_g = con.with_globals({'g': 'hello'})
                         await con_g.query_sql('select 1')
 
                     # normalization: pg_query_normalize is underwhelming
-                    with self.assertChange(measure_compilations(sd), 1):
+                    with self.assertChange(measure_sql_compilations(sd), 1):
                         await con.query_sql('sElEct  1')
 
                     # constant extraction: cache hit
-                    with self.assertChange(measure_compilations(sd), 0):
+                    with self.assertChange(measure_sql_compilations(sd), 0):
                         await con.query_sql('select 2')
 
                     # TODO: this does not behave the way I though it should
