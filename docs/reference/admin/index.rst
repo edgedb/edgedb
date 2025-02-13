@@ -26,9 +26,13 @@ Administrative commands for managing EdgeDB:
 
       Create, remove, or alter a branch.
 
-    * :ref:`administer vacuum <ref_admin_vacuum>`
+    * :ref:`administer statistics_update() <ref_admin_statistics_update>`
 
-      Reclaim storage space
+      Update internal statistics about data.
+
+    * :ref:`administer vacuum() <ref_admin_vacuum>`
+
+      Reclaim storage space.
 
 
 .. toctree::
@@ -39,4 +43,5 @@ Administrative commands for managing EdgeDB:
     configure
     databases
     roles
+    statistics_update
     vacuum

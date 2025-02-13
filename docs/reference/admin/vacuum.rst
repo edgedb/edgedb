@@ -15,6 +15,7 @@ Reclaim storage space.
     administer vacuum "("
       [<type_link_or_property> [, ...]]
       [, full := {true | false}]
+      [, statistics_update := {true | false}]
     ")"
 
 
@@ -35,6 +36,10 @@ Cleans and reclaims storage by removing obsolete data.
     and reclaimed space is kept available for reuse in the database, reducing
     the rate of growth of the database.
 
+:eql:synopsis:`statistics_update := {true | false}`
+    If set to ``true``, updates statistics used by the planner to determine
+    the most efficient way to execute queries on specified data.  See also
+    :ref:`administer statistics_update() <ref_admin_statistics_update>`.
 
 Examples
 --------
