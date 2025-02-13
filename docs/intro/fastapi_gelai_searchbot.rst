@@ -4,21 +4,21 @@
 FastAPI (Searchbot)
 ===================
 
-:edb-alt-title: Building a searchbot with memory using FastAPI and Gel AI
+:edb-alt-title: Building a search bot with memory using FastAPI and Gel AI
 
 In this tutorial we're going to walk you through building a chat bot with search
 capabilities using Gel and `FastAPI <https://fastapi.tiangolo.com/>`_.
 
-FastAPI is a framework designed to help you build a web app, well, fast. And Gel
-is a data layer designed to help you figure out storage in your application, and
-also do it fast. By the end of this tutorial you will have tried out different
-aspects of using those two together.
+FastAPI is a framework designed to help you build web apps *fast*. Gel is a
+data layer designed to help you figure out storage in your application - also
+*fast*. By the end of this tutorial, you will have tried out different aspects
+of using those two together.
 
-We're going to start by creating an app with FastAPI, then add web search
-capabilities to it, and then put search results through a language model to get
-a human-friendly answer. After that we'll use Gel to implement chat history, and
-finish it off with semantic search, so that the bot can remember previous
-interactions with the user.
+We will start by creating an app with FastAPI, adding web search capabilities,
+and then putting search results through a language model to get a
+human-friendly answer. After that, we'll use Gel to implement chat history so
+that the bot remembers previous interactions with the user. We'll finish it off
+with semantic search-based cross-chat memory.
 
 The end result is going to look something like this:
 
@@ -57,14 +57,14 @@ The end result is going to look something like this:
   following uv's instructions on `managing dependencies
   <https://docs.astral.sh/uv/concepts/projects/dependencies/#optional-dependencies>`_,
   as well as FastAPI's `installation docs
-  <https://fastapi.tiangolo.com/#installation>`_. Running ``uv sync`` after that
-  will create our virtual environment in a ``.venv`` directory and ensure it's
-  ready. As a last step, we'll activate the environment and get started.
+  <https://fastapi.tiangolo.com/#installation>`_. Running ``uv sync`` after
+  that will create our virtual environment in a ``.venv`` directory and ensure
+  it's ready. As the last step, we'll activate the environment and get started.
 
   .. note::
 
-      Make sure to source the environment every time you open a new terminal
-      session before running ``python``, ``gel`` or ``fastapi``-related commands.
+      Every time you open a new terminal session, you should source the
+      environment before running ``python``, ``gel`` or ``fastapi`` commands.
 
   .. code-block:: bash
 
@@ -82,8 +82,8 @@ The end result is going to look something like this:
   At this stage we need to follow FastAPI's `tutorial
   <https://fastapi.tiangolo.com/tutorial/>`_ to create the foundation of our app.
 
-  We're going to make a super simple web API with one endpoint that takes in a
-  user query as an input and echoes it as an output. First, let's make a directory
+  We're going to make a minimal web API with one endpoint that takes in a user
+  query as an input and echoes it as an output. First, let's make a directory
   called ``app`` in our project root, and put an empty ``__init__.py`` there.
 
   .. code-block:: bash
@@ -120,7 +120,7 @@ The end result is going to look something like this:
 .. edb:split-section::
 
   Once the server gets up and running, we can make sure it works using FastAPI's
-  built-in UI at <http://127.0.0.1:8000/docs>_, or manually by using ``curl``:
+  built-in UI at <http://127.0.0.1:8000/docs>_, or manually with ``curl``:
 
   .. code-block:: bash
 
@@ -133,11 +133,11 @@ The end result is going to look something like this:
 
 .. edb:split-section::
 
-  Now, in order to create the endpoint we set out to create, we need to pass our
-  query as a parameter to it. We'd prefer to have it in the body of the request
-  since user messages can get pretty long.
+  Now, to create the search endpoint we mentioned earlier, we need to pass our
+  query as a parameter to it. We'd prefer to have it in the request's body
+  since user messages can be long.
 
-  In FastAPI land this is done by creating a Pydantic schema and making it the
+  In FastAPI land, this is done by creating a Pydantic schema and making it the
   type of the input parameter. `Pydantic <https://docs.pydantic.dev/latest/>`_ is
   a data validation library for Python. It has many features, but we don't
   actually need to know about them for now. All we need to know is that FastAPI
@@ -162,8 +162,8 @@ The end result is going to look something like this:
 
 .. edb:split-section::
 
-  Now we can define our endpoint and set the two classes we just added as its
-  argument and return type.
+  Now, we can define our endpoint. We'll set the two classes we just created as
+  the new endpoint's argument and return type.
 
   .. code-block:: python
       :caption: app/main.py
@@ -317,7 +317,7 @@ to it by implementing web search capabilities.
 
 .. edb:split-section::
 
-  Now we can test our web search on its own by running it like this:
+  Now, we can test our web search on its own by running it like this:
 
   .. code-block:: bash
 
@@ -335,8 +335,8 @@ to it by implementing web search capabilities.
        from .web import fetch_web_sources, WebSource
 
        async def search_web(query: str) -> list[WebSource]:
-           raw_souces = fetch_web_sources(query, limit=30)
-           return [s for s in raw_souces if s.text is not None][:5]
+           raw_sources = fetch_web_sources(query, limit=30)
+           return [s for s in raw_sources if s.text is not None][:5]
 
 
 .. edb:split-section::
@@ -544,15 +544,15 @@ use to define our types.
 
 .. edb:split-section::
 
-  We obviously want to keep track of messages, so we need to represent those in
-  the schema. By convention established in the LLM space, each message is going to
-  have a role in addition to the message content itself. We can also get Gel to
-  automatically keep track of message's creation time by adding a property callled
-  ``timestamp`` and setting its :ref:`default value <ref_datamodel_props>` to the
-  output of the :ref:`datetime_current() <ref_std_datetime>` function. Finally,
-  LLM messages in our searchbot have souce URLs associated with them. Let's keep
-  track of those too, by adding a :ref:`multi-link property
-  <ref_datamodel_links>`.
+  We obviously want to keep track of the messages, so we need to represent
+  those in the schema. By convention established in the LLM space, each message
+  is going to have a role in addition to the message content itself. We can
+  also get Gel to automatically keep track of message's creation time by adding
+  a property callled ``timestamp`` and setting its :ref:`default value
+  <ref_datamodel_props>` to the output of the :ref:`datetime_current()
+  <ref_std_datetime>` function. Finally, LLM messages in our search bot have
+  source URLs associated with them. Let's keep track of those too, by adding a
+  :ref:`multi-property <ref_datamodel_props>`.
 
   .. code-block:: sdl
       :caption: dbschema/default.esdl
