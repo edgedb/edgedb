@@ -824,6 +824,12 @@ class TestServerOps(tb.TestCaseWithHttpClient, tb.CLITestCaseMixin):
 
                     with self.assertChange(measure_compilations(sd), 1):
                         await con.query(qry)
+                    with self.assertChange(measure_compilations(sd), 0):
+                        await con.query(qry)
+                    with self.assertChange(measure_sql_compilations(sd), 1):
+                        await con.query_sql(sql)
+                    with self.assertChange(measure_sql_compilations(sd), 0):
+                        await con.query_sql(sql)
 
                     await con.execute(
                         "configure current database "
@@ -912,6 +918,9 @@ class TestServerOps(tb.TestCaseWithHttpClient, tb.CLITestCaseMixin):
                     # It should hit the cache no problem.
                     with self.assertChange(measure_compilations(sd), 0):
                         await con.query(qry)
+                    # TODO(fantix): persistent SQL cache not working?
+                    # with self.assertChange(measure_sql_compilation(sd), 0):
+                    #     await con.query_sql(sql)
 
                 finally:
                     await con.aclose()
