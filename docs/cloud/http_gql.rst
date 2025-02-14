@@ -7,14 +7,14 @@ HTTP & GraphQL APIs
 :edb-alt-title: Querying Gel Cloud over HTTP and GraphQL
 
 Using |Gel| Cloud via HTTP and GraphQL works the same as :ref:`using any other
-EdgeDB instance <ref_edgeql_http>`. The two differences are in **how to
+|Gel| instance <ref_edgeql_http>`. The two differences are in **how to
 discover your instance's URL** and **authentication**.
 
 
 Enabling
 ========
 
-EdgeDB Cloud can expose an HTTP endpoint for EdgeQL queries. Since HTTP is a
+|Gel| Cloud can expose an HTTP endpoint for EdgeQL queries. Since HTTP is a
 stateless protocol, no :ref:`DDL <ref_eql_ddl>` or :ref:`transaction commands
 <ref_eql_statements_start_tx>`, can be executed using this endpoint.  Only one
 query per request can be executed.

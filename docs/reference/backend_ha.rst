@@ -23,7 +23,7 @@ connection is restored and the query can be properly resolved.
 API-based HA
 ------------
 
-EdgeDB server accepts different types of backends by looking into the protocol
+|Gel| server accepts different types of backends by looking into the protocol
 of the ``--backend-dsn`` command-line parameter. Gel supports the following
 DSN protocols currently:
 
@@ -48,7 +48,7 @@ with a DSN, like so:
     $ edgedb-server \
         --backend-dsn stolon+consul+http://localhost:8500/my-cluster
 
-EdgeDB will connect to the Consul HTTP service at ``localhost:8500``, and
+|Gel| will connect to the Consul HTTP service at ``localhost:8500``, and
 subscribe to the updates of the cluster named ``my-cluster``.
 
 Using a regular ``postgres://`` DSN disables API-based HA.
@@ -57,7 +57,7 @@ Using a regular ``postgres://`` DSN disables API-based HA.
 Adaptive HA
 -----------
 
-EdgeDB also supports DNS-based generic HA backends. This may be a cloud
+|Gel| also supports DNS-based generic HA backends. This may be a cloud
 database with multi-AZ failover or some custom HA Postgres cluster that keeps
 a DNS name always resolved to the leader node. Adaptive HA can be enabled with
 a switch in addition to a regular backend DSN:

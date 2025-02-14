@@ -739,7 +739,7 @@ Pagination
 
 .. index:: limit, offset
 
-EdgeDB supports ``limit`` and ``offset`` clauses. These are
+|Gel| supports ``limit`` and ``offset`` clauses. These are
 typically used in conjunction with ``order by`` to maintain a consistent
 ordering across pagination queries.
 

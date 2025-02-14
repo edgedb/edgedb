@@ -161,7 +161,7 @@ The :eql:type:`bool` type represents a true/false value.
   db> select false;
   {false}
 
-EdgeDB provides a set of operators that operate on boolean values.
+|Gel| provides a set of operators that operate on boolean values.
 
 .. list-table::
 

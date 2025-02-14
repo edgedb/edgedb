@@ -4,7 +4,7 @@ Strawberry
 
 :edb-alt-title: Building a GraphQL API with Gel and Strawberry
 
-EdgeDB allows you to query your database with GraphQL via the built-in GraphQL
+|Gel| allows you to query your database with GraphQL via the built-in GraphQL
 extension. It enables you to expose GraphQL-driven CRUD APIs for all object
 types, their properties, links, and aliases. This opens up the scope for
 creating backend-less applications where the users will directly communicate
@@ -117,7 +117,7 @@ The movie organization system will have two object types—**movies** and
 create a GraphQL API suite that'll allow us to fetch, create, update, and
 delete the objects while maintaining their relationships.
 
-EdgeDB allows us to declaratively define the structure of the objects. The
+|Gel| allows us to declaratively define the structure of the objects. The
 schema lives inside |.gel| file in the ``dbschema`` directory. It's
 common to declare the entire schema in a single file ``dbschema/default.esdl``.
 This is how our datatypes look:

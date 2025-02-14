@@ -88,7 +88,7 @@ Allow other Azure services access to the Postgres instance.
        --start-ip-address 0.0.0.0 \
        --end-ip-address 0.0.0.0
 
-EdgeDB requires Postgres' ``uuid-ossp`` extension which needs to be enabled.
+|Gel| requires Postgres' ``uuid-ossp`` extension which needs to be enabled.
 
 .. code-block:: bash
 

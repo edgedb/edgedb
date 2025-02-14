@@ -46,7 +46,7 @@ If you are using the :ref:`JS query builder for Gel <edgedb-js-qb>` then
 you will need to check the ``dbschema/edgeql-js`` directory in to your git
 repo after running ``yarn edgeql-js``. The ``edgeql-js`` command cannot be
 run during the build step on Heroku because it needs access to a running
-EdgeDB instance which is not available at build time on Heroku.
+|Gel| instance which is not available at build time on Heroku.
 
 .. code-block:: bash
 
@@ -96,7 +96,7 @@ To make Gel available to a process prepend the command with ``start-edgedb``
 which is provided by the Gel buildpack. For the sample application in this
 guide, the web process is started with the command ``npm start``. If you have
 other processes in your application besides/instead of web that need to access
-EdgeDB those process commands should be prepended with ``start-edgedb`` too.
+|Gel| those process commands should be prepended with ``start-edgedb`` too.
 
 .. code-block:: bash
 

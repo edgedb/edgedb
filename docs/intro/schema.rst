@@ -12,7 +12,7 @@ linked pages for more in-depth documentation!
 Scalar types
 ------------
 
-EdgeDB implements a rigorous type system containing the following primitive
+|Gel| implements a rigorous type system containing the following primitive
 types.
 
 .. list-table::
@@ -81,8 +81,7 @@ Declare a property by naming it and setting its type.
       title: str;
     }
 
-The ``property`` keyword can be omitted for non-computed properties since
-EdgeDB v3.
+The ``property`` keyword can be omitted for non-computed properties.
 
 See :ref:`Schema > Object types <ref_std_object_types>`.
 

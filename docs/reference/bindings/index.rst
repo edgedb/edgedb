@@ -4,7 +4,7 @@
 Client Libraries
 ================
 
-EdgeDB client libraries are a bit higher level than usual database bindings.
+|Gel| client libraries are a bit higher level than usual database bindings.
 In particular, they contain:
 
 * Structured data retrieval

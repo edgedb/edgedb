@@ -329,7 +329,7 @@ Conflicts
 
 .. index:: unless conflict on, else
 
-EdgeDB provides a general-purpose mechanism for gracefully handling possible
+|Gel| provides a general-purpose mechanism for gracefully handling possible
 exclusivity constraint violations. Consider a scenario where we are trying to
 ``insert`` Eternals (the ``Movie``), but we can't remember if it already exists
 in the database.

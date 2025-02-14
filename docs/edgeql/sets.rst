@@ -363,7 +363,7 @@ Inheritance
 
 .. index:: type intersection, backlinks, [is ]
 
-EdgeDB schemas support :ref:`inheritance <ref_datamodel_objects_inheritance>`;
+|Gel| schemas support :ref:`inheritance <ref_datamodel_objects_inheritance>`;
 types (usually object types) can extend one or more other types. For instance
 you may declare an abstract object type ``Media`` that is extended by ``Movie``
 and ``TVShow``.

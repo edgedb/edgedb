@@ -34,7 +34,7 @@ applies to remote instances.
 Health Checks
 -------------
 
-EdgeDB exposes endpoints to check for aliveness and readiness of your database
+|Gel| exposes endpoints to check for aliveness and readiness of your database
 instance.
 
 Aliveness
