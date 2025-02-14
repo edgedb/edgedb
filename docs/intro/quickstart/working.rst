@@ -4,13 +4,13 @@
 Working with the data
 =====================
 
-In this section, you will update the existing application to use Gel to store and query data, instead of a static JSON file. Having a working application with mock data allows you to focus on learning how Gel works, without getting bogged down by the details of the application.
+In this section, you will update the existing application to use |Gel| to store and query data, instead of a static JSON file. Having a working application with mock data allows you to focus on learning how |Gel| works, without getting bogged down by the details of the application.
 
 .. edb:split-section::
 
   Begin by updating the server action to import a deck with cards. Loop through each card in the deck and insert it, building an array of IDs as you go. This array of IDs will be used to set the ``cards`` link on the ``Deck`` object after all cards have been inserted.
 
-  The array of card IDs is initially an array of strings. To satisfy the Gel type system, which expects the ``id`` property of ``Card`` objects to be a ``uuid`` rather than a ``str``, you need to cast the array of strings to an array of UUIDs. Use the ``e.literal(e.array(e.uuid), cardIds)`` function to perform this casting.
+  The array of card IDs is initially an array of strings. To satisfy the |Gel| type system, which expects the ``id`` property of ``Card`` objects to be a ``uuid`` rather than a ``str``, you need to cast the array of strings to an array of UUIDs. Use the ``e.literal(e.array(e.uuid), cardIds)`` function to perform this casting.
 
   The function ``e.includes(cardIdsLiteral, c.id)`` from our standard library checks if a value is present in an array and returns a boolean. When inserting the ``Deck`` object, set the ``cards`` to the result of selecting only the ``Card`` objects whose ``id`` is included in the ``cardIds`` array.
 

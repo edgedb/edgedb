@@ -6,7 +6,7 @@ Modeling the data
 
 .. edb:split-section::
 
-  The flashcards application has a simple data model, but it's interesting enough to get a taste of many of the features of the Gel schema language. You have a ``Card`` type that describes a single flashcard, which for now contains two required string properties: ``front`` and ``back``. Each ``Card`` belongs to a ``Deck``, and there is an explicit ordering to the cards in a given deck.
+  The flashcards application has a simple data model, but it's interesting enough to get a taste of many of the features of the |Gel| schema language. You have a ``Card`` type that describes a single flashcard, which for now contains two required string properties: ``front`` and ``back``. Each ``Card`` belongs to a ``Deck``, and there is an explicit ordering to the cards in a given deck.
 
   Looking at the mock data, you can see this structure in the JSON.
 
@@ -52,7 +52,7 @@ Modeling the data
 
   Congratulations! This first version of the data model's schema is *stored in a file on disk*. Now you need to signal the database to actually create types for ``Deck`` and ``Card`` in the database.
 
-  To make Gel do that, you need to do two quick steps:
+  To make |Gel| do that, you need to do two quick steps:
 
   1. **Create a migration**: a file with a list of low-level instructions.
 
@@ -60,7 +60,7 @@ Modeling the data
 
        When you are changing existing schema, the CLI migration tool might ask questions to ensure that it understands your changes exactly. Since the existing schema was empty, the CLI will skip asking any questions and simply create the migration file.
 
-  2. **Apply the migration**: basically, tell Gel "I want you to use these instructions and get my types ready for action."
+  2. **Apply the migration**: basically, tell |Gel| "I want you to use these instructions and get my types ready for action."
 
      .. note::
 
