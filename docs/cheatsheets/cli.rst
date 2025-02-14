@@ -12,7 +12,7 @@ To initialize a new project:
 If an :ref:`ref_reference_edgedb_toml` file exists in the current directory, it
 will initialize a new project according to the settings defined in it.
 
-Otherwise, a new project will be initialized and an ``edgedb.toml`` file and
+Otherwise, a new project will be initialized and an |gel.toml| file and
 ``dbschema`` directory will be generated. For details on using projects, see
 the :ref:`dedicated guide <ref_guide_using_projects>`.
 

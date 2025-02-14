@@ -71,7 +71,7 @@ project init`` inside it. You'll see something like this:
 This command does a couple important things.
 
 1. It spins up a new Gel instance called ``my_instance``.
-2. If no ``edgedb.toml`` file exists, it will create one. This is a
+2. If no |gel.toml| file exists, it will create one. This is a
    configuration file that marks a given directory as an Gel project. Learn
    more about it in :ref:`our edgedb.toml reference
    <ref_reference_edgedb_toml>`.
@@ -181,7 +181,7 @@ Unlinking
 ^^^^^^^^^
 
 An instance can be unlinked from a project. This leaves the instance running
-but effectively "uninitializes" the project. The ``edgedb.toml`` and
+but effectively "uninitializes" the project. The |gel.toml| and
 ``dbschema`` are left untouched.
 
 .. code-block:: bash

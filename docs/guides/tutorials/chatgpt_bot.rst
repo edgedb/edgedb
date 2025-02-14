@@ -239,7 +239,7 @@ the following in the root of the project:
 The CLI should set up an Gel project, an instance, and a default branch on
 that instance.
 
-- Confirm project creation by checking for an ``edgedb.toml`` file and a
+- Confirm project creation by checking for an |gel.toml| file and a
   ``dbschema`` directory in the project root.
 - Confirm the instance is running with the ``edgedb instance list`` command.
   Search for the name of the instance you've just created (``docs_chatbot`` if

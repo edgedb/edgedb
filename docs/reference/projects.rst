@@ -52,7 +52,7 @@ How does this help me?
 Once you've initialized a project, your project directory is *linked* to a
 particular instance. That means, you can run CLI commands without connection
 flags. For instance, ``edgedb -I my_instance migrate`` becomes simply ``edgedb
-migrate``. The CLI detects the existence of the ``edgedb.toml`` file, reads the
+migrate``. The CLI detects the existence of the |gel.toml| file, reads the
 current directory, and checks if it's associated with an existing project. If
 it is, it looks up the credentials of the linked instance (they're stored in a
 :ref:`standardized location <ref_cli_edgedb_paths>`), uses that information to
@@ -89,13 +89,13 @@ variables. See :ref:`Connection parameters <ref_reference_connection>` page for
 more information.
 
 
-What's the ``edgedb.toml`` file?
+What's the |gel.toml| file?
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The most important role of ``edgedb.toml`` is to mark a directory as an
+The most important role of |gel.toml| is to mark a directory as an
 instance-linked project, but it can also specify the server version and the
 schema directory for a project. The server version value in the generated
-``edgedb.toml`` is determined by the Gel version you selected when you ran
+|gel.toml| is determined by the Gel version you selected when you ran
 :ref:`ref_cli_edgedb_project_init`.
 
 Read :ref:`our reference documentation on edgedb.toml
@@ -120,7 +120,7 @@ steps to convert it into an Gel project:
 3. When asked for an instance name, enter the name of the existing local
    instance you use for development.
 
-This will create ``edgedb.toml`` and link your project directory to the
+This will create |gel.toml| and link your project directory to the
 instance. And you're done! Try running some commands without connection flags.
 Feels good, right?
 
@@ -128,7 +128,7 @@ How does this make projects more portable?
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Let's say you just cloned a full-stack application that uses Gel. The
-project directory already contains an ``edgedb.toml`` file. What do you do?
+project directory already contains an |gel.toml| file. What do you do?
 
 Just run ``edgedb project init`` inside the directory! This is the beauty of
 ``edgedb project``. You don't need to worry about creating an instance with a
