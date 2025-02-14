@@ -43,7 +43,10 @@ Connecting to the database
 
 .. edb:split-section::
 
-  Moving beyond this simple query, use the query builder API to insert a few ``Deck`` objects into the database, and then select them back.
+
+  With TypeScript, there are three ways to run a query: use a string EdgeQL query, use the ``queries`` generator to turn a string of EdgeQL into a TypeScript function, or use the query builder API to build queries dynamically in a type-safe manner. In this tutorial, you will use the TypeScript query builder API.
+
+  This query builder must be generated any time the schema changes, so a hook has been added to the ``gel.toml`` file to generate the query builder any time the schema is updated. Moving beyond this simple query, use the query builder API to insert a few ``Deck`` objects into the database, and then select them back.
 
   .. edb:split-point::
 
@@ -92,3 +95,5 @@ Connecting to the database
     │ 0       │ 'f4cd3e6c-ea75-11ef-83ec-037350ea8a6e' │ 'I am one' │
     │ 1       │ 'f4cf27ae-ea75-11ef-83ec-3f7b2fceab24' │ 'I am two' │
     └─────────┴────────────────────────────────────────┴────────────┘
+
+Now that you know how to connect to the database, you will see that we have provided an initialized ``Client`` object in the ``/lib/gel.ts`` module. Throughout the rest of the tutorial, you will import this ``Client`` object and use it to make queries.

@@ -58,7 +58,7 @@ Setting up your environment
 
   Fun! You will create a proper data model for the application in the next step, but for now, take a look around the project you've just created. Most of the project files will be familiar if you've worked with Next.js before. Here are the new files that integrate Gel:
 
-  - ``gel.toml``: The configuration file for the Gel project instance.
+  - ``gel.toml``: The configuration file for the Gel project instance. Notice that we have a ``hooks.migration.apply.after`` hook that will run ``npx @gel/generate edgeql-js`` after migrations are applied. This will generate the query builder code that you'll use to interact with the database. More details on that to come!
   - ``dbschema/``: This directory contains the schema for the database, and later supporting files like migrations, and generated code.
   - ``dbschema/default.gel``: The default schema file that you'll use to define your data model. It is empty for now, but you'll add your data model to this file in the next step.
   - ``lib/gel.ts``: A utility module that exports the Gel client, which you'll use to interact with the database.
@@ -66,19 +66,3 @@ Setting up your environment
   .. code-block:: sh
 
     $ tree
-
-
-.. edb:split-section::
-
-  With TypeScript, there are three ways to run a query: use a string EdgeQL query, use the ``queries`` generator to turn a string of EdgeQL into a TypeScript function, or use the query builder API to build queries dynamically in a type-safe manner. In this tutorial, you will use the TypeScript query builder API.
-
-  This query builder must be generated any time the schema changes, so before you start building your application, add a hook in your ``gel.toml`` file to generate the query builder when the schema is updated.
-
-  .. code-block:: toml-diff
-    :caption: gel.toml
-
-      [instance]
-      server-version = 6.0
-    +
-    + [hooks]
-    + schema.update.after = "npx @gel/generate edgeql-js"
