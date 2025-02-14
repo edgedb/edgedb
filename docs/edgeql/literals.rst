@@ -328,7 +328,7 @@ Dates and times
 
 .. index:: temporal
 
-EdgeDB's typesystem contains several temporal types.
+|Gel's| typesystem contains several temporal types.
 
 .. list-table::
 
@@ -388,7 +388,7 @@ EdgeQL supports a set of functions and operators on datetime types.
 Durations
 ---------
 
-EdgeDB's type system contains three duration types.
+|Gel's| type system contains three duration types.
 
 
 .. list-table::
