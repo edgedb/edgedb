@@ -86,7 +86,7 @@ base64url encode the resulting string. This new string is called the
    import crypto from "node:crypto";
 
    /**
-    * You can get this value by running `edgedb instance credentials`.
+    * You can get this value by running `gel instance credentials`.
     * Value should be:
     * `${protocol}://${host}:${port}/branch/${branch}/ext/auth/
     */
@@ -185,7 +185,7 @@ the end user's browser to the Identity Provider with the proper setup.
      );
 
      res.writeHead(302, {
-       "Set-Cookie": `edgedb-pkce-verifier=${pkce.verifier}; HttpOnly; Path=/; Secure; SameSite=Strict`,
+       "Set-Cookie": `gel-pkce-verifier=${pkce.verifier}; HttpOnly; Path=/; Secure; SameSite=Strict`,
        Location: redirectUrl.href,
      });
      res.end();
@@ -200,9 +200,10 @@ Retrieve ``auth_token``
 At the very end of the flow, the Gel server will redirect the user's browser
 to the ``redirect_to`` address with a single query parameter: ``code``. This
 route should be a server route that has access to the ``verifier``. You then
-take that ``code`` and look up the ``verifier`` in the ``edgedb-pkce-verifier``
-cookie, and make a request to the Gel Auth extension to exchange these two
-pieces of data for an ``auth_token``.
+take that ``code`` and look up the ``verifier`` in the ``gel-pkce-verifier``
+cookie (``edgedb-pkce-verifier`` with |EdgeDB| <= 5), and make a request to
+the Gel Auth extension to exchange these two pieces of data for an
+``auth_token``.
 
 .. lint-off
 
@@ -230,7 +231,7 @@ pieces of data for an ``auth_token``.
 
      const cookies = req.headers.cookie?.split("; ");
      const verifier = cookies
-       ?.find((cookie) => cookie.startsWith("edgedb-pkce-verifier="))
+       ?.find((cookie) => cookie.startsWith("gel-pkce-verifier="))
        ?.split("=")[1];
      if (!verifier) {
        res.status = 400;
@@ -256,7 +257,7 @@ pieces of data for an ``auth_token``.
 
      const { auth_token } = await codeExchangeResponse.json();
      res.writeHead(204, {
-       "Set-Cookie": `edgedb-auth-token=${auth_token}; HttpOnly; Path=/; Secure; SameSite=Strict`,
+       "Set-Cookie": `gel-auth-token=${auth_token}; HttpOnly; Path=/; Secure; SameSite=Strict`,
      });
      res.end();
    };
@@ -313,7 +314,7 @@ Identity which sets a search parameter on the URL to ``isSignUp=true``:
    + }
    +
      res.writeHead(204, {
-       "Set-Cookie": `edgedb-auth-token=${auth_token}; HttpOnly; Path=/; Secure; SameSite=Strict`,
+       "Set-Cookie": `gel-auth-token=${auth_token}; HttpOnly; Path=/; Secure; SameSite=Strict`,
      });
 
 
@@ -414,7 +415,7 @@ it:
      }
 
      res.writeHead(204, {
-       "Set-Cookie": `edgedb-auth-token=${auth_token}; HttpOnly; Path=/; Secure; SameSite=Strict`,
+       "Set-Cookie": `gel-auth-token=${auth_token}; HttpOnly; Path=/; Secure; SameSite=Strict`,
      });
 
 :ref:`Back to the Gel Auth guide <ref_guide_auth>`

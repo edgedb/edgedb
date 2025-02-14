@@ -35,7 +35,7 @@ Extension configuration
 =======================
 
 The best and easiest way to configure the extension for your database is
-to use the built-in UI. To access it, run ``edgedb ui``. If you have the
+to use the built-in UI. To access it, run  :gelcmd:`ui`. If you have the
 extension enabled in your schema as shown above and have migrated that
 schema change, you will see the "Auth Admin" icon in the left-hand toolbar.
 

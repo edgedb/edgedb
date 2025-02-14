@@ -30,7 +30,7 @@ DigitalOcean to deploy an Gel instance.
 .. _1-click-button:
    https://marketplace.digitalocean.com/apps/edgedb?refcode=f0b0d77b5d49
 
-By default, the admin password is ``edgedbpassword``; let's change that to
+By default, the admin password is ``gelpassword``; let's change that to
 something more secure. First, find your droplet's IP address on the
 `DigitalOcean dashboard <https://cloud.digitalocean.com/droplets>`_ and assign
 it to an environment variable ``IP``.
@@ -49,15 +49,15 @@ environment variable.
 
    $ echo -n "> " && read -s PASSWORD
 
-Use these variables to change the password for the default role ``edgedb``.
+Use these variables to change the password for the default role ``admin``.
 
 .. code-block:: bash
 
-   $ printf edgedbpassword | edgedb query \
+   $ printf gelpassword | gel query \
          --host $IP \
          --password-from-stdin \
          --tls-security insecure \
-         "alter role edgedb set password := '${PASSWORD}'"
+         "alter role admin set password := '${PASSWORD}'"
    OK: ALTER ROLE
 
 .. _ref_guide_deployment_digitalocean_link:
@@ -71,41 +71,41 @@ shell logs.
 
 .. code-block:: bash
 
-   $ echo edgedb://edgedb:$PASSWORD@$IP > dsn.txt
+   $ echo gel://admin:$PASSWORD@$IP > dsn.txt
 
 Copy the value from ``dsn.txt``. Run the following command to open a REPL
 to the new instance.
 
 ..  code-block:: bash
 
-   $ edgedb --dsn <dsn> --tls-security insecure
-   edgedb>
+   $ gel --dsn <dsn> --tls-security insecure
+   gel>
 
 Success! You're now connected to your remote instance.
 
-It's often useful to assign an alias to the remote instance using ``edgedb
-instance link``.
+It's often useful to assign an alias to the remote instance using
+:gelcmd:`instance link`.
 
 .. code-block:: bash
 
-   $ edgedb instance link \
+   $ gel instance link \
        --dsn <dsn> \
        --trust-tls-cert \
        --non-interactive \
        my_instance
-   Authenticating to edgedb://edgedb@1.2.3.4:5656/main
+   Authenticating to gel://admin@1.2.3.4:5656/main
    Trusting unknown server certificate:
    SHA1:1880da9527be464e2cad3bdb20dfc430a6af5727
    Successfully linked to remote instance. To connect run:
-     edgedb -I my_instance
+     gel -I my_instance
 
 You can now use the ``-I`` CLI flag to execute commands against your remote
 instance:
 
 .. code-block:: bash
 
-   $ edgedb -I my_instance
-   edgedb>
+   $ gel -I my_instance
+   gel>
 
 
 .. _ref_guide_deployment_digitalocean_managed:
@@ -134,7 +134,7 @@ If you already have a PostgreSQL instance you can skip this step.
 .. code-block:: bash
 
    $ DSN="$( \
-         doctl databases create edgedb-postgres \
+         doctl databases create gel-postgres \
              --engine pg \
              --version 14 \
              --size db-s-1vcpu-1gb \
@@ -160,8 +160,8 @@ add one now.
 .. code-block:: bash
 
    $ IP="$( \
-         doctl compute droplet create edgedb \
-             --image edgedb \
+         doctl compute droplet create gel \
+             --image gel \
              --region sfo3 \
              --size s-2vcpu-4gb \
              --ssh-keys $SSH_KEY_IDS \
@@ -178,9 +178,9 @@ up and running.
 
    $ printf "EDGEDB_SERVER_BACKEND_DSN=${DSN} \
    \nEDGEDB_SERVER_SECURITY=insecure_dev_mode\n" \
-   | ssh root@$IP -T "cat > /etc/edgedb/env"
+   | ssh root@$IP -T "cat > /etc/gel/env"
 
-   $ ssh root@$IP "systemctl restart edgedb.service"
+   $ ssh root@$IP "systemctl restart gel.service"
 
 Set the superuser password.
 
@@ -188,8 +188,8 @@ Set the superuser password.
 
    $ echo -n "> " && read -s PASSWORD
 
-   $ edgedb -H $IP --tls-security insecure query \
-         "alter role edgedb set password := '$PASSWORD'"
+   $ gel -H $IP --tls-security insecure query \
+         "alter role admin set password := '$PASSWORD'"
    OK: ALTER ROLE
 
 Set the security policy to strict.
@@ -198,9 +198,9 @@ Set the security policy to strict.
 
    $ printf "EDGEDB_SERVER_BACKEND_DSN=${DSN} \
    \nEDGEDB_SERVER_SECURITY=strict\n" \
-   | ssh root@$IP -T "cat > /etc/edgedb/env"
+   | ssh root@$IP -T "cat > /etc/gel/env"
 
-   $ ssh root@$IP "systemctl restart edgedb.service"
+   $ ssh root@$IP "systemctl restart gel.service"
 
 
 .. note::
@@ -210,8 +210,8 @@ Set the security policy to strict.
 
    .. code-block:: bash
 
-      $ apt-get update && apt-get install --only-upgrade edgedb-server-5
-      $ systemctl restart edgedb
+      $ apt-get update && apt-get install --only-upgrade gel-server-6
+      $ systemctl restart gel
 
 That's it! Refer to the :ref:`Construct the DSN
 <ref_guide_deployment_digitalocean_link>` section above to connect to your
@@ -219,7 +219,7 @@ instance.
 
 .. note::
 
-   The command groups ``edgedb instance`` and ``edgedb project`` are not
+   The command groups :gelcmd:`instance` and :gelcmd:`project` are not
    intended to manage production instances.
 
 Health Checks
