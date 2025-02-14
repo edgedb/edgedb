@@ -95,7 +95,7 @@ Client
 
     Example:
 
-    .. code-block:: js
+    .. code-block:: javascript
 
         // Use the Node.js assert library to test results.
         const assert = require("assert");
@@ -156,7 +156,7 @@ Client
 
         Example:
 
-        .. code-block:: js
+        .. code-block:: javascript
 
             await client.execute(`
                 CREATE TYPE MyType {
@@ -332,7 +332,7 @@ Client
 
         Example:
 
-        .. code-block:: js
+        .. code-block:: javascript
 
             await client.executeSQL(`
               INSERT INTO "MyType"(prop) VALUES ("value");
@@ -353,7 +353,7 @@ Client
 
         Example:
 
-        .. code-block:: js
+        .. code-block:: javascript
 
             let vals = await client.querySQL(`SELECT 1 as foo`)
             console.log(vals); // [{'foo': 1}]
@@ -384,7 +384,7 @@ Client
 
         Example:
 
-        .. code-block:: js
+        .. code-block:: javascript
 
             await client.transaction(async tx => {
               const value = await tx.querySingle("select Counter.value")
@@ -411,7 +411,7 @@ Client
 
         Example:
 
-        .. code-block:: js
+        .. code-block:: javascript
 
             import {createClient} from 'edgedb';
 
@@ -439,7 +439,7 @@ Client
 
         Example:
 
-        .. code-block:: js
+        .. code-block:: javascript
 
             const user = await client.withGlobals({
               userId: '...'
@@ -459,7 +459,7 @@ Client
 
         Example:
 
-        .. code-block:: js
+        .. code-block:: javascript
 
             const user = await client.withModuleAliases({
               module: 'sys'
@@ -501,7 +501,7 @@ Client
 
         Example:
 
-        .. code-block:: js
+        .. code-block:: javascript
 
             import {createClient} from 'edgedb';
 
@@ -633,7 +633,7 @@ Arrays
 
 EdgeDB ``array``  maps onto the JavaScript ``Array``.
 
-.. code-block:: js
+.. code-block:: javascript
 
     // Use the Node.js assert library to test results.
     const assert = require("assert");
@@ -661,7 +661,7 @@ Objects
 ``Object`` represents an object instance returned from a query. The value of an
 object property or a link can be accessed through a corresponding object key:
 
-.. code-block:: js
+.. code-block:: javascript
 
     // Use the Node.js assert library to test results.
     const assert = require("assert");
@@ -698,7 +698,7 @@ Tuples
 
 A regular EdgeDB ``tuple`` becomes an ``Array`` in JavaScript.
 
-.. code-block:: js
+.. code-block:: javascript
 
     // Use the Node.js assert library to test results.
     const assert = require("assert");
@@ -727,7 +727,7 @@ Named Tuples
 A named EdgeDB ``tuple`` becomes an ``Array``-like ``object`` in JavaScript,
 where the elements are accessible either by their names or indexes.
 
-.. code-block:: js
+.. code-block:: javascript
 
     // Use the Node.js assert library to test results.
     const assert = require("assert");
