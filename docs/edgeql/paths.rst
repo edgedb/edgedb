@@ -70,17 +70,17 @@ The first user reciprocates, adding the new user as a friend:
 
 .. code-block:: edgeql-repl
 
-    db> update User filter .email = "user1@me.com" 
-    ... set { 
+    db> update User filter .email = "user1@me.com"
+    ... set {
     ... friends += (select detached User filter .email = "user2@me.com")
     ... };
 
-The second user writes a blog post about how nice EdgeDB is:
+The second user writes a blog post about how nice Gel is:
 
 .. code-block:: edgeql-repl
 
     db> insert BlogPost {
-    ... title := "EdgeDB is awesome",
+    ... title := "Gel is awesome",
     ... author := assert_single((select User filter .email = "user2@me.com"))
     ... };
 
@@ -150,10 +150,10 @@ database. However, we can't impose a shape on it:
 
     select User.<author { text };
 
-As written, EdgeDB infers the *type* of this expression to be
+As written, Gel infers the *type* of this expression to be
 :eql:type:`BaseObject`. Why? Because in theory, there may be
 several links named ``author`` from different object types
-that point to ``User``. And there is no guarantee that each 
+that point to ``User``. And there is no guarantee that each
 of these types will have a property called ``text``.
 
 .. note::
@@ -161,14 +161,14 @@ of these types will have a property called ``text``.
   a single property, ``id``.
 
 As such, commonly you'll want to narrow the results to a particular type.
-To do so, use the :eql:op:`type intersection <isintersect>` operator: 
+To do so, use the :eql:op:`type intersection <isintersect>` operator:
 ``[is Foo]``:
 
 .. code-block:: edgeql
-    
+
     # BlogPost objects that link to the user via a link named author
     select User.<author[is BlogPost];
-    
+
     # Comment objects that link to the user via a link named author
     select User.<author[is Comment];
 
@@ -205,7 +205,7 @@ that the type name (in this case ``User``) doesn't need to be specified.
 
 .. code-block:: sdl-diff
     :version-lt: 3.0
-    
+
       type User {
         required property email -> str;
         multi link friends -> User;
@@ -310,12 +310,12 @@ Below, the root of the path is a *subquery*.
 .. code-block:: edgeql-repl
 
     db> with edgedb_lovers := (
-    ...   select BlogPost filter .title ilike "EdgeDB is awesome"
+    ...   select BlogPost filter .title ilike "Gel is awesome"
     ... )
     ... select edgedb_lovers.author;
 
 This expression returns a set of all ``Users`` who have written a blog post
-titled "EdgeDB is awesome".
+titled "Gel is awesome".
 
 For a full syntax definition, see the :ref:`Reference > Paths
 <ref_reference_paths>`.

@@ -1,15 +1,15 @@
 .. _ref_cli_edgedb_instance:
 
-===============
-edgedb instance
-===============
+============
+gel instance
+============
 
-The ``edgedb instance`` group of commands contains all sorts of tools
-for managing EdgeDB instances.
+The ``gel instance`` group of commands contains all sorts of tools
+for managing |Gel| instances.
 
 .. note::
 
-    Most commands in the ``edgedb instance`` command group are not intended to
+    Most commands in the ``gel instance`` command group are not intended to
     manage self-hosted instances. See individual commands for more details.
 
 .. toctree::

@@ -1,10 +1,10 @@
 .. _edgedb-python-intro:
 
-====================
-EdgeDB Python Driver
-====================
+=================
+Gel Python Driver
+=================
 
-**edgedb-python** is the official EdgeDB driver for Python.
+**gel-python** is the official |Gel| driver for Python.
 It provides both :ref:`blocking IO <edgedb-python-blocking-api-reference>`
 and :ref:`asyncio <edgedb-python-asyncio-api-reference>` implementations.
 
@@ -12,7 +12,7 @@ and :ref:`asyncio <edgedb-python-asyncio-api-reference>` implementations.
 
 * :ref:`edgedb-python-installation`
 
-  edgedb-python is installable via ``$ pip install edgedb``.  Read
+  gel-python is installable via ``$ pip install gel``.  Read
   the section for more information on how to install the library.
 
 * :ref:`edgedb-python-examples`
@@ -30,12 +30,12 @@ and :ref:`asyncio <edgedb-python-asyncio-api-reference>` implementations.
 
 * :ref:`edgedb-python-datatypes`
 
-  EdgeDB Python types documentation.
+  Gel Python types documentation.
 
 * :ref:`edgedb-python-codegen`
 
   Python code generation command-line tool documentation.
-  
+
 * :ref:`edgedb-python-advanced`
 
   Advanced usages of the state and optional customization.

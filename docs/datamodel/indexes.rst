@@ -118,7 +118,7 @@ speed up queries that filter, order, or group on both properties.
     <https://www.postgresql.org/docs/current/indexes-multicolumn.html>`_ to
     learn more about how the query planner uses these indexes.
 
-In EdgeDB, this index is created by indexing on a ``tuple`` of properties.
+In Gel, this index is created by indexing on a ``tuple`` of properties.
 
 .. code-block:: sdl
     :version-lt: 3.0
@@ -178,7 +178,7 @@ Specify a Postgres index type
 
 .. versionadded:: 3.0
 
-EdgeDB exposes Postgres indexes that you can use in your schemas. These are
+Gel exposes Postgres indexes that you can use in your schemas. These are
 exposed through the ``pg`` module.
 
 * ``pg::hash``- Index based on a 32-bit hash derived from the indexed value
@@ -237,8 +237,8 @@ Indexes can be augmented with annotations.
   **Foreign and primary keys**
 
   In SQL databases, indexes are commonly used to index *primary keys* and
-  *foreign keys*. EdgeDB's analog to SQL's primary key is the ``id`` field
-  that gets automatically created for each object, while a link in EdgeDB
+  *foreign keys*. Gel's analog to SQL's primary key is the ``id`` field
+  that gets automatically created for each object, while a link in Gel
   is the analog to SQL's foreign key. Both of these are automatically indexed.
   Moreover, any property with an :eql:constraint:`exclusive` constraint
   is also automatically indexed.

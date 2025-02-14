@@ -4,23 +4,23 @@
 Bare Metal
 ==========
 
-:edb-alt-title: Deploying EdgeDB to a Bare Metal Server
+:edb-alt-title: Deploying Gel to a Bare Metal Server
 
-In this guide we show how to deploy EdgeDB to bare metal using your system's
+In this guide we show how to deploy Gel to bare metal using your system's
 package manager and systemd.
 
 
-Install the EdgeDB Package
+Install the Gel Package
 ==========================
 
-The steps for installing the EdgeDB package will be slightly different
+The steps for installing the Gel package will be slightly different
 depending on your Linux distribution. Once you have the package installed you
 can jump to :ref:`ref_guide_deployment_bare_metal_enable_unit`.
 
 
 Debian/Ubuntu LTS
 -----------------
-Import the EdgeDB packaging key.
+Import the Gel packaging key.
 
 .. code-block:: bash
 
@@ -29,7 +29,7 @@ Import the EdgeDB packaging key.
        -o /usr/local/share/keyrings/edgedb-keyring.gpg \
        https://packages.edgedb.com/keys/edgedb-keyring.gpg
 
-Add the EdgeDB package repository.
+Add the Gel package repository.
 
 .. code-block:: bash
 
@@ -38,7 +38,7 @@ Add the EdgeDB package repository.
        $(grep "VERSION_CODENAME=" /etc/os-release | cut -d= -f2) main \
        | sudo tee /etc/apt/sources.list.d/edgedb.list
 
-Install the EdgeDB package.
+Install the Gel package.
 
 .. code-block:: bash
 
@@ -47,7 +47,7 @@ Install the EdgeDB package.
 
 CentOS/RHEL 7/8
 ---------------
-Add the EdgeDB package repository.
+Add the Gel package repository.
 
 .. code-block:: bash
 
@@ -55,7 +55,7 @@ Add the EdgeDB package repository.
       https://packages.edgedb.com/rpm/edgedb-rhel.repo \
       > /etc/yum.repos.d/edgedb.repo
 
-Install the EdgeDB package.
+Install the Gel package.
 
 .. code-block:: bash
 
@@ -67,7 +67,7 @@ Install the EdgeDB package.
 Enable a systemd unit
 =====================
 
-The EdgeDB package comes bundled with a systemd unit that is disabled by
+The Gel package comes bundled with a systemd unit that is disabled by
 default. You can start the server by enabling the unit.
 
 .. code-block:: bash
@@ -84,7 +84,7 @@ This will start the server on port 5656, and the data directory will be
 Set environment variables
 =========================
 
-To set environment variables when running EdgeDB with ``systemctl``,
+To set environment variables when running Gel with ``systemctl``,
 
 .. code-block:: bash
 
@@ -174,8 +174,8 @@ This allows connecting to the instance with its name.
    $ edgedb -I bare_metal_instance
 
 
-Upgrading EdgeDB
-================
+Upgrading Gel
+=============
 
 .. note::
 
@@ -207,5 +207,5 @@ Health Checks
 =============
 
 Using an HTTP client, you can perform health checks to monitor the status of
-your EdgeDB instance. Learn how to use them with our :ref:`health checks guide
+your Gel instance. Learn how to use them with our :ref:`health checks guide
 <ref_guide_deployment_health_checks>`.

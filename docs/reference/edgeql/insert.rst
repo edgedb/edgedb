@@ -67,9 +67,7 @@ See :ref:`ref_eql_forstatement` for more details.
     parent type.
 
     The specified *property-expr* may be either a reference to a property (or
-    link) or a tuple of references to properties (or links). Although versions
-    prior to 2.10 do *not* support ``unless conflict`` on :ref:`multi
-    properties <ref_datamodel_props_cardinality>`, 2.10 adds support for these.
+    link) or a tuple of references to properties (or links).
 
     A caveat, however, is that ``unless conflict`` will not prevent
     conflicts caused between multiple DML operations in the same

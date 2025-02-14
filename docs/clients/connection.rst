@@ -16,26 +16,26 @@ library.
 
 - Set the ``EDGEDB_DSN`` environment variable to a valid DSN (connection
   string). This is the recommended approach in *production*. A DSN is a
-  connection URL of the form ``edgedb://user:pass@host:port/branch``. For a
+  connection URL of the form ``gel://user:pass@host:port/branch``. For a
   guide to DSNs, see the :ref:`DSN Specification <ref_dsn>`.
 
 - Set the ``EDGEDB_INSTANCE`` environment variable to a :ref:`name
   <ref_reference_connection_instance_name>` of a local instance, remote linked
-  instance, or an EdgeDB Cloud instance. (:ref:`More info on EdgeDB Cloud
+  instance, or an |Gel| Cloud instance. (:ref:`More info on |Gel| Cloud
   connection details below. <edgedb_client_connection_cloud>`) You can create
-  new instances manually with the :ref:`edgedb instance create
+  new instances manually with the :ref:`gel instance create
   <ref_cli_edgedb_instance_create>` command.
 
 - Explicitly pass a DSN or :ref:`instance name
   <ref_reference_connection_instance_name>`
   into the client creation function:
-  ``edgedb.createClient`` in JS, ``edgedb.create_client()`` in Python, and
-  ``edgedb.CreateClient`` in Go.
+  ``gel.createClient`` in JS, ``gel.create_client()`` in Python, and
+  ``gel.CreateClient`` in Go.
 
   .. code-block:: typescript
 
-    const client = edgedb.createClient({
-      dsn: "edgedb://..."
+    const client = gel.createClient({
+      dsn: "gel://..."
     });
 
   Only use this approach in development; it isn't recommended to include
@@ -44,19 +44,19 @@ library.
   providers, and container-based workflows each provide various mechanisms for
   setting environment variables.
 
-These are the most common ways to connect to an instance, however EdgeDB
+These are the most common ways to connect to an instance, however |Gel|
 supports several other options for advanced use cases. For a complete reference
 on connection configuration, see :ref:`Reference > Connection Parameters
 <ref_reference_connection>`.
 
 .. _edgedb_client_connection_cloud:
 
-EdgeDB Cloud
-============
+Gel Cloud
+=========
 
-To provide client connection information for an EdgeDB Cloud instance, set the
+To provide client connection information for an |Gel| Cloud instance, set the
 ``EDGEDB_INSTANCE`` variable to the instance name
 (``<org-name>/<instance-name>`` where ``<instance-name>`` is the name you set
-when you created the EdgeDB Cloud instance) and the ``EDGEDB_SECRET_KEY``
-variable to your secret key which can be created in the EdgeDB Cloud UI or by
+when you created the Gel Cloud instance) and the ``EDGEDB_SECRET_KEY``
+variable to your secret key which can be created in the Gel Cloud UI or by
 running :ref:`ref_cli_edgedb_cloud_secretkey_create` via the CLI.

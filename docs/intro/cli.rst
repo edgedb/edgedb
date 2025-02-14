@@ -6,13 +6,13 @@
 The CLI
 =======
 
-The ``edgedb`` command line tool is an integral part of the developer workflow
-of building with EdgeDB. Below are instructions for installing it.
+The |gelcmd| command line tool is an integral part of the developer workflow
+of building with Gel. Below are instructions for installing it.
 
 Installation
 ------------
 
-To get started with EdgeDB, the first step is install the ``edgedb`` CLI.
+To get started with Gel, the first step is install the |gelcmd| CLI.
 
 **Linux or macOS**
 
@@ -24,20 +24,20 @@ To get started with EdgeDB, the first step is install the ``edgedb`` CLI.
 
 .. note::
 
-    EdgeDB on Windows requires WSL 2 because the EdgeDB server runs on Linux.
+    Gel on Windows requires WSL 2 because the Gel server runs on Linux.
 
 .. code-block:: powershell
 
     PS> iwr https://ps1.edgedb.com -useb | iex
 
 Follow the prompts on screen to complete the installation. The script will
-download the ``edgedb`` command built for your OS and add a path to it to your
+download the |gelcmd| command built for your OS and add a path to it to your
 shell environment. Then test the installation:
 
 .. code-block:: bash
 
     $ edgedb --version
-    EdgeDB CLI 4.x+abcdefg
+    Gel CLI x.x+abcdefg
 
 .. note::
 
@@ -74,7 +74,7 @@ to see a breakdown of all the commands and options.
   Cloud Connection Options:
     <list of cloud connection options>
 
-The majority of CLI commands perform some action against a *particular* EdgeDB
+The majority of CLI commands perform some action against a *particular* Gel
 instance. As such, there are a standard set of flags that are used to specify
 *which instance* should be the target of the command, plus additional
 information like TLS certificates. The following command documents these flags.
@@ -89,20 +89,20 @@ information like TLS certificates. The following command documents these flags.
             Cloud instances available to you)
 
         --dsn <DSN>
-            DSN for EdgeDB to connect to (overrides all other options except
+            DSN for Gel to connect to (overrides all other options except
             password)
 
         --credentials-file <CREDENTIALS_FILE>
             Path to JSON file to read credentials from
 
     -H, --host <HOST>
-            EdgeDB instance host
+            Gel instance host
 
     -P, --port <PORT>
-            Port to connect to EdgeDB
+            Port to connect to Gel
 
         --unix-path <UNIX_PATH>
-            A path to a Unix socket for EdgeDB connection
+            A path to a Unix socket for Gel connection
 
             When the supplied path is a directory, the actual path will be
             computed using the `--port` and `--admin` parameters.
@@ -115,12 +115,12 @@ the ``--help`` flag.
 .. code-block:: bash
 
   $ edgedb instance --help
-  Manage local EdgeDB instances
+  Manage local Gel instances
 
   Usage: edgedb instance <COMMAND>
 
   Commands:
-    create          Initialize a new EdgeDB instance
+    create          Initialize a new Gel instance
     list            Show all instances
     status          Show status of an instance
     start           Start an instance

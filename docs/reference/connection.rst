@@ -10,7 +10,7 @@ Connection parameters
 
 
 The CLI and client libraries (collectively referred to as "clients" below) must
-connect to an EdgeDB instance to run queries or commands. There are several
+connect to an Gel instance to run queries or commands. There are several
 connection parameters, each of which can be specified in several ways.
 
 .. _ref_reference_connection_instance:
@@ -18,7 +18,7 @@ connection parameters, each of which can be specified in several ways.
 Specifying an instance
 ----------------------
 
-There are several ways to uniquely identify an EdgeDB instance.
+There are several ways to uniquely identify an Gel instance.
 
 .. list-table::
 
@@ -28,7 +28,7 @@ There are several ways to uniquely identify an EdgeDB instance.
   * - Instance name
     - ``--instance/-I <name>``
     - ``EDGEDB_INSTANCE``
-  * - Secret key (required in some EdgeDB Cloud scenarios; see description)
+  * - Secret key (required in some Gel Cloud scenarios; see description)
     - ``--secret-key``
     - ``EDGEDB_SECRET_KEY``
   * - DSN
@@ -56,7 +56,7 @@ Let's dig into each of these a bit more.
   All local instances (instances created on your local machine using the CLI)
   are associated with a name. This name is what's needed to connect; under the
   hood, the CLI stores the instance credentials (username, password, etc) on
-  your file system in the EdgeDB :ref:`config directory
+  your file system in the Gel :ref:`config directory
   <ref_cli_edgedb_paths>`. The CLI and client libraries look up these
   credentials to connect.
 
@@ -65,20 +65,20 @@ Let's dig into each of these a bit more.
   locally, so you can connect to a remote instance using just its name, just
   like a local instance.
 
-  If you have authenticated with EdgeDB Cloud in the CLI using the
-  :ref:`ref_cli_edgedb_cloud_login` command, you can address your own EdgeDB
+  If you have authenticated with Gel Cloud in the CLI using the
+  :ref:`ref_cli_edgedb_cloud_login` command, you can address your own Gel
   Cloud instances using the instance name format
   ``<org-name>/<instance-name>``. If you are not authenticated,
 
 .. _ref_reference_connection_secret_key:
 
 **Secret key**
-  If you want to connect to an EdgeDB Cloud instance in either of these
+  If you want to connect to an Gel Cloud instance in either of these
   scenarios:
 
   - from a client binding
   - from the CLI to an instance not belonging to the currently authenticated
-    EdgeDB Cloud user
+    Gel Cloud user
 
   you will need to provide a secret key in addition to the instance name.
   Generate a dedicated secret key for the instance via the CLI with
@@ -178,9 +178,9 @@ Let's dig into each of these a bit more.
   Relative paths are resolved relative to the current working directory.
 
 **Project-linked instances**
-  When you run ``edgedb project init`` in a given directory, EdgeDB creates an
+  When you run ``edgedb project init`` in a given directory, Gel creates an
   instance and "links" it to that directory. There's nothing magical about this
-  link; it's just a bit of metadata that gets stored in the EdgeDB config
+  link; it's just a bit of metadata that gets stored in the Gel config
   directory. When you use the client libraries or run a CLI command inside a
   project-linked directory, the library/CLI can detect this, look up the linked
   instance's credentials, and connect automatically.
@@ -193,7 +193,7 @@ Let's dig into each of these a bit more.
 Priority levels
 ---------------
 
-The section above describes the various ways of specifying an EdgeDB instance.
+The section above describes the various ways of specifying an Gel instance.
 There are also several ways to provide this configuration information to the
 client. From highest to lowest priority, you can pass them explicitly as
 parameters/flags (useful for debugging), use environment variables (recommended
@@ -222,7 +222,7 @@ for production), or rely on ``edgedb project`` (recommended for development).
    .. code-block:: bash
 
       $ edgedb --instance my_instance
-      EdgeDB 2.x
+      Gel x.x
       Type \help for help, \quit to quit.
       edgedb>
 
@@ -230,7 +230,7 @@ for production), or rely on ``edgedb project`` (recommended for development).
 2. **Environment variables**.
 
    This is the recommended mechanism for providing connection information to
-   your EdgeDB client, especially in production or when running EdgeDB inside a
+   your Gel client, especially in production or when running Gel inside a
    container. All clients read the following variables from the environment:
 
    - ``EDGEDB_DSN``
@@ -246,7 +246,7 @@ for production), or rely on ``edgedb project`` (recommended for development).
    .. code-block:: bash
 
       $ edgedb # no flags needed
-      EdgeDB 2.x
+      Gel x.x
       Type \help for help, \quit to quit.
       edgedb>
 
@@ -273,7 +273,7 @@ for production), or rely on ``edgedb project`` (recommended for development).
    otherwise specified any connection parameters, the CLI and client libraries
    will connect to the instance that's been linked to your project.
 
-   This makes it easy to get up and running with EdgeDB. Once you've run
+   This makes it easy to get up and running with Gel. Once you've run
    ``edgedb project init``, the CLI and client libraries will be able to
    connect to your database without any explicit flags or parameters, as long
    as you're inside the project directory.
@@ -304,64 +304,40 @@ configuration.
 The following "granular" parameters will override any value set by the
 instance-level configuration object.
 
-.. versionchanged:: _default
+.. list-table::
 
-  .. list-table::
+  * - **Environment variable**
+    - **CLI flag**
+  * - ``EDGEDB_BRANCH``
+    - ``--branch/-b <name>``
+  * - ``EDGEDB_USER``
+    - ``--user/-u <user>``
+  * - ``EDGEDB_PASSWORD``
+    - ``--password <pass>``
+  * - ``EDGEDB_TLS_CA_FILE``
+    - ``--tls-ca-file <path>``
+  * - ``EDGEDB_TLS_SERVER_NAME``
+    - ``--tls-server-name``
+  * - ``EDGEDB_CLIENT_TLS_SECURITY``
+    - ``--tls-security``
+  * - ``EDGEDB_CLIENT_SECURITY``
+    - N/A
 
-    * - **Environment variable**
-      - **CLI flag**
-    * - ``EDGEDB_DATABASE``
-      - ``--database/-d <name>``
-    * - ``EDGEDB_USER``
-      - ``--user/-u <user>``
-    * - ``EDGEDB_PASSWORD``
-      - ``--password <pass>``
-    * - ``EDGEDB_TLS_CA_FILE``
-      - ``--tls-ca-file <path>``
-    * - ``EDGEDB_CLIENT_TLS_SECURITY``
-      - ``--tls-security``
-    * - ``EDGEDB_CLIENT_SECURITY``
-      - N/A
+**EDGEDB_BRANCH**
+  Each Gel *instance* can be branched multiple times. When an instance is
+  created, a default branch named ``main`` is created. For CLI-managed
+  instances, connections are made to the currently active branch. In other
+  cases, incoming connections connect to the ``main`` branch by default.
 
-  **EDGEDB_DATABASE**
-    Each EdgeDB *instance* can contain multiple *databases*. When an instance is
-    created, a default database named ``edgedb`` is created. Unless otherwise
-    specified, all incoming connections connect to the ``edgedb`` database.
-
-
-.. versionchanged:: 5.0
-
-  .. list-table::
-
-    * - **Environment variable**
-      - **CLI flag**
-    * - ``EDGEDB_BRANCH``
-      - ``--branch/-b <name>``
-    * - ``EDGEDB_USER``
-      - ``--user/-u <user>``
-    * - ``EDGEDB_PASSWORD``
-      - ``--password <pass>``
-    * - ``EDGEDB_TLS_CA_FILE``
-      - ``--tls-ca-file <path>``
-    * - ``EDGEDB_TLS_SERVER_NAME``
-      - ``--tls-server-name``
-    * - ``EDGEDB_CLIENT_TLS_SECURITY``
-      - ``--tls-security``
-    * - ``EDGEDB_CLIENT_SECURITY``
-      - N/A
-
-  **EDGEDB_BRANCH**
-    Each EdgeDB *instance* can be branched multiple times. When an instance is
-    created, a default branch named ``main`` is created. For CLI-managed
-    instances, connections are made to the currently active branch. In other
-    cases, incoming connections connect to the ``main`` branch by default.
+  Note, that for |EdgeDB| versions prior to 5, the default branch is
+  ``edgedb`` (and branches were called "databases").
 
 **EDGEDB_USER/EDGEDB_PASSWORD**
   These are the credentials of the database user account to connect to the
-  EdgeDB instance.
+  Gel instance.
 
 **EDGEDB_TLS_CA_FILE**
-  TLS is required to connect to any EdgeDB instance. To do so, the client needs
+  TLS is required to connect to any Gel instance. To do so, the client needs
   a reference to the root certificate of your instance's certificate chain.
   Typically this will be handled for you when you create a local instance or
   ``link`` a remote one.

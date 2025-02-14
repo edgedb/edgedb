@@ -146,17 +146,41 @@ class GelSubstitutionTransform(transforms.SphinxTransform):
 
         # Traverse all substitution_reference nodes.
         for node in self.document.traverse(d_nodes.substitution_reference):
-            if node.astext() == "Gel":
+            nt = node.astext()
+            if nt in {"Gel", "EdgeDB", "gelcmd", ".gel", "gel.toml"}:
                 if builder_name in {"xml", "edge-xml"}:
-                    sub = d_nodes.inline(
-                        "Gel", "Gel", **{"edb-substitution": "true"}
-                    )
+                    if nt == "gelcmd":
+                        sub = d_nodes.literal(
+                            'gel', 'gel',
+                            **{
+                                "edb-gelcmd": "true",
+                                "edb-gelcmd-top": "true",
+                                "edb-substitution": "true",
+                            }
+                        )
+                    else:
+                        sub = d_nodes.inline(
+                            nt, nt, **{"edb-substitution": "true"}
+                        )
                     node.replace_self(sub)
                 else:
-                    node.replace_self(d_nodes.Text("Gel"))
+                    node.replace_self(d_nodes.Text(nt))
+
+class GelCmdRole:
+
+    def __call__(
+        self, role, rawtext, text, lineno, inliner, options=None, content=None
+    ):
+        text = f'gel {text.strip()}'
+        node = d_nodes.literal(text, text)
+        node["edb-gelcmd"] = "true"
+        node["edb-gelcmd-top"] = "false"
+        node["edb-substitution"] = "true"
+        return [node], []
 
 
 def setup_domain(app):
+    app.add_role('gelcmd', GelCmdRole())
     app.add_domain(GelDomain)
     app.add_transform(GelSubstitutionTransform)
 

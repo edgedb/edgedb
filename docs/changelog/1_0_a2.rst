@@ -13,7 +13,7 @@ This changelog summarizes new features and breaking changes in
 New JavaScript Driver
 =====================
 
-EdgeDB has a new high-performance native
+|EdgeDB| has a new high-performance native
 `EdgeDB driver <https://github.com/edgedb/edgedb-js>`_ for NodeJS 10+.
 
 The driver is written in strict TypeScript, thoroughly tested, and has
@@ -147,8 +147,8 @@ Dump / Restore
 
 The new :ref:`edgedb dump <ref_cli_edgedb_dump>` and
 :ref:`edgedb restore <ref_cli_edgedb_restore>` commands can be used to
-safely dump and restore EdgeDB databases, including when upgrading to new
-versions of EdgeDB.
+safely dump and restore |EdgeDB| databases, including when upgrading to new
+versions of |EdgeDB|.
 
 
 EdgeQL
@@ -339,7 +339,7 @@ Generic Describe
 ----------------
 
 The new :eql:stmt:`describe` introspection command can generate DDL,
-SDL, or a descriptive text summary of any schema object in EdgeDB.  A
+SDL, or a descriptive text summary of any schema object in |EdgeDB|.  A
 few examples:
 
 .. code-block:: edgeql-repl
@@ -456,7 +456,7 @@ Server
 Postgres 12
 -----------
 
-EdgeDB is now based on PostgreSQL 12.
+|EdgeDB| is now based on PostgreSQL 12.
 
 Other Fixes and Enhancements
 ----------------------------

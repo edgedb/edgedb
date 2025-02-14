@@ -4,7 +4,7 @@
 Contributing
 ============
 
-:edb-alt-title: Contributing to EdgeDB
+:edb-alt-title: Contributing to Gel
 
 EdgeDB is an open-source project, and we welcome contributions from our
 community. You can contribute by writing code or by helping us improve our
@@ -43,7 +43,7 @@ General Guidelines
 Thank You!
 ==========
 
-Thank you for contributing to EdgeDB! We love our open source community and
+Thank you for contributing to Gel! We love our open source community and
 want to foster a healthy contributor ecosystem. We're happy to have you as a
 part of it.
 

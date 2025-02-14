@@ -24,7 +24,7 @@ are merged into a single output set.
 
 .. note::
 
-  The ``union`` keyword is required prior to EdgeDB 5.0 and is intended to
+  The ``union`` keyword is required prior to |EdgeDB| 5.0 and is intended to
   indicate explicitly that the results of each loop execution are ultimately
   merged.
 
@@ -95,11 +95,7 @@ Conditional DML
 
 .. versionadded:: 4.0
 
-    DML is now supported in ``if..else``. The method of achieving conditional
-    DML demonstrated below is a workaround for earlier versions of EdgeDB
-    before this support was introduced in EdgeDB 4.0. If you're on EdgeDB 4.0
-    or higher, use :eql:op:`if..else` for a cleaner way to achieve conditional
-    DML.
+    DML is now supported in ``if..else``.
 
 DML (i.e., :ref:`insert <ref_eql_insert>`, :ref:`update <ref_eql_update>`,
 :ref:`delete <ref_eql_delete>`) is not supported in :eql:op:`if..else`. If you

@@ -1,51 +1,52 @@
 .. _ref_cli_edgedb_list:
 
 
-===========
-edgedb list
-===========
+========
+gel list
+========
 
 List matching database objects by name and type.
 
 .. cli:synopsis::
 
-    edgedb list <type> [<options>] <pattern>
+    gel list <type> [<options>] <pattern>
 
 
 Description
 ===========
 
-The ``edgedb list`` group of commands contains tools for listing
+The ``gel list`` group of commands contains tools for listing
 database objects by matching name or type. The sub-commands are
 organized by the type of the objects listed.
 
 Types
 =====
 
-:cli:synopsis:`edgedb list aliases`
+:cli:synopsis:`gel list aliases`
     Display list of aliases defined in the schema.
 
-:cli:synopsis:`edgedb list casts`
+:cli:synopsis:`gel list casts`
     Display list of casts defined in the schema.
 
-.. TODO: Add `edgedb list branches` once the command is added. https://github.com/edgedb/edgedb-cli/issues/1275
+:cli:synopsis:`gel list branches`
+    Display list of branches.
 
-:cli:synopsis:`edgedb list databases`
+:cli:synopsis:`gel list databases`
     Display list of databases in the server instance.
 
-:cli:synopsis:`edgedb list indexes`
+:cli:synopsis:`gel list indexes`
     Display list of indexes defined in the schema.
 
-:cli:synopsis:`edgedb list modules`
+:cli:synopsis:`gel list modules`
     Display list of modules defined in the schema.
 
-:cli:synopsis:`edgedb list roles`
+:cli:synopsis:`gel list roles`
     Display list of roles in the server instance.
 
-:cli:synopsis:`edgedb list scalars`
+:cli:synopsis:`gel list scalars`
     Display list of scalar types defined in the schema.
 
-:cli:synopsis:`edgedb list types`
+:cli:synopsis:`gel list types`
     Display list of object types defined in the schema.
 
 Options

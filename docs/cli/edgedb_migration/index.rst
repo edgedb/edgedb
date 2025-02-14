@@ -1,11 +1,11 @@
 .. _ref_cli_edgedb_migration:
 
 
-================
-edgedb migration
-================
+=============
+gel migration
+=============
 
-EdgeDB provides schema migration tools as server-side tools. This means that,
+|Gel| provides schema migration tools as server-side tools. This means that,
 from the point of view of the application, migrations are language- and
 platform-agnostic and don't require additional libraries.
 
@@ -31,9 +31,9 @@ migration information. By default they will look in the ``dbschema``
 directory, but it's also possible to specify any other location by
 using the :cli:synopsis:`schema-dir` option.
 
-Inside this directory, you will find an ``.esdl`` file with an :ref:`SDL
+Inside this directory, you will find an |.gel| file with an :ref:`SDL
 <ref_eql_sdl>` schema description. You may split your schema across multiple
-``.esdl`` files. The migration tools will read all of them and treat them as a
+|.gel| files. The migration tools will read all of them and treat them as a
 single SDL document.
 
 .. list-table::
@@ -52,4 +52,4 @@ single SDL document.
     * - :ref:`ref_cli_edgedb_migration_status`
       - Show current migration state
     * - :ref:`ref_cli_edgedb_migration_upgrade_check`
-      - Checks your schema against a different EdgeDB version.
+      - Checks your schema against a different |Gel| version.

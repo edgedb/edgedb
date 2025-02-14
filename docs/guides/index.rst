@@ -6,11 +6,11 @@
 Guides
 ======
 
-These guides contain tutorials introducing EdgeDB to newcomers and
+These guides contain tutorials introducing Gel to newcomers and
 how-tos providing more experienced users with examples and advice for
 tackling some common tasks.
 
-If you are new to EdgeDB check out our :ref:`Quickstart <ref_quickstart>`
+If you are new to Gel check out our :ref:`Quickstart <ref_quickstart>`
 guide!
 
 

@@ -1,16 +1,16 @@
 .. _ref_cli_edgedb_info:
 
 
-===========
-edgedb info
-===========
+========
+gel info
+========
 
-Display information about the EdgeDB installation. Currently this command
-displays the filesystem paths used by EdgeDB.
+Display information about the |Gel| installation. Currently this command
+displays the filesystem paths used by Gel.
 
 .. cli:synopsis::
 
-	edgedb info [<options>]
+	gel info [<options>]
 
 
 .. _ref_cli_edgedb_paths:
@@ -18,14 +18,14 @@ displays the filesystem paths used by EdgeDB.
 Paths
 -----
 
-EdgeDB uses several directories, each storing different kinds of information.
+|Gel| uses several directories, each storing different kinds of information.
 The exact path to these directories is determined by your operating system.
-Throughout the documentation, these paths are referred to as "EdgeDB config
-directory", "EdgeDB data directory", etc.
+Throughout the documentation, these paths are referred to as "Gel config
+directory", "Gel data directory", etc.
 
 - **Config**: contains auto-generated credentials for all local instances and
   project metadata.
-- **Data**: contains the *contents* of all local EdgeDB instances.
+- **Data**: contains the *contents* of all local Gel instances.
 - **CLI Binary**: contains the CLI binary, if installed.
 - **Service**: the home for running processes/daemons.
 - **Cache**: a catchall for logs and various caches.

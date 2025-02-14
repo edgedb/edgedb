@@ -306,7 +306,7 @@ Definitions
 
     A decimal literal is a float literal, followed by ``n``:
 
-    The EdgeDB philosophy is that using a decimal type should be an
+    The Gel philosophy is that using a decimal type should be an
     explicit opt-in, but once used, the values should not be
     accidentally cast into a numeric type with less precision.
 
@@ -778,7 +778,7 @@ Definitions
                   std::bit_count(bytes: bytes) -> int64
 
     Return the number of bits set in the :eql:type:`bytes` value.
-    
+
     This is also known as the population count.
 
     .. code-block:: edgeql-repl

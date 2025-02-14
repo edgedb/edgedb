@@ -4,9 +4,9 @@
 Azure
 =====
 
-:edb-alt-title: Deploying EdgeDB to Azure
+:edb-alt-title: Deploying Gel to Azure
 
-In this guide we show how to deploy EdgeDB using Azure's `Postgres
+In this guide we show how to deploy Gel using Azure's `Postgres
 Flexible Server
 <https://docs.microsoft.com/en-us/azure/postgresql/flexible-server>`_ as the
 backend.
@@ -22,8 +22,8 @@ Prerequisites
 .. _azure-install: https://docs.microsoft.com/en-us/cli/azure/install-azure-cli
 
 
-Provision an EdgeDB instance
-============================
+Provision an Gel instance
+=========================
 
 Login to your Microsoft Azure account.
 
@@ -98,7 +98,7 @@ EdgeDB requires Postgres' ``uuid-ossp`` extension which needs to be enabled.
        --name azure.extensions \
        --value uuid-ossp
 
-Start an EdgeDB container.
+Start an Gel container.
 
 .. code-block:: bash
 
@@ -121,7 +121,7 @@ Start an EdgeDB container.
        --environment-variables \
          EDGEDB_SERVER_TLS_CERT_MODE=generate_self_signed \
 
-Persist the SSL certificate. We have configured EdgeDB to generate a self
+Persist the SSL certificate. We have configured Gel to generate a self
 signed SSL certificate when it starts. However, if the container is restarted a
 new certificate would be generated. To preserve the certificate across failures
 or reboots copy the certificate files and use their contents in the
@@ -157,7 +157,7 @@ or reboots copy the certificate files and use their contents in the
          "EDGEDB_SERVER_TLS_CERT=$cert"
 
 
-To access the EdgeDB instance you've just provisioned on Azure from your local
+To access the Gel instance you've just provisioned on Azure from your local
 machine link the instance.
 
 .. code-block:: bash
@@ -188,5 +188,5 @@ Health Checks
 =============
 
 Using an HTTP client, you can perform health checks to monitor the status of
-your EdgeDB instance. Learn how to use them with our :ref:`health checks guide
+your Gel instance. Learn how to use them with our :ref:`health checks guide
 <ref_guide_deployment_health_checks>`.

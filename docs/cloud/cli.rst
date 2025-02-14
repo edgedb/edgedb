@@ -4,17 +4,17 @@
 CLI
 ===
 
-:edb-alt-title: Using EdgeDB Cloud via the CLI
+:edb-alt-title: Using Gel Cloud via the CLI
 
-To use EdgeDB Cloud via the CLI, first log in using
+To use |Gel| Cloud via the CLI, first log in using
 :ref:`ref_cli_edgedb_cloud_login`.
 
 .. note::
 
     This is the way you'll log in interactively on your development machine,
-    but when interacting with EdgeDB Cloud via a script or in CI, you'll
+    but when interacting with Gel Cloud via a script or in CI, you'll
     instead set the ``EDGEDB_SECRET_KEY`` environment variable to your secret
-    key. Generate a secret key in the EdgeDB Cloud UI or by running
+    key. Generate a secret key in the Gel Cloud UI or by running
     :ref:`ref_cli_edgedb_cloud_secretkey_create`. The ``edgedb cloud login``
     and ``edgedb cloud logout`` commands are not intended for use in this
     context.
@@ -45,7 +45,7 @@ create a local project linked to your instance.
 
 .. note::
 
-    Please be aware of the following restrictions on EdgeDB Cloud instance
+    Please be aware of the following restrictions on |Gel| Cloud instance
     names:
 
     * can contain only Latin alpha-numeric characters or ``-``

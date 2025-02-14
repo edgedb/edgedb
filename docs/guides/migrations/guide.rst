@@ -8,7 +8,7 @@ Basics
 
 EdgeQL is a strongly-typed language, which means that it moves checks
 and verification of your code to compile time as much as possible
-instead of performing them at run time. EdgeDB's view is that a schema
+instead of performing them at run time. Gel's view is that a schema
 should allow you to set types, constraints, expressions, and more so that
 you can confidently know what sort of behavior to expect from your data.
 Laying a type-safe foundation means a bit more thinking up front, but saves
@@ -20,7 +20,7 @@ When you *do* eventually need to make a change, you'll need to migrate
 your schema from its current state to a new state.
 
 The basics of creating a project, modifying its schema, and migrating
-it in EdgeDB are pretty easy:
+it in Gel are pretty easy:
 
 - Type ``edgedb project init`` to start a project,
 - Open the newly created empty schema at ``dbschema/default.esdl`` and add
@@ -40,11 +40,11 @@ it in EdgeDB are pretty easy:
    ``edgedb migration create``). Once that is done, you will have a blank
    slate on which to start over again.
 
-But many EdgeDB users have needs that go beyond these basics. In addition,
+But many Gel users have needs that go beyond these basics. In addition,
 schema migrations are pretty interesting and teach you a lot about
-what EdgeDB does behind the scenes. This guide will turn you from
+what Gel does behind the scenes. This guide will turn you from
 a casual migration user into one with a lot more tools at hand, along
-with a deeper understanding of the internals of EdgeDB at the same
+with a deeper understanding of the internals of Gel at the same
 time.
 
 EdgeDB's built-in tools are what make schema migrations easy, and
@@ -57,7 +57,7 @@ SDL: For humans
 ===============
 
 SDL, not DDL, is the primary way for you to create and migrate your
-schema in EdgeDB. You don't need to work with DDL to use EdgeDB any
+schema in Gel. You don't need to work with DDL to use Gel any
 more than you need to know how to change a tire to drive a car.
 
 SDL is built for humans to read, which is why it is said to be *declarative*.
@@ -68,7 +68,7 @@ real life would be telling a friend to show up at your house at 6416
 Riverside Way. You've declared what the final result should be, but
 it's up to your friend to find how to achieve it.
 
-Now let's look at some real SDL and think about its role in EdgeDB.
+Now let's look at some real SDL and think about its role in Gel.
 Here is a simple example of a schema:
 
 .. code-block:: sdl
@@ -79,18 +79,18 @@ Here is a simple example of a schema:
      }
    }
 
-If you have EdgeDB installed and want to follow along, type ``edgedb
+If you have Gel installed and want to follow along, type ``edgedb
 project init`` and copy the above schema into your ``default.esdl``
 file inside the ``/dbschema`` folder it creates. Then save the file.
 
 .. note::
 
     While schema is usually contained inside the ``default.esdl`` file,
-    you can divide a schema over multiple files if you like. EdgeDB will
-    combine all ``.esdl`` files inside the ``/dbschema`` folder into a
+    you can divide a schema over multiple files if you like. Gel will
+    combine all |.gel| files inside the ``/dbschema`` folder into a
     single schema.
 
-Type ``edgedb`` to start the EdgeDB REPL, and, into the REPL,  type
+Type |gelcmd| to start the Gel REPL, and, into the REPL,  type
 ``describe schema as sdl``. The output will be ``{'module default{};'}``
 — nothing more than the empty ``default`` module. What happened?
 Our ``type User`` is nowhere to be found.
@@ -100,12 +100,12 @@ person's house, it doesn't *do* anything on its own. With SDL you are
 declaring what you want the final result to be: a schema containing a single
 type called ``User``, with a property of type ``str`` called ``name``.
 
-In order for a migration to happen, the EdgeDB server needs to receive
+In order for a migration to happen, the Gel server needs to receive
 DDL statements telling it what changes to make, in the exact same
 way that you give instructions like "turn right at the next intersection"
-to your friend who is trying to find your house. In EdgeDB's case,
+to your friend who is trying to find your house. In Gel's case,
 these commands will start with words like ``create`` and ``drop``
-and ``alter`` to tell it what changes to make. EdgeDB accomplishes
+and ``alter`` to tell it what changes to make. Gel accomplishes
 these changes by knowing how to turn your declarative SDL into a schema
 migration file that contains the DDL statements to accomplish the
 necessary changes.
@@ -174,7 +174,7 @@ a property called ``name`` anymore.
 
 .. note::
 
-    EdgeDB commands inside the REPL use a backslash instead of the ``edgedb``
+    Gel commands inside the REPL use a backslash instead of the ``edgedb``
     command, so you can migrate your schema inside the REPL by typing
     ``\migration create`` , followed by ``\migrate``. Not only are the comands
     shorter, but they also execute faster. This is because the database client
@@ -194,7 +194,7 @@ Similarly, if you want add a property to an existing type and the
 property's type is a new scalar type, the database will need to create
 the new scalar type first.
 
-Let's take a look at this by first getting EdgeDB to describe our
+Let's take a look at this by first getting Gel to describe our
 schema to us. Typing ``describe schema;`` inside the REPL will display
 the following DDL statements:
 
@@ -325,7 +325,7 @@ a single letter. Can you spot the difference?
     }
 
 The only difference from the current schema is that we would like
-to change the property name ``name`` to ``nam``, but this time EdgeDB isn't
+to change the property name ``name`` to ``nam``, but this time Gel isn't
 sure what change we wanted to make. Did we intend to:
 
 - Change ``name`` to ``nam`` and keep the existing data?
@@ -338,14 +338,14 @@ some pretty helpful output:
 .. code-block:: edgeql-repl
 
     db> \migration create --non-interactive
-    EdgeDB intended to apply the following migration:
+    Gel intended to apply the following migration:
         ALTER TYPE default::User {
             ALTER PROPERTY name {
                 RENAME TO nam;
             };
         };
     But confidence is 0.67, below minimum threshold of 0.99999
-    Error executing command: EdgeDB is unable to make a decision.
+    Error executing command: Gel is unable to make a decision.
 
     Please run in interactive mode to confirm changes, or use
     `--allow-unsafe`
@@ -456,7 +456,7 @@ Here is what that would look like:
     > y
     did you create object type 'default::User'? [y,n,l,c,b,s,q,?]
     > n
-    Error executing command: EdgeDB could not resolve migration with
+    Error executing command: Gel could not resolve migration with
     the provided answers. Please retry with different answers.
 
 ``l`` (or ``list``)
@@ -503,7 +503,7 @@ The following two keys will stop the migration, but in different ways:
 This is also known as a 'split'. Pressing ``s`` will complete the
 migration at the current point. Any statements that you have applied
 will be applied, but the schema will not yet match the schema in your
-``.esdl`` file(s). You can easily start another migration to complete
+|.gel| file(s). You can easily start another migration to complete
 the remaining changes once you have applied the migration that was
 just created. This effectively splits the migration into two or more
 files.
@@ -594,7 +594,7 @@ will need to be:
 If you change the statement to read in exactly the way the output suggests,
 the migration will now work.
 
-That's the manual way to do a data migration, but EdgeDB also has an
+That's the manual way to do a data migration, but Gel also has an
 ``edgedb migration edit`` command that will automate the process for you.
 Using ``edgedb migration edit`` will open up the most recent migration for
 you to change, and update the migration hash when you close the window.
@@ -612,7 +612,7 @@ require appending ``--allow-empty`` to the command. Just do the following:
    schema file manually, copy the suggested name into the migration hash
    and type ``edgedb migrate`` again.
 
-The `EdgeDB tutorial </tutorial>`_ is a good example of a database
+The Gel tutorial is a good example of a database
 set up with both a schema migration and a data migration. Setting
 up a database with `schema changes in one file and default data in
 a second file <tutorial_files_>`_ is a nice way to separate the two operations
@@ -637,7 +637,7 @@ to work through:
 
 .. code-block::
 
-    Initializing EdgeDB instance...
+    Initializing Gel instance...
     Applying migrations...
     Applied m13brvdizqpva6icpcvmsc3fee2yt5j267uba6jugy6iugcbs2djkq
     (00001.edgeql)
@@ -678,7 +678,7 @@ a single file.
 Fixups during a squash
 ----------------------
 
-If your schema doesn't match the schema in the database, EdgeDB will
+If your schema doesn't match the schema in the database, Gel will
 prompt you to create a *fixup* file, which can be useful to, as the CLI
 says, "automate upgrading other instances to a squashed revision".
 You'll see fixups inside ``/dbschema/fixups``. Their file names
@@ -809,14 +809,14 @@ EdgeDB Watch
 
 Another option when quickly iterating over schema changes is ``edgedb watch``.
 This will create a long-running process that keeps track of every time you
-save an ``.esdl`` file inside your ``/migrations`` folder, letting you know
+save an |.gel| file inside your ``/migrations`` folder, letting you know
 if your changes have successfully compiled or not. The ``edgedb watch``
 command itself will show the following input when the process starts up:
 
 .. code-block::
 
-    Connecting to EdgeDB instance 'anything' at localhost:10700...
-    EdgeDB Watch initialized.
+    Connecting to Gel instance 'anything' at localhost:10700...
+    Gel Watch initialized.
     Hint: Use `edgedb migration create` and `edgedb migrate --dev-mode`
     to apply changes once done.
     Monitoring "/home/instancename".
@@ -933,7 +933,7 @@ creating a new branch, you can isolate schema changes from your other branches.
 
 Imagine a scenario in which your main branch is called ``main`` (which is the
 default name for the initial branch) and your feature branch is called
-``feature``. This is the ideal workflow for using an EdgeDB branch alongside a feature
+``feature``. This is the ideal workflow for using an Gel branch alongside a feature
 branch in your VCS to develop a new feature:
 
 1. Create a new feature branch with :ref:`ref_cli_edgedb_branch_create`
@@ -972,7 +972,7 @@ So, you really want to use DDL?
 ===============================
 
 You might have a good reason to use a direct DDL statement or two
-to change your schema. How do you make that happen? EdgeDB disables
+to change your schema. How do you make that happen? Gel disables
 the usage of DDL by default if you have already carried out a migration
 through the recommended migration commands, so this attempt to use DDL
 will not work:
@@ -1098,7 +1098,7 @@ created using DDL and assign each of them a proper file name and hash
 inside the ``/dbschema/migrations`` folder, effectively giving them a proper
 position inside the migration flow.
 
-Note that at this point your ``.esdl`` schema will still not match
+Note that at this point your |.gel| schema will still not match
 the database schema, so if you were to type ``edgedb migration create``
 the CLI would then ask you if you want to drop the type that you just
 created - because it doesn't exist inside there. So be sure to change
@@ -1106,7 +1106,7 @@ your schema to match the schema inside the database that you have
 manually changed via DDL. If in doubt, use ``describe schema as sdl``
 to compare or use ``edgedb migration create`` and check the output.
 If the CLI is asking you if you want to drop a type, that means that
-you forgot to add it to the schema inside your ``.esdl`` file(s).
+you forgot to add it to the schema inside your |.gel| file(s).
 
 
 Multiple migrations to keep data
@@ -1154,7 +1154,7 @@ make each ``User`` friends with all of the others:
 
 Now what happens if we now want to change ``multi friends`` to an
 ``array<str>``? If we were simply changing a scalar property to another
-property it would be easy, because EdgeDB would prompt us for a conversion
+property it would be easy, because Gel would prompt us for a conversion
 expression, but a change from a link to a property is different:
 
 .. code-block:: sdl
@@ -1242,13 +1242,13 @@ We've now reached the most optional part of the migrations tutorial,
 but an interesting one for those curious about what goes on behind
 the scenes during a migration.
 
-Migrations in EdgeDB before the advent of the ``edgedb project`` flow
+Migrations in Gel before the advent of the ``edgedb project`` flow
 were still automated but required more manual work if you didn't
 want to accept all of the suggestions provided by the server. This
 process is in fact still used to migrate even today; the CLI just
 facilitates it by making it easy to respond to the generated suggestions.
 
-:ref:`Early EdgeDB migrations took place inside a transaction <ref_eql_ddl_migrations>`
+:ref:`Early Gel migrations took place inside a transaction <ref_eql_ddl_migrations>`
 handled by the user that essentially went like this:
 
 .. code-block::
@@ -1268,7 +1268,7 @@ are going to have some fun with. You can see
 It is *very* finicky compared to the CLI, resulting in a failed transaction
 if any step along the way is different from the expected behavior,
 but is an entertaining challenge to try to get right if you want to
-truly understand how migrations work in EdgeDB.
+truly understand how migrations work in Gel.
 
 This process requires looking at the server's proposed solutions every
 step of the way, and these steps are best seen in JSON format. We can make

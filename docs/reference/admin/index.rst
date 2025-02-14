@@ -3,7 +3,7 @@
 Administration
 ==============
 
-Administrative commands for managing EdgeDB:
+Administrative commands for managing Gel:
 
 
 * :ref:`configure <ref_eql_statements_configure>`
@@ -20,7 +20,7 @@ Administrative commands for managing EdgeDB:
 
 .. versionadded:: 5.0
 
-    New administrative commands were added in our EdgeDB 5.0 release:
+    New administrative commands were added in |EdgeDB| 5 release:
 
     * :ref:`branch <ref_admin_branches>`
 

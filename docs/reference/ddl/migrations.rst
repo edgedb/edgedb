@@ -31,7 +31,7 @@ Parameters
 ----------
 
 :eql:synopsis:`<sdl-declaration>`
-    Complete schema defined with the declarative :ref:`EdgeDB schema
+    Complete schema defined with the declarative :ref:`Gel schema
     definition language<ref_eql_sdl>`.
 
 Description
@@ -70,7 +70,7 @@ available:
 Examples
 --------
 
-Create a new migration to a target schema specified by the EdgeDB Schema
+Create a new migration to a target schema specified by the Gel Schema
 syntax:
 
 .. code-block:: edgeql
@@ -125,7 +125,7 @@ and records the migration into the system migration log.
 Examples
 --------
 
-Create a new migration to a target schema specified by the EdgeDB Schema
+Create a new migration to a target schema specified by the Gel Schema
 syntax:
 
 .. code-block:: edgeql

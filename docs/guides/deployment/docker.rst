@@ -4,7 +4,7 @@
 Docker
 ======
 
-:edb-alt-title: Deploying EdgeDB with Docker
+:edb-alt-title: Deploying Gel with Docker
 
 When to use the `edgedb/edgedb`_ Docker image
 =============================================
@@ -15,7 +15,7 @@ This image is primarily intended to be used directly when there is a
 requirement to use Docker containers, such as in production, or in a
 development setup that involves multiple containers orchestrated by Docker
 Compose or a similar tool. Otherwise, using the :ref:`ref_cli_edgedb_server`
-CLI on the host system is the recommended way to install and run EdgeDB
+CLI on the host system is the recommended way to install and run Gel
 servers.
 
 
@@ -33,7 +33,7 @@ The simplest way to run the image (without data persistence) is this:
 See the :ref:`ref_guides_deployment_docker_customization` section below for the
 meaning of the ``EDGEDB_SERVER_SECURITY`` variable and other options.
 
-Then, to authenticate to the EdgeDB instance and store the credentials in a
+Then, to authenticate to the Gel instance and store the credentials in a
 Docker volume, run:
 
 .. code-block:: bash
@@ -80,7 +80,7 @@ Note that on Windows you must use a Docker volume instead:
        -v edgedb-data:/var/lib/edgedb/data \
        -d edgedb/edgedb
 
-It is also possible to run an ``edgedb`` container on a remote PostgreSQL
+It is also possible to run an ``gel`` container on a remote PostgreSQL
 cluster specified by ``EDGEDB_SERVER_BACKEND_DSN``. See below for details.
 
 
@@ -119,7 +119,7 @@ migration can be created with:
 
    $ edgedb --tls-security=insecure -P 5656 migration create
 
-Alternatively, if you don't have the EdgeDB CLI installed on your host
+Alternatively, if you don't have the Gel CLI installed on your host
 machine, you can use the CLI bundled with the server container:
 
 .. code-block:: bash
@@ -132,7 +132,7 @@ machine, you can use the CLI bundled with the server container:
 Configuration
 =============
 
-The Docker image supports the same set of enviroment variables as the EdgeDB
+The Docker image supports the same set of enviroment variables as the Gel
 server process, which are documented under :ref:`Reference > Environment
 Variables <ref_reference_environment>`.
 
@@ -149,7 +149,7 @@ and some Docker-specific environment variables, documented below.
 Initial configuration
 ---------------------
 
-When an EdgeDB container starts on the specified data directory or remote
+When an Gel container starts on the specified data directory or remote
 Postgres cluster for the first time, initial instance setup is performed. This
 is called the *bootstrap phase*.
 
@@ -271,5 +271,5 @@ Health Checks
 =============
 
 Using an HTTP client, you can perform health checks to monitor the status of
-your EdgeDB instance. Learn how to use them with our :ref:`health checks guide
+your Gel instance. Learn how to use them with our :ref:`health checks guide
 <ref_guide_deployment_health_checks>`.

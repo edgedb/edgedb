@@ -42,12 +42,12 @@ mind.
 spent attempting to `bridge the gap <https://en.wikipedia.org/wiki/
 Object%E2%80%93relational_impedance_mismatch>`_ between the *relational*
 paradigm of SQL and the *object-oriented* nature of modern programming
-languages. EdgeDB sidesteps this problem by modeling data in an
+languages. Gel sidesteps this problem by modeling data in an
 *object-relational* way.
 
-**Strongly typed**. EdgeQL is *inextricably tied* to EdgeDB's rigorous
+**Strongly typed**. EdgeQL is *inextricably tied* to Gel's rigorous
 object-oriented type system. The type of all expressions is statically
-inferred by EdgeDB.
+inferred by Gel.
 
 **Designed for programmers**. EdgeQL prioritizes syntax over keywords; It uses
 ``{ curly braces }`` to define scopes/structures and the *assignment
@@ -62,7 +62,7 @@ like code and less like word soup.
 .. single PostgreSQL query under the hood. With the exception of ``group by``,
 .. EdgeQL is equivalent to SQL in terms of power and expressivity.
 
-**Easy deep querying**. EdgeDB's object-relational nature makes it painless
+**Easy deep querying**. Gel's object-relational nature makes it painless
 to write deep, performant queries that traverse links, no ``JOINs`` required.
 
 **Composable**. `Unlike SQL
@@ -74,12 +74,4 @@ worrying about Cartesian explosion.
 
   For a detailed writeup on the design of SQL, see `We Can Do Better Than SQL
   <https://www.edgedb.com/blog/we-can-do-better-than-sql#lack-of-orthogonality>`_
-  on the EdgeDB blog.
-
-Follow along
-------------
-
-The best way to learn EdgeQL is to play with it! Use the `online EdgeQL shell
-</tutorial>`_ to execute any and all EdgeQL snippets in the following pages. Or
-follow the :ref:`Quickstart <ref_quickstart>` to spin up an EdgeDB instance on
-your computer, then open an :ref:`interactive shell <ref_cli_edgedb>`.
+  on the Gel blog.

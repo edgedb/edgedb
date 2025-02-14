@@ -1,26 +1,26 @@
 .. _ref_cli_edgedb_instance_reset_auth:
 
 
-==============================
-edgedb instance reset-password
-==============================
+===========================
+gel instance reset-password
+===========================
 
-Reset password for a user in the EdgeDB instance.
+Reset password for a user in the |Gel| instance.
 
 .. cli:synopsis::
 
-     edgedb instance reset-password [<options>] <name>
+     gel instance reset-password [<options>] <name>
 
 
 Description
 ===========
 
-``edgedb instance reset-password`` is a terminal command for resetting
-or updating the password for a user of an EdgeDB instance.
+``gel instance reset-password`` is a terminal command for resetting
+or updating the password for a user of an |Gel| instance.
 
 .. note::
 
-    The ``edgedb instance reset-password`` command is not intended for use with
+    The ``gel instance reset-password`` command is not intended for use with
     self-hosted instances.
 
 
@@ -28,7 +28,7 @@ Options
 =======
 
 :cli:synopsis:`<name>`
-    The name of the EdgeDB instance.
+    The name of the |Gel| instance.
 
 :cli:synopsis:`--user=<user>`
     User to change password for. Defaults to the user in the

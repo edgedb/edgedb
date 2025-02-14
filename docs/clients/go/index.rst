@@ -1,8 +1,8 @@
 .. _edgedb-go-intro:
 
-================
-EdgeDB Go Driver
-================
+=============
+Gel Go Driver
+=============
 
 
 .. toctree::
@@ -14,72 +14,67 @@ EdgeDB Go Driver
    codegen
 
 
-
-Package edgedb is the official Go driver for `EdgeDB <https://www.edgedb.com>`_. Additionally,
-`edgeql-go <https://pkg.go.dev/github.com/edgedb/edgedb-go/cmd/edgeql-go>`_ is a code generator that
-generates go functions from edgeql files.
-
 Typical client usage looks like this:
 
 .. code-block:: go
 
     package main
-    
+
     import (
         "context"
         "log"
-    
-        "github.com/edgedb/edgedb-go"
+
+        "github.com/geldata/gel-go"
     )
-    
+
     func main() {
         ctx := context.Background()
-        client, err := edgedb.CreateClient(ctx, edgedb.Options{})
+        client, err := gel.CreateClient(ctx, gel.Options{})
         if err != nil {
             log.Fatal(err)
         }
         defer client.Close()
-    
+
         var (
             age   int64 = 21
             users []struct {
-                ID   edgedb.UUID `edgedb:"id"`
-                Name string      `edgedb:"name"`
+                ID   gel.UUID    `gel:"id"`
+                Name string      `gel:"name"`
             }
         )
-    
+
         query := "SELECT User{name} FILTER .age = <int64>$0"
         err = client.Query(ctx, query, &users, age)
         ...
     }
-    
+
 We recommend using environment variables for connection parameters. See the
-`client connection docs <https://www.edgedb.com/docs/clients/connection>`_ for more information.
+`client connection docs <https://www.geldata.com/docs/clients/connection>`_ for more information.
 
 You may also connect to a database using a DSN:
 
 .. code-block:: go
 
-    url := "edgedb://edgedb@localhost/edgedb"
-    client, err := edgedb.CreateClientDSN(ctx, url, opts)
-    
+    url := "gel://admin@localhost/gel"
+    client, err := gel.CreateClientDSN(ctx, url, opts)
+
 Or you can use Option fields.
 
 .. code-block:: go
 
-    opts := edgedb.Options{
-        Database:    "edgedb",
-        User:        "edgedb",
+    opts := gel.Options{
+        Database:    "gel",
+        User:        "gel",
         Concurrency: 4,
     }
-    
-    client, err := edgedb.CreateClient(ctx, opts)
-    
+
+    client, err := gel.CreateClient(ctx, opts)
+
 
 Errors
 ------
 
-edgedb never returns underlying errors directly.
+``gel`` never returns underlying errors directly.
 If you are checking for things like context expiration
 use errors.Is() or errors.As().
 
@@ -87,109 +82,109 @@ use errors.Is() or errors.As().
 
     err := client.Query(...)
     if errors.Is(err, context.Canceled) { ... }
-    
-Most errors returned by the edgedb package will satisfy the edgedb.Error
+
+Most errors returned by the gel package will satisfy the gel.Error
 interface which has methods for introspecting.
 
 .. code-block:: go
 
     err := client.Query(...)
-    
-    var edbErr edgedb.Error
-    if errors.As(err, &edbErr) && edbErr.Category(edgedb.NoDataError){
+
+    var edbErr gel.Error
+    if errors.As(err, &edbErr) && edbErr.Category(gel.NoDataError){
         ...
     }
-    
+
 
 Datatypes
 ---------
 
 The following list shows the marshal/unmarshal
-mapping between EdgeDB types and go types:
+mapping between |Gel| types and go types:
 
 .. code-block:: go
 
-    EdgeDB                   Go
+    Gel                      Go
     ---------                ---------
     Set                      []anytype
     array<anytype>           []anytype
     tuple                    struct
     named tuple              struct
     Object                   struct
-    bool                     bool, edgedb.OptionalBool
-    bytes                    []byte, edgedb.OptionalBytes
-    str                      string, edgedb.OptionalStr
-    anyenum                  string, edgedb.OptionalStr
-    datetime                 time.Time, edgedb.OptionalDateTime
-    cal::local_datetime      edgedb.LocalDateTime,
-                             edgedb.OptionalLocalDateTime
-    cal::local_date          edgedb.LocalDate, edgedb.OptionalLocalDate
-    cal::local_time          edgedb.LocalTime, edgedb.OptionalLocalTime
-    duration                 edgedb.Duration, edgedb.OptionalDuration
-    cal::relative_duration   edgedb.RelativeDuration,
-                             edgedb.OptionalRelativeDuration
-    float32                  float32, edgedb.OptionalFloat32
-    float64                  float64, edgedb.OptionalFloat64
-    int16                    int16, edgedb.OptionalFloat16
-    int32                    int32, edgedb.OptionalInt16
-    int64                    int64, edgedb.OptionalInt64
-    uuid                     edgedb.UUID, edgedb.OptionalUUID
-    json                     []byte, edgedb.OptionalBytes
-    bigint                   *big.Int, edgedb.OptionalBigInt
-    
+    bool                     bool, gel.OptionalBool
+    bytes                    []byte, gel.OptionalBytes
+    str                      string, gel.OptionalStr
+    anyenum                  string, gel.OptionalStr
+    datetime                 time.Time, gel.OptionalDateTime
+    cal::local_datetime      gel.LocalDateTime,
+                             gel.OptionalLocalDateTime
+    cal::local_date          gel.LocalDate, gel.OptionalLocalDate
+    cal::local_time          gel.LocalTime, gel.OptionalLocalTime
+    duration                 gel.Duration, gel.OptionalDuration
+    cal::relative_duration   gel.RelativeDuration,
+                             gel.OptionalRelativeDuration
+    float32                  float32, gel.OptionalFloat32
+    float64                  float64, gel.OptionalFloat64
+    int16                    int16, gel.OptionalFloat16
+    int32                    int32, gel.OptionalInt16
+    int64                    int64, gel.OptionalInt64
+    uuid                     gel.UUID, gel.OptionalUUID
+    json                     []byte, gel.OptionalBytes
+    bigint                   *big.Int, gel.OptionalBigInt
+
     decimal                  user defined (see Custom Marshalers)
-    
-Note that EdgeDB's std::duration type is represented in int64 microseconds
+
+Note that Gel's std::duration type is represented in int64 microseconds
 while go's time.Duration type is int64 nanoseconds. It is incorrect to cast
 one directly to the other.
 
 Shape fields that are not required must use optional types for receiving
-query results. The edgedb.Optional struct can be embedded to make structs
+query results. The gel.Optional struct can be embedded to make structs
 optional.
 
 .. code-block:: go
 
     type User struct {
-        edgedb.Optional
-        Email string `edgedb:"email"`
+        gel.Optional
+        Email string `gel:"email"`
     }
-    
+
     var result User
     err := client.QuerySingle(ctx, `SELECT User { email } LIMIT 0`, $result)
     fmt.Println(result.Missing())
     // Output: true
-    
+
     err := client.QuerySingle(ctx, `SELECT User { email } LIMIT 1`, $result)
     fmt.Println(result.Missing())
     // Output: false
-    
+
 Not all types listed above are valid query parameters.  To pass a slice of
-scalar values use array in your query. EdgeDB doesn't currently support
+scalar values use array in your query. |Gel| doesn't currently support
 using sets as parameters.
 
 .. code-block:: go
 
     query := `select User filter .id in array_unpack(<array<uuid>>$1)`
-    client.QuerySingle(ctx, query, $user, []edgedb.UUID{...})
-    
-Nested structures are also not directly allowed but you can use `json <https://www.edgedb.com/docs/edgeql/insert#bulk-inserts>`_
+    client.QuerySingle(ctx, query, $user, []gel.UUID{...})
+
+Nested structures are also not directly allowed but you can use `json <https://www.gel.com/docs/edgeql/insert#bulk-inserts>`_
 instead.
 
-By default EdgeDB will ignore embedded structs when marshaling/unmarshaling.
+By default |Gel| will ignore embedded structs when marshaling/unmarshaling.
 To treat an embedded struct's fields as part of the parent struct's fields,
-tag the embedded struct with \`edgedb:"$inline"\`.
+tag the embedded struct with \`gel:"$inline"\`.
 
 .. code-block:: go
 
     type Object struct {
-        ID edgedb.UUID
+        ID gel.UUID
     }
-    
+
     type User struct {
-        Object `edgedb:"$inline"`
+        Object `gel:"$inline"`
         Name string
     }
-    
+
 
 Custom Marshalers
 -----------------
@@ -203,33 +198,33 @@ Usage Example
 -------------
 
 .. code-block:: go
-    
-    package edgedb_test
-    
+
+    package gel_test
+
     import (
         "context"
         "fmt"
         "log"
         "time"
-    
-        edgedb "github.com/edgedb/edgedb-go"
+
+        gel "github.com/gel/gel-go"
     )
-    
+
     type User struct {
-        ID   edgedb.UUID `edgedb:"id"`
-        Name string      `edgedb:"name"`
-        DOB  time.Time   `edgedb:"dob"`
+        ID   gel.UUID `gel:"id"`
+        Name string      `gel:"name"`
+        DOB  time.Time   `gel:"dob"`
     }
-    
+
     func Example() {
-        opts := edgedb.Options{Concurrency: 4}
+        opts := gel.Options{Concurrency: 4}
         ctx := context.Background()
-        db, err := edgedb.CreateClientDSN(ctx, "edgedb://edgedb@localhost/test", opts)
+        db, err := gel.CreateClientDSN(ctx, "gel://gel@localhost/test", opts)
         if err != nil {
             log.Fatal(err)
         }
         defer db.Close()
-    
+
         // create a user object type.
         err = db.Execute(ctx, `
             CREATE TYPE User {
@@ -240,9 +235,9 @@ Usage Example
         if err != nil {
             log.Fatal(err)
         }
-    
+
         // Insert a new user.
-        var inserted struct{ id edgedb.UUID }
+        var inserted struct{ id gel.UUID }
         err = db.QuerySingle(ctx, `
             INSERT User {
                 name := <str>$0,
@@ -252,7 +247,7 @@ Usage Example
         if err != nil {
             log.Fatal(err)
         }
-    
+
         // Select users.
         var users []User
         args := map[string]interface{}{"name": "Bob"}
@@ -261,7 +256,7 @@ Usage Example
         if err != nil {
             log.Fatal(err)
         }
-    
+
         fmt.Println(users)
     }
-    
+

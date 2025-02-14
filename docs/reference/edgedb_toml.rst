@@ -1,10 +1,10 @@
 .. _ref_reference_edgedb_toml:
 
-===========
-edgedb.toml
-===========
+========
+gel.toml
+========
 
-The ``edgedb.toml`` file is created in the project root after running
+The |gel.toml| file is created in the project root after running
 :ref:`ref_cli_edgedb_project_init`. If this file is present in a directory, it
 signals to the CLI and client bindings that the directory is an instance-linked
 EdgeDB project. It supports two configuration settings across two tables:
@@ -19,16 +19,16 @@ EdgeDB project. It supports two configuration settings across two tables:
 ``[edgedb]`` table
 ==================
 
-- ``server-version``- The server version of the EdgeDB project.
+- ``server-version``- The server version of the Gel project.
 
   .. note::
 
       The version specification is assumed to be **a minimum version**, but the
       CLI will *not* upgrade to subsequent major versions. This means if the
-      version specified is ``3.1`` and versions 3.2 and 3.3 are available, 3.3
-      will be installed, even if version 4.0 is also available.
+      version specified is ``6.1`` and versions 6.2 and 6.3 are available, 6.3
+      will be installed, even if version 7.0 is also available.
 
-      To specify an exact version, prepend with ``=`` like this: ``=3.1``. We
+      To specify an exact version, prepend with ``=`` like this: ``=6.1``. We
       support `all of the same version specifications as Cargo`_,
       Rust's package manager.
 
@@ -45,8 +45,8 @@ Example
 
 .. code-block:: toml
 
-    [edgedb]
-    server-version = "3.1"
+    [gel]
+    server-version = "6.0"
 
     [project]
     schema-dir = "db/schema"

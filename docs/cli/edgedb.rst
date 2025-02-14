@@ -1,36 +1,36 @@
 .. _ref_cli_edgedb:
 
-======
-edgedb
-======
+===
+gel
+===
 
-:edb-alt-title: edgedb — Interactive Shell
+:edb-alt-title: gel — Interactive Shell
 
-EdgeDB interactive shell:
+Gel interactive shell:
 
 .. cli:synopsis::
 
-    edgedb [<connection-option>...]
+    gel [<connection-option>...]
 
 It's also possible to run an EdgeQL script by piping it into the
-EdgeDB shell. The shell will then run in non-interactive mode and
+|Gel| shell. The shell will then run in non-interactive mode and
 print all the responses into the standard output:
 
 .. cli:synopsis::
 
-    cat myscript.edgeql | edgedb [<connection-option>...]
+    cat myscript.edgeql | gel [<connection-option>...]
 
 The above command also works on PowerShell in Windows, while the classic
 Windows Command Prompt uses a different command as shown below:
 
 .. cli:synopsis::
 
-    type myscript.edgeql | edgedb [<connection-option>...]
+    type myscript.edgeql | gel [<connection-option>...]
 
 Description
 ===========
 
-``edgedb`` is a terminal-based front-end to EdgeDB.  It allows running
+|gelcmd| is a terminal-based front-end to |Gel|.  It allows running
 queries and seeing results interactively.
 
 
@@ -53,13 +53,13 @@ Options
     Specifies the named instance to connect to. The actual connection
     parameters are stored in ``<edgedb_config_dir>/credentials`` and are
     usually created by :ref:`ref_cli_edgedb_instance_create` or similar
-    commands. Run ``edgedb info`` to see the location of
+    commands. Run ``gel info`` to see the location of
     ``<edgedb_config_dir>`` on your machine.
 
     This option overrides host and port.
 
 :cli:synopsis:`--dsn=<dsn>`
-    Specifies the DSN for EdgeDB to connect to.
+    Specifies the DSN for |Gel| to connect to.
 
     This option overrides all other options except password.
 
@@ -92,16 +92,15 @@ Options
 
     .. note::
 
-        EdgeDB 5.0 introduced :ref:`branches <ref_datamodel_branches>` to
-        replace databases. This option requires CLI version 4.3.0 or later and
-        EdgeDB version 5.0 or later. If you are running an earlier version of
-        EdgeDB, you will instead use the ``-d <dbname>, --database=<dbname>``
+        |EdgeDB| 5.0 introduced :ref:`branches <ref_datamodel_branches>` to
+        replace databases. If you are running an earlier version of
+        Gel, you will instead use the ``-d <dbname>, --database=<dbname>``
         option above.
 
 :cli:synopsis:`--password | --no-password`
-    If :cli:synopsis:`--password` is specified, force ``edgedb`` to prompt
+    If :cli:synopsis:`--password` is specified, force |gelcmd| to prompt
     for a password before connecting to the database.  This is usually not
-    necessary, since ``edgedb`` will prompt for a password automatically
+    necessary, since ``gel`` will prompt for a password automatically
     if the server requires it.
 
     Specifying :cli:synopsis:`--no-password` disables all password prompts.
@@ -137,11 +136,11 @@ Options
         Disable all TLS security measures.
 
 :cli:synopsis:`--wait-until-available=<wait_time>`
-    In case EdgeDB connection can't be established, keep retrying up
+    In case |Gel| connection can't be established, keep retrying up
     to :cli:synopsis:`<wait_time>` (e.g. ``30s``).
 
 :cli:synopsis:`--connect-timeout=<timeout>`
-    Specifies a :cli:synopsis:`<timeout>` period. In case EdgeDB
+    Specifies a :cli:synopsis:`<timeout>` period. In case |Gel|
     doesn't respond for this period the command will fail (or retry if
     :cli:synopsis:`--wait-until-available` is also specified). The
     :cli:synopsis:`<timeout>` value must be given using time units
@@ -169,25 +168,15 @@ many of the commands:
   Describe the entire schema.
 
 :cli:synopsis:`\\l`
-  List branches on EdgeDB server 5+ or databases on prior versions.
-
-:cli:synopsis:`\\list databases`
-  List databases.
-
-  .. note::
-
-      EdgeDB 5.0 introduced :ref:`branches <ref_datamodel_branches>` to replace
-      databases. If you are running 5.0 or later, you will instead use the
-      ``\list branches`` command below.
+  List branches on |Gel| server 5+ or databases on prior versions.
 
 :cli:synopsis:`\\list branches`
   List branches.
 
   .. note::
 
-      EdgeDB 5.0 introduced :ref:`branches <ref_datamodel_branches>` to replace
-      databases. This command requires CLI version 4.3.0 or later and EdgeDB
-      version 5.0 or later. If you are running an earlier version of EdgeDB,
+      |EdgeDB| 5.0 introduced :ref:`branches <ref_datamodel_branches>` to replace
+      databases. If you are running an earlier version of Gel,
       you will instead use the ``\list databases`` command above.
 
 :cli:synopsis:`\\ls [-sc] [PATTERN], \\list scalars [-sc] [PATTERN]`
@@ -211,26 +200,13 @@ many of the commands:
 :cli:synopsis:`\\li [-vsc] [PATTERN], \\list indexes [-vsc] [PATTERN]`
   List indexes.
 
-Database
---------
-
-.. note::
-
-    EdgeDB 5.0 introduced :ref:`branches <ref_datamodel_branches>` to replace
-    databases. If you are running 5.0 or later, you will instead use the
-    commands in the "Branch" section below.
-
-:cli:synopsis:`\\database create NAME`
-  Create a new database.
-
 Branch
 ------
 
-.. note::
+.. versionadded:: 5.0
 
-    EdgeDB 5.0 introduced :ref:`branches <ref_datamodel_branches>` to replace
-    databases. These commands require CLI version 4.3.0 or later and EdgeDB
-    version 5.0 or later. If you are running an earlier version of EdgeDB,
+    |EdgeDB| 5.0 introduced :ref:`branches <ref_datamodel_branches>` to replace
+    databases. If you are running an earlier version of Gel,
     you will instead use the database commands above.
 
 :cli:synopsis:`\\branch create NAME`
@@ -245,18 +221,10 @@ Query Analysis
 --------------
 
 :cli:synopsis:`\\analyze QUERY`
-  .. note::
-
-      This command is compatible with EdgeDB server 3.0 and above.
-
   Run a query performance analysis on the given query. Most conveniently used
   without a backslash by just adding ``analyze`` before any query.
 
 :cli:synopsis:`\\expand`
-  .. note::
-
-      This command is compatible with EdgeDB server 3.0 and above.
-
   Print expanded output of last ``analyze`` operation.
 
 Data Operations
@@ -294,20 +262,14 @@ Settings
 Connection
 ----------
 
-:cli:synopsis:`\\c, \\connect [DBNAME]`
-  Connect to database *DBNAME*.
-
-  .. note::
-
-      EdgeDB 5.0 introduced :ref:`branches <ref_datamodel_branches>` to replace
-      databases. If you are running 5.0 or later, you will instead use the
-      ``\branch switch NAME`` command to switch to a different branch.
+:cli:synopsis:`\\c, \\connect [NAME]`
+  Connect to branch *NAME*.
 
 Migrations
 ----------
 
 These migration commands are also accessible directly from the command line
-without first entering the EdgeDB shell. Their counterpart commands are noted
+without first entering the |Gel| shell. Their counterpart commands are noted
 and linked in their descriptions if you want more detail.
 
 :cli:synopsis:`\\migration create`
@@ -328,7 +290,7 @@ and linked in their descriptions if you want more detail.
   Show the migration history, just like :ref:`ref_cli_edgedb_migration_log`.
 
 :cli:synopsis:`\\migration status`
-  Show how the state of the schema in the EdgeDB instance compares to the
+  Show how the state of the schema in the |Gel| instance compares to the
   migration stored in the schema directory, just like
   :ref:`ref_cli_edgedb_migration_status`.
 
@@ -340,3 +302,16 @@ Help
 
 :cli:synopsis:`\\q, \\quit, \\exit`
   Quit the REPL. You can also do this by pressing Ctrl+D.
+
+
+Database
+--------
+
+.. note::
+
+    |EdgeDB| 5.0 introduced :ref:`branches <ref_datamodel_branches>` to replace
+    databases. If you are running 5.0 or later, you will instead use the
+    commands in the "Branch" section above.
+
+:cli:synopsis:`\\database create NAME`
+  Create a new database.

@@ -7,7 +7,7 @@ v3.0
 .. image:: images/v3_betelgeuse.jpg
     :width: 100%
 
-EdgeDB 3.0 was released on June 22nd, 2023. Read the announcement
+|EdgeDB| 3.0 was released on June 22nd, 2023. Read the announcement
 blog post `here <v3anno_>`_.
 
 To play with the new features, install the CLI using `our installation guide
@@ -984,15 +984,15 @@ New release schedule
 Unfortunately, the 3.0 release will not include full-text search. We have many
 requirements for this new API (see `the FTS RFC
 <https://github.com/edgedb/rfcs/blob/master/text/1015-full-text-search.rst>`_
-for details), and, while we’ve made significant progress, we have unfortunately
+for details), and, while we've made significant progress, we have unfortunately
 run out of time to be 100% sure that it is ready for prime time.
 
-We don’t want this delay to hold back the release of EdgeDB 3.0, which includes
+We don't want this delay to hold back the release of EdgeDB 3.0, which includes
 many other exciting features that are ready for you to start using right now.
-That’s why we’ve decided to delay only the FTS feature rather than delaying the
+That's why we've decided to delay only the FTS feature rather than delaying the
 entire 3.0 release.
 
-That said we’re working hard to get FTS ready as soon as possible. After the
+That said we're working hard to get FTS ready as soon as possible. After the
 release of 3.0, we'll be moving to a much more frequent release cycle so that
 features like FTS can be in your hands as soon as they're ready.
 

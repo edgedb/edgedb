@@ -1,26 +1,26 @@
 .. _ref_cli_edgedb_instance_destroy:
 
 
-=======================
-edgedb instance destroy
-=======================
+====================
+gel instance destroy
+====================
 
-Remove an EdgeDB instance.
+Remove an |Gel| instance.
 
 .. cli:synopsis::
 
-     edgedb instance destroy [<options>] <name>
+     gel instance destroy [<options>] <name>
 
 
 Description
 ===========
 
-``edgedb instance destroy`` is a terminal command for removing an EdgeDB
+``gel instance destroy`` is a terminal command for removing an (or edgedb.toml)
 instance and all its data.
 
 .. note::
 
-    The ``edgedb instance destroy`` command is not intended for use with
+    The ``gel instance destroy`` command is not intended for use with
     self-hosted instances.
 
 
@@ -28,7 +28,7 @@ Options
 =======
 
 :cli:synopsis:`<name>`
-    The EdgeDB instance name.
+    The |Gel| instance name.
 
 :cli:synopsis:`--force`
     Destroy the instance even if it is referred to by a project.

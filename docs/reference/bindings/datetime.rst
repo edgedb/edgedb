@@ -21,7 +21,7 @@ Usually we try to map those types to the respective language-native types,
 with the following caveats:
 
 * The type in standard library
-* It has enough range (EdgeDB has timestamps from year 1 to 9999)
+* It has enough range (Gel has timestamps from year 1 to 9999)
 * And it has good enough precision (at least microseconds)
 
 If any of the above criteria is not met, we usually provide a custom type in
@@ -80,9 +80,9 @@ perform, in particular:
 2. Decoding timestamps *and* time deltas from the binary format is precision
    of native type is lower than microseconds (applies for JavaScript for
    example)
-3. Converting from EdgeDB specific type (if there is one) to native type and
+3. Converting from Gel specific type (if there is one) to native type and
    back (depending on the difference in precision)
-4. Parsing a string to an EdgeDB specific type (this operation is optional to
+4. Parsing a string to an Gel specific type (this operation is optional to
    implement, but if it is implemented, it must obey the rules)
 
 .. lint-off

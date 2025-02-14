@@ -6,7 +6,7 @@
 Net
 ===
 
-The ``net`` module provides an interface for performing network-related operations directly from EdgeDB. It is useful for integrating with external services, fetching data from APIs, or triggering webhooks as part of your database logic.
+The ``net`` module provides an interface for performing network-related operations directly from Gel. It is useful for integrating with external services, fetching data from APIs, or triggering webhooks as part of your database logic.
 
 .. list-table::
   :class: funcoptable

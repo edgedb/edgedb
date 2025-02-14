@@ -17,23 +17,8 @@ Object types can contain *computed* properties and links. Computed properties
 and links are not persisted in the database. Instead, they are evaluated *on
 the fly* whenever that field is queried. Computed properties must be declared
 with the ``property`` keyword and computed links must be declared with the
-``link`` keyword in EdgeDB versions prior to 4.0.
+``link`` keyword in |EdgeDB| versions prior to 4.0.
 
-.. code-block:: sdl
-    :version-lt: 3.0
-
-    type Person {
-      property name -> str;
-      property all_caps_name := str_upper(__source__.name);
-    }
-
-.. code-block:: sdl
-    :version-lt: 4.0
-
-    type Person {
-      name: str;
-      property all_caps_name := str_upper(__source__.name);
-    }
 
 .. code-block:: sdl
 
@@ -198,7 +183,7 @@ queries, consider defining a computed field that encapsulates the filter.
 Backlinks
 ^^^^^^^^^
 
-Backlinks are one of the most common use cases for computed links. In EdgeDB
+Backlinks are one of the most common use cases for computed links. In |Gel|
 links are *directional*; they have a source and a target. Often it's convenient
 to traverse a link in the *reverse* direction.
 

@@ -1,15 +1,15 @@
 .. _ref_cli_edgedb_migration_upgrade_check:
 
 
-==============================
-edgedb migration upgrade-check
-==============================
+===========================
+gel migration upgrade-check
+===========================
 
-Checks your schema against a different EdgeDB version.
+Checks your schema against a different |Gel| version.
 
 .. cli:synopsis::
 
-    edgedb migration upgrade-check [<options>]
+    gel migration upgrade-check [<options>]
 
 .. note::
 
@@ -19,7 +19,7 @@ Description
 ===========
 
 By default, ``upgrade-check`` checks your schema against the latest stable
-release of EdgeDB. You can add ``--to-version <version>``, ``--to-testing``,
+release of |Gel|. You can add ``--to-version <version>``, ``--to-testing``,
 ``--to-nightly``, or ``--to-channel <channel>`` to check against a specific
 version.
 

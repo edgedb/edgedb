@@ -8,7 +8,7 @@ Functions
 
 .. note::
 
-  This page documents how to define custom functions, however EdgeDB provides a
+  This page documents how to define custom functions, however |Gel| provides a
   large library of built-in functions and operators. These are documented in
   :ref:`Standard Library <ref_std>`.
 
@@ -159,6 +159,4 @@ aggregated into an array as described above:
   * - :ref:`Reference > Function calls <ref_reference_function_call>`
   * - :ref:`Introspection > Functions <ref_datamodel_introspection_functions>`
   * - :ref:`Cheatsheets > Functions <ref_cheatsheet_functions>`
-  * - `Tutorial > Advanced EdgeQL > User-Defined Functions
-      </tutorial/advanced-edgeql/user-def-functions>`_
 

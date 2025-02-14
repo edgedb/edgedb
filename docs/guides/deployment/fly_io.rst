@@ -4,11 +4,11 @@
 Fly.io
 ======
 
-:edb-alt-title: Deploying EdgeDB to Fly.io
+:edb-alt-title: Deploying Gel to Fly.io
 
-In this guide we show how to deploy EdgeDB using a `Fly.io <https://fly.io>`_
+In this guide we show how to deploy Gel using a `Fly.io <https://fly.io>`_
 PostgreSQL cluster as the backend. The deployment consists of two apps: one
-running Postgres and the other running EdgeDB.
+running Postgres and the other running Gel.
 
 
 Prerequisites
@@ -20,11 +20,11 @@ Prerequisites
 .. _flyctl-install: https://fly.io/docs/getting-started/installing-flyctl/
 
 
-Provision a Fly.io app for EdgeDB
-=================================
+Provision a Fly.io app for Gel
+==============================
 
 Every Fly.io app must have a globally unique name, including service VMs like
-Postgres and EdgeDB. Pick a name and assign it to a local environment variable
+Postgres and Gel. Pick a name and assign it to a local environment variable
 called ``EDB_APP``. In the command below, replace ``myorg-edgedb`` with a name
 of your choosing.
 
@@ -59,20 +59,20 @@ we'll need. There are a couple more environment variables we need to set:
 
 Let's discuss what's going on with all these secrets.
 
-- The ``EDGEDB_SERVER_BACKEND_DSN_ENV`` tells the EdgeDB container where to
+- The ``EDGEDB_SERVER_BACKEND_DSN_ENV`` tells the Gel container where to
   look for the PostgreSQL connection string (more on that below)
-- The ``EDGEDB_SERVER_TLS_CERT_MODE`` tells EdgeDB to auto-generate a
+- The ``EDGEDB_SERVER_TLS_CERT_MODE`` tells Gel to auto-generate a
   self-signed TLS certificate.
 
   You may instead choose to provision a custom TLS certificate. In this
   case, you should instead create two other secrets: assign your certificate
   to ``EDGEDB_SERVER_TLS_CERT`` and your private key to
   ``EDGEDB_SERVER_TLS_KEY``.
-- Lastly, ``EDGEDB_SERVER_PORT`` tells EdgeDB to listen on port 8080 instead
+- Lastly, ``EDGEDB_SERVER_PORT`` tells Gel to listen on port 8080 instead
   of the default 5656, because Fly.io prefers ``8080`` for its default health
   checks.
 
-Finally, let's configure the VM size as EdgeDB requires a little bit more than
+Finally, let's configure the VM size as Gel requires a little bit more than
 the default Fly.io VM side provides. Put this in a file called ``fly.toml`` in
 your current directory.:
 
@@ -90,7 +90,7 @@ your current directory.:
 Create a PostgreSQL cluster
 ===========================
 
-Now we need to provision a PostgreSQL cluster and attach it to the EdgeDB app.
+Now we need to provision a PostgreSQL cluster and attach it to the Gel app.
 
 .. note::
 
@@ -141,7 +141,7 @@ this command:
     ...
 
 With the VM scaled sufficiently, we can now attach the PostgreSQL cluster to
-the EdgeDB app:
+the Gel app:
 
 .. code-block:: bash
 
@@ -153,8 +153,8 @@ the EdgeDB app:
     The following secret was added to myorg-edgedb:
       DATABASE_URL=postgres://...
 
-Lastly, EdgeDB needs the ability to create Postgres databases and roles,
-so let's adjust the permissions on the role that EdgeDB will use to connect
+Lastly, Gel needs the ability to create Postgres databases and roles,
+so let's adjust the permissions on the role that Gel will use to connect
 to Postgres:
 
 .. code-block:: bash
@@ -166,10 +166,10 @@ to Postgres:
 
 .. _ref_guide_deployment_fly_io_start_edgedb:
 
-Start EdgeDB
-============
+Start Gel
+=========
 
-Everything is set! Time to start EdgeDB.
+Everything is set! Time to start Gel.
 
 .. code-block:: bash
 
@@ -180,7 +180,7 @@ Everything is set! Time to start EdgeDB.
      ✔ Machine e286630dce9638 [app] was created
     -------
 
-That's it!  You can now start using the EdgeDB instance located at
+That's it!  You can now start using the Gel instance located at
 ``edgedb://myorg-edgedb.internal`` in your Fly.io apps.
 
 
@@ -194,7 +194,7 @@ Persist the generated TLS certificate
 =====================================
 
 Now we need to persist the auto-generated TLS certificate to make sure it
-survives EdgeDB app restarts. (If you've provided your own certificate,
+survives Gel app restarts. (If you've provided your own certificate,
 skip this step).
 
 .. code-block:: bash
@@ -214,7 +214,7 @@ can construct the DSN with the following components:
 
 - ``<username>``: the default value — ``edgedb``
 - ``<password>``: the value we assigned to ``$PASSWORD``
-- ``<hostname>``: the name of your EdgeDB app (stored in the
+- ``<hostname>``: the name of your Gel app (stored in the
   ``$EDB_APP`` environment variable) suffixed with ``.internal``. Fly uses this
   synthetic TLD to simplify inter-app communication. Ex:
   ``myorg-edgedb.internal``.
@@ -249,7 +249,7 @@ API server) set the value of the ``EDGEDB_DSN`` secret inside that app.
         EDGEDB_DSN=$DSN \
         --app my-other-fly-app
 
-We'll also set another variable that will disable EdgeDB's TLS checks.
+We'll also set another variable that will disable Gel's TLS checks.
 Inter-application communication is secured by Fly so TLS isn't vital in
 this case; configuring TLS certificates is also beyond the scope of this guide.
 
@@ -266,7 +266,7 @@ You can also set these values as environment variables inside your
 From external application
 -------------------------
 
-If you need to access EdgeDB from outside the Fly.io network, you'll need to
+If you need to access Gel from outside the Fly.io network, you'll need to
 configure the Fly.io proxy to let external connections in.
 
 Let's make sure the ``[[services]]`` section in our ``fly.toml`` looks
@@ -294,8 +294,8 @@ something like this:
             restart_limit = 0
             timeout = "2s"
 
-In the same directory, :ref:`redeploy the EdgeDB app
-<ref_guide_deployment_fly_io_start_edgedb>`. This makes the EdgeDB port
+In the same directory, :ref:`redeploy the Gel app
+<ref_guide_deployment_fly_io_start_edgedb>`. This makes the Gel port
 available to the outside world. You can now access the instance from any host
 via the following public DSN: ``edgedb://edgedb:$PASSWORD@$EDB_APP.fly.dev``.
 
@@ -311,7 +311,7 @@ You can securely obtain the certificate content by running:
 From your local machine
 -----------------------
 
-To access the EdgeDB instance from local development machine/laptop, install
+To access the Gel instance from local development machine/laptop, install
 the Wireguard `VPN <vpn_>`_ and create a tunnel, as described on Fly's
 `Private Networking
 <https://fly.io/docs/reference/private-networking/#private-network-vpn>`_
@@ -349,5 +349,5 @@ Health Checks
 =============
 
 Using an HTTP client, you can perform health checks to monitor the status of
-your EdgeDB instance. Learn how to use them with our :ref:`health checks guide
+your Gel instance. Learn how to use them with our :ref:`health checks guide
 <ref_guide_deployment_health_checks>`.

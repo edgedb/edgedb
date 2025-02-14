@@ -4,11 +4,11 @@
 Next.js (Pages Router)
 ======================
 
-:edb-alt-title: Building a simple blog application with EdgeDB and 
+:edb-alt-title: Building a simple blog application with Gel and
    Next.js (Pages Router)
 
 We're going to build a simple blog application with
-`Next.js <https://nextjs.org/>`_ and EdgeDB. Let's start by scaffolding our
+`Next.js <https://nextjs.org/>`_ and Gel. Let's start by scaffolding our
 app with Next.js's ``create-next-app`` tool. We'll be using TypeScript for
 this tutorial.
 
@@ -77,11 +77,11 @@ static data. Replace the contents of ``pages/index.tsx`` with the following.
       {
         id: 'post1',
         title: 'This one weird trick makes using databases fun',
-        content: 'Use EdgeDB',
+        content: 'Use Gel',
       },
       {
         id: 'post2',
-        title: 'How to build a blog with EdgeDB and Next.js',
+        title: 'How to build a blog with Gel and Next.js',
         content: "Let's start by scaffolding our app with `create-next-app`.",
       },
     ];
@@ -122,14 +122,14 @@ something like this.
     :alt: Basic blog homepage with static content
     :width: 100%
 
-Initializing EdgeDB
--------------------
+Initializing Gel
+----------------
 
-Now let's spin up a database for the app. You have two options to initialize 
-an EdgeDB project: using ``npx edgedb`` without installing the CLI, or 
+Now let's spin up a database for the app. You have two options to initialize
+an Gel project: using ``npx edgedb`` without installing the CLI, or
 installing the edgedb CLI directly. In this tutorial, we'll use the first
-option. If you prefer to install the CLI, see the 
-`EdgeDB CLI installation guide <https://docs.edgedb.com/cli>`_ 
+option. If you prefer to install the CLI, see the
+`Gel CLI installation guide <https://docs.edgedb.com/cli>`_
 for more information.
 
 From the application's root directory, run the following command:
@@ -140,11 +140,11 @@ From the application's root directory, run the following command:
   No `edgedb.toml` found in `~/nextjs-blog` or above
   Do you want to initialize a new project? [Y/n]
   > Y
-  Specify the name of EdgeDB instance to use with this project [default:
+  Specify the name of Gel instance to use with this project [default:
   nextjs_blog]:
   > nextjs_blog
-  Checking EdgeDB versions...
-  Specify the version of EdgeDB to use with this project [default: x.x]:
+  Checking Gel versions...
+  Specify the version of Gel to use with this project [default: x.x]:
   >
   ┌─────────────────────┬──────────────────────────────────────────────┐
   │ Project directory   │ ~/nextjs-blog                                │
@@ -155,22 +155,22 @@ From the application's root directory, run the following command:
   │ Version             │ x.x                                          │
   │ Instance name       │ nextjs_blog                                  │
   └─────────────────────┴──────────────────────────────────────────────┘
-  Initializing EdgeDB instance...
+  Initializing Gel instance...
   Applying migrations...
   Everything is up to date. Revision initial.
   Project initialized.
 
-This process has spun up an EdgeDB instance called ``nextjs-blog`` and
+This process has spun up an Gel instance called ``nextjs-blog`` and
 "linked" it with your current directory. As long as you're inside that
 directory, CLI commands and client libraries will be able to connect to the
 linked instance automatically, without additional configuration.
 
-To test this, run the ``edgedb`` command to open a REPL to the linked instance.
+To test this, run the |gelcmd| command to open a REPL to the linked instance.
 
 .. code-block:: bash
 
   $ edgedb
-  EdgeDB 2.x (repl 2.x)
+  Gel x.x (repl x.x)
   Type \help for help, \quit to quit.
   edgedb> select 2 + 2;
   {4}
@@ -182,7 +182,7 @@ change that.
 
 The project initialization process also created a new subdirectory in our
 project called ``dbschema``. This is folder that contains everything
-pertaining to EdgeDB. Currently it looks like this:
+pertaining to Gel. Currently it looks like this:
 
 .. code-block::
 
@@ -209,7 +209,7 @@ update the contents of ``default.esdl`` with the following simple blog schema.
 
 .. note::
 
-  EdgeDB lets you split up your schema into different ``modules`` but it's
+  Gel lets you split up your schema into different ``modules`` but it's
   common to keep your entire schema in the ``default`` module.
 
 Save the file, then let's create our first migration.
@@ -231,13 +231,13 @@ our database. Let's do that.
   Applied m1fee6oypqpjrreleos5hmivgfqg6zfkgbrowx7sw5jvnicm73hqdq (00001.edgeql)
 
 Our database now has a schema consisting of the ``BlogPost`` type. We can
-create some sample data from the REPL. Run the ``edgedb`` command to re-open
+create some sample data from the REPL. Run the |gelcmd| command to re-open
 the REPL.
 
 .. code-block:: bash
 
   $ edgedb
-  EdgeDB 2.x (repl 2.x)
+  Gel x.x (repl x.x)
   Type \help for help, \quit to quit.
   edgedb>
 
@@ -248,11 +248,11 @@ Then execute the following ``insert`` statements.
 
   edgedb> insert BlogPost {
   .......   title := "This one weird trick makes using databases fun",
-  .......   content := "Use EdgeDB"
+  .......   content := "Use Gel"
   ....... };
   {default::BlogPost {id: 7f301d02-c780-11ec-8a1a-a34776e884a0}}
   edgedb> insert BlogPost {
-  .......   title := "How to build a blog with EdgeDB and Next.js",
+  .......   title := "How to build a blog with Gel and Next.js",
   .......   content := "Let's start by scaffolding our app..."
   ....... };
   {default::BlogPost {id: 88c800e6-c780-11ec-8a1a-b3a3020189dd}}
@@ -263,12 +263,12 @@ Loading posts with an API route
 
 Now that we have a couple posts in the database, let's load them dynamically
 with a Next.js `API route <https://nextjs.org/docs/api-routes/introduction>`_.
-To do that, we'll need the ``edgedb`` client library. Let's install that from
+To do that, we'll need the ``gel`` client library. Let's install that from
 NPM:
 
 .. code-block:: bash
 
-  $ npm install edgedb
+  $ npm install gel
 
 Then create a new file at ``pages/api/post.ts`` and copy in the following code.
 
@@ -277,7 +277,7 @@ Then create a new file at ``pages/api/post.ts`` and copy in the following code.
   // pages/api/post.ts
 
   import type {NextApiRequest, NextApiResponse} from 'next';
-  import {createClient} from 'edgedb';
+  import {createClient} from 'gel';
 
   export const client = createClient();
 
@@ -293,7 +293,7 @@ Then create a new file at ``pages/api/post.ts`` and copy in the following code.
     res.status(200).json(posts);
   }
 
-This file initializes an EdgeDB client, which manages a pool of connections to
+This file initializes an Gel client, which manages a pool of connections to
 the database and provides an API for executing queries. We're using the
 ``.query()`` method to fetch all the posts in the database with a simple
 ``select`` statement.
@@ -322,11 +322,11 @@ the built-in ``fetch`` API. At the top of the ``HomePage`` component in
   -      {
   -        id: 'post1',
   -        title: 'This one weird trick makes using databases fun',
-  -        content: 'Use EdgeDB',
+  -        content: 'Use Gel',
   -      },
   -      {
   -        id: 'post2',
-  -        title: 'How to build a blog with EdgeDB and Next.js',
+  -        title: 'How to build a blog with Gel and Next.js',
   -        content: "Let's start by scaffolding our app...",
   -      },
   -    ];
@@ -348,7 +348,7 @@ before the homepage renders the (dynamically loaded!) blog posts.
 Generating the query builder
 ----------------------------
 
-Since we're using TypeScript, it makes sense to use EdgeDB's powerful query
+Since we're using TypeScript, it makes sense to use Gel's powerful query
 builder. This provides a schema-aware client API that makes writing strongly
 typed EdgeQL queries easy and painless. The result type of our queries will be
 automatically inferred, so we won't need to manually type something like
@@ -545,9 +545,9 @@ you to ``/post/<uuid>``, which should display something like this:
 Deploying to Vercel
 -------------------
 
-**#1 Deploy EdgeDB**
+**#1 Deploy Gel**
 
-First deploy an EdgeDB instance on your preferred cloud provider:
+First deploy an Gel instance on your preferred cloud provider:
 
 - :ref:`AWS <ref_guide_deployment_aws_aurora_ecs>`
 - :ref:`Azure <ref_guide_deployment_azure_flexibleserver>`
@@ -577,7 +577,7 @@ Use the DSN to apply migrations against your remote instance.
 
 .. note::
 
-  You have to disable TLS checks with ``--tls-security insecure``. All EdgeDB
+  You have to disable TLS checks with ``--tls-security insecure``. All Gel
   instances use TLS by default, but configuring it is out of scope of this
   project.
 
@@ -587,7 +587,7 @@ database. Open a REPL and ``insert`` some blog posts:
 .. code-block:: bash
 
   $ npx edgedb --dsn <your-instance-dsn> --tls-security insecure
-  EdgeDB 2.x (repl 2.x)
+  Gel x.x (repl x.x)
   Type \help for help, \quit to quit.
   edgedb> insert BlogPost { title := "Test post" };
   {default::BlogPost {id: c00f2c9a-cbf5-11ec-8ecb-4f8e702e5789}}
@@ -628,7 +628,7 @@ When prompted:
 
 - Set ``EDGEDB_DSN`` to your database's DSN
 - Set ``EDGEDB_CLIENT_TLS_SECURITY`` to ``insecure``. This will disable
-  EdgeDB's default TLS checks; configuring TLS is beyond the scope of this
+  Gel's default TLS checks; configuring TLS is beyond the scope of this
   tutorial.
 
 .. image::
@@ -646,12 +646,12 @@ Wrapping up
 -----------
 
 Admittedly this isn't the prettiest blog of all time, or the most
-feature-complete. But this tutorial demonstrates how to work with EdgeDB in a
+feature-complete. But this tutorial demonstrates how to work with Gel in a
 Next.js app, including data fetching with API routes and
 ``getServerSideProps``.
 
 The next step is to add a ``/newpost`` page with a form for writing new blog
-posts and saving them into EdgeDB. That's left as an exercise for the reader.
+posts and saving them into Gel. That's left as an exercise for the reader.
 
 To see the final code for this tutorial, refer to
 `github.com/edgedb/edgedb-examples/tree/main/nextjs-blog

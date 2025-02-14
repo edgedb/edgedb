@@ -14,7 +14,7 @@ Primitives
 ^^^^^^^^^^
 
 Primitive literal expressions are created using constructor functions that
-correspond to EdgeDB datatypes. Each expression below is accompanied by the
+correspond to Gel datatypes. Each expression below is accompanied by the
 EdgeQL it produces.
 
 .. code-block:: typescript
@@ -83,12 +83,12 @@ To create an instance of ``datetime``, pass a JavaScript ``Date`` object into
   e.datetime(new Date('1999-01-01'));
   // <datetime>'1999-01-01T00:00:00.000Z'
 
-EdgeDB's other temporal datatypes don't have equivalents in the JavaScript
+Gel's other temporal datatypes don't have equivalents in the JavaScript
 type system: ``duration``, ``cal::relative_duration``, ``cal::date_duration``,
 ``cal::local_date``, ``cal::local_time``, and ``cal::local_datetime``,
 
 To resolve this, each of these datatypes can be represented with an instance
-of a corresponding class, as defined in ``edgedb`` module. Clients use
+of a corresponding class, as defined in ``gel`` module. Clients use
 these classes to represent these values in query results; they are documented
 on the :ref:`Client API <edgedb-js-datatypes>` docs.
 
@@ -116,18 +116,18 @@ along with the equivalent EdgeQL.
 
 .. code-block:: typescript
 
-  import * as edgedb from "edgedb";
+  import * as gel from "gel";
 
-  const myDuration = new edgedb.Duration(0, 0, 0, 0, 1, 2, 3);
+  const myDuration = new gel.Duration(0, 0, 0, 0, 1, 2, 3);
   e.duration(myDuration);
 
-  const myLocalDate = new edgedb.LocalDate(1776, 7, 4);
+  const myLocalDate = new gel.LocalDate(1776, 7, 4);
   e.cal.local_date(myLocalDate);
 
-  const myLocalTime = new edgedb.LocalTime(13, 15, 0);
+  const myLocalTime = new gel.LocalTime(13, 15, 0);
   e.cal.local_time(myLocalTime);
 
-  const myLocalDateTime = new edgedb.LocalDateTime(1776, 7, 4, 13, 15, 0);
+  const myLocalDateTime = new gel.LocalDateTime(1776, 7, 4, 13, 15, 0);
   e.cal.local_datetime(myLocalDateTime);
 
 
@@ -154,12 +154,12 @@ JSON
 ^^^^
 
 JSON literals are created with the ``e.json`` function. You can pass in any
-EdgeDB-compatible data structure.
+Gel-compatible data structure.
 
 
-What does "EdgeDB-compatible" mean? It means any JavaScript data structure
-with an equivalent in EdgeDB: strings, number, booleans, ``bigint``\ s,
-``Uint8Array``\ s, ``Date``\ s, and instances of EdgeDB's built-in classes:
+What does "Gel-compatible" mean? It means any JavaScript data structure
+with an equivalent in Gel: strings, number, booleans, ``bigint``\ s,
+``Uint8Array``\ s, ``Date``\ s, and instances of Gel's built-in classes:
 (``LocalDate`` ``LocalTime``, ``LocalDateTime``, ``DateDuration``,
 ``Duration``, and ``RelativeDuration``), and any array or object of these
 types. Other JavaScript data structures like symbols, instances of custom
@@ -175,7 +175,7 @@ docs/Web/JavaScript/Typed_arrays>`_ are not supported.
     name: "Billie",
     numbers: [1,2,3],
     nested: { foo: "bar"},
-    duration: new edgedb.Duration(1, 3, 3)
+    duration: new gel.Duration(1, 3, 3)
   })
 
 JSON expressions support indexing, as in EdgeQL. The returned expression also
@@ -357,7 +357,7 @@ Supply named parameters as the first argument.
   e.range({inc_lower: true, inc_upper: true, empty: true}, 0, 8);
   // => std::range(0, 8, true, true);
 
-JavaScript doesn't have a native way to represent range values. Any range value returned from a query will be encoded as an instance of the :js:class:`Range` class, which is exported from the ``edgedb`` package.
+JavaScript doesn't have a native way to represent range values. Any range value returned from a query will be encoded as an instance of the :js:class:`Range` class, which is exported from the ``gel`` package.
 
 .. code-block:: typescript
 

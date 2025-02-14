@@ -5,24 +5,24 @@ Client Libraries
 ================
 
 EdgeDB implements libraries for popular languages that make it easier to work
-with EdgeDB. These libraries provide a common set of functionality.
+with Gel. These libraries provide a common set of functionality.
 
 - *Instantiating clients.* Most libraries implement a ``Client`` class that
-  internally manages a pool of physical connections to your EdgeDB instance.
+  internally manages a pool of physical connections to your Gel instance.
 - *Resolving connections.* All client libraries implement a standard protocol
   for determining how to connect to your database. In most cases, this will
   involve checking for special environment variables like ``EDGEDB_DSN`` or, in
-  the case of EdgeDB Cloud instances, ``EDGEDB_INSTANCE`` and
+  the case of Gel Cloud instances, ``EDGEDB_INSTANCE`` and
   ``EDGEDB_SECRET_KEY``.
   (More on this in :ref:`the Connection section below
   <ref_intro_clients_connection>`.)
 - *Executing queries.* A ``Client`` will provide some methods for executing
   queries against your database. Under the hood, this query is executed using
-  EdgeDB's efficient binary protocol.
+  Gel's efficient binary protocol.
 
 .. note::
 
-  For some use cases, you may not need a client library. EdgeDB allows you to
+  For some use cases, you may not need a client library. Gel allows you to
   execute :ref:`queries over HTTP <ref_edgeql_http>`. This is slower than the
   binary protocol and lacks support for transactions and rich data types, but
   may be suitable if a client library isn't available for your language of
@@ -31,7 +31,7 @@ with EdgeDB. These libraries provide a common set of functionality.
 Available libraries
 ===================
 
-To execute queries from your application code, use one of EdgeDB's *client
+To execute queries from your application code, use one of Gel's *client
 libraries* for the following languages.
 
 - :ref:`JavaScript/TypeScript <edgedb-js-intro>`
@@ -111,7 +111,7 @@ Configure the environment as needed for your preferred language.
 
     $ mix new edgedb_quickstart
 
-Install the EdgeDB client library.
+Install the Gel client library.
 
 .. tabs::
 
@@ -149,7 +149,7 @@ Install the EdgeDB client library.
   .. code-tab:: bash
     :caption: .NET
 
-    $ dotnet add package EdgeDB.Net.Driver
+    $ dotnet add package Gel.Net.Driver
 
   .. code-tab:: xml
     :caption: Maven (Java)
@@ -268,21 +268,21 @@ database and provide a set of methods for executing queries.
   .. code-tab:: csharp
     :caption: .NET
 
-    using EdgeDB;
+    using Gel;
 
-    var client = new EdgeDBClient();
+    var client = new GelClient();
     var result = await client.QuerySingleAsync<double>("select random();");
     Console.WriteLine(result);
 
   .. code-tab:: java
     :caption: Futures (Java)
 
-    import com.edgedb.driver.EdgeDBClient;
+    import com.edgedb.driver.GelClient;
     import java.util.concurrent.CompletableFuture;
 
     public class Main {
         public static void main(String[] args) {
-            var client = new EdgeDBClient();
+            var client = new GelClient();
 
             client.querySingle(String.class, "select random();")
                 .thenAccept(System.out::println)
@@ -293,12 +293,12 @@ database and provide a set of methods for executing queries.
   .. code-tab:: java
     :caption: Reactor (Java)
 
-    import com.edgedb.driver.EdgeDBClient;
+    import com.edgedb.driver.GelClient;
     import reactor.core.publisher.Mono;
 
     public class Main {
         public static void main(String[] args) {
-            var client = new EdgeDBClient();
+            var client = new GelClient();
 
             Mono.fromFuture(client.querySingle(String.class, "select random();"))
                 .doOnNext(System.out::println)
@@ -310,10 +310,10 @@ database and provide a set of methods for executing queries.
     :caption: Elixir
 
     # lib/edgedb_quickstart.ex
-    defmodule EdgeDBQuickstart do
+    defmodule GelQuickstart do
       def run do
-        {:ok, client} = EdgeDB.start_link()
-        result = EdgeDB.query_single!(client, "select random()")
+        {:ok, client} = Gel.start_link()
+        result = Gel.query_single!(client, "select random()")
         IO.inspect(result)
       end
     end
@@ -364,10 +364,10 @@ Finally, execute the file.
   .. code-tab:: bash
     :caption: Elixir
 
-    $ mix run -e EdgeDBQuickstart.run
+    $ mix run -e GelQuickstart.run
 
 You should see a random number get printed to the console. This number was
-generated inside your EdgeDB instance using EdgeQL's built-in
+generated inside your Gel instance using EdgeQL's built-in
 :eql:func:`random` function.
 
 .. _ref_intro_clients_connection:
@@ -398,18 +398,18 @@ Using environment variables
 
 .. _ref_intro_clients_connection_cloud:
 
-For EdgeDB Cloud
-^^^^^^^^^^^^^^^^
+For Gel Cloud
+^^^^^^^^^^^^^
 
 In production, connection information can be securely passed to the client
-library via environment variables. For EdgeDB Cloud instances, the recommended
+library via environment variables. For Gel Cloud instances, the recommended
 variables to set are ``EDGEDB_INSTANCE`` and ``EDGEDB_SECRET_KEY``.
 
 Set ``EDGEDB_INSTANCE`` to ``<org-name>/<instance-name>`` where
-``<instance-name>`` is the name you set when you created the EdgeDB Cloud
+``<instance-name>`` is the name you set when you created the Gel Cloud
 instance.
 
-If you have not yet created a secret key, you can do so in the EdgeDB Cloud UI
+If you have not yet created a secret key, you can do so in the Gel Cloud UI
 or by running :ref:`ref_cli_edgedb_cloud_secretkey_create` via the CLI.
 
 For self-hosted instances
@@ -517,18 +517,18 @@ Other mechanisms
       "tls_cert_data": "-----BEGIN CERTIFICATE-----\nabcdef..."
     }
 
-``EDGEDB_INSTANCE`` (local/EdgeDB Cloud only)
-  The name of an instance. Useful only for local or EdgeDB Cloud instances.
+``EDGEDB_INSTANCE`` (local/Gel Cloud only)
+  The name of an instance. Useful only for local or Gel Cloud instances.
 
   .. note::
 
-      For more on EdgeDB Cloud instances, see the :ref:`EdgeDB Cloud instance
+      For more on Gel Cloud instances, see the :ref:`Gel Cloud instance
       connection section <ref_intro_clients_connection_cloud>` above.
 
 Reference
 ---------
 
-These are the most common ways to connect to an instance, however EdgeDB
+These are the most common ways to connect to an instance, however Gel
 supports several other options for advanced use cases. For a complete reference
 on connection configuration, see :ref:`Reference > Connection Parameters
 <ref_reference_connection>`.

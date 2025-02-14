@@ -6,12 +6,12 @@ Future Behavior
 
 .. index:: future, nonrecursive_access_policies
 
-Any time that we add new functionality to EdgeDB we strive to do it in the
+Any time that we add new functionality to |Gel| we strive to do it in the
 least disruptive way possible. Deprecation warnings, documentation and guides
 can help make these transitions smoother, but sometimes the changes are just
 too big, especially if they affect already existing functionality. It is often
 inconvenient dealing with these changes at the same time as upgrading to a new
-major version of EdgeDB. To help with this transition we introduce
+major version of Gel. To help with this transition we introduce
 :ref:`future <ref_eql_sdl_future>` specification.
 
 The purpose of this specification is to provide a way to try out and ease into

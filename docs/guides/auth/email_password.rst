@@ -4,7 +4,7 @@
 Email and password
 ==================
 
-:edb-alt-title: Integrating EdgeDB Auth's email and password provider
+:edb-alt-title: Integrating Gel Auth's email and password provider
 
 Along with using the :ref:`built-in UI <ref_guide_auth_built_in_ui>`, you can also
 create your own UI that calls to your own web application backend.
@@ -119,7 +119,7 @@ base64url encode the resulting string. This new string is called the
 
 .. note::
 
-    For EdgeDB versions before 5.0, the value for ``EDGEDB_AUTH_BASE_URL``
+    For |EdgeDB| versions before 5.0, the value for ``EDGEDB_AUTH_BASE_URL``
     in the above snippet should have the form:
 
     ``${protocol}://${host}:${port}/db/${database}/ext/auth/``
@@ -589,7 +589,7 @@ that updates the password and logs in the user.
    };
 
    /**
-    * Send new password with reset token to EdgeDB Auth.
+    * Send new password with reset token to Gel Auth.
     *
     * @param {Request} req
     * @param {Response} res
@@ -661,4 +661,4 @@ that updates the password and logs in the user.
 
 .. lint-on
 
-:ref:`Back to the EdgeDB Auth guide <ref_guide_auth>`
+:ref:`Back to the Gel Auth guide <ref_guide_auth>`

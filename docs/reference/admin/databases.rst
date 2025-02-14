@@ -8,9 +8,9 @@ Database
 
 .. versionadded:: 5.0
 
-    In EdgeDB 5.0, databases were replaced by :ref:`branches
-    <ref_datamodel_branches>`. If you're running EdgeDB 5.0 or later, try the
-    :ref:`branch administrative commands <ref_admin_branches>` instead.
+    In |EdgeDB| 5, databases were replaced by :ref:`branches
+    <ref_datamodel_branches>`, use the :ref:`branch administrative commands
+    <ref_admin_branches>` instead.
 
 This section describes the administrative commands pertaining to
 :ref:`databases <ref_datamodel_databases>`.
@@ -30,7 +30,7 @@ Create a new database.
 Description
 -----------
 
-The command ``create database`` creates a new EdgeDB database.
+The command ``create database`` creates a new Gel database.
 
 The new database will be created with all standard schemas prepopulated.
 

@@ -4,11 +4,11 @@
 Documentation
 =============
 
-:edb-alt-title: Writing EdgeDB Documentation
+:edb-alt-title: Writing Gel Documentation
 
 We pride ourselves on having some of the best documentation around, but we want
 you to help us make it even better. Documentation is a great way to get started
-contributing to EdgeDB. Improvements to our documentation create a better
+contributing to Gel. Improvements to our documentation create a better
 experience for every developer coming through the door behind you.
 
 Follow our general and style guidelines to make for a smooth contributing
@@ -54,8 +54,8 @@ Style
   that in favor of ``*param*``, in order to distinguish between parameter
   references and inline code (which *should* be surrounded by double
   backticks).
-- **EdgeDB is singular.** Choose "EdgeDB is" over "EdgeDB are" and "EdgeDB
-  does" over "EdgeDB do."
+- **Gel is singular.** Choose "Gel is" over "Gel are" and "Gel
+  does" over "Gel do."
 - **Use American English spellings.** Choose "color" over "colour" and
   "organize" over "organise."
 - **Use the Oxford comma.** When delineating a series, place a comma between
@@ -66,45 +66,38 @@ Style
   like a computer science textbook. Sometimes that's necessary, but in most
   cases, it isn't. Prioritize accuracy first and accessibility a close second.
 - **Be careful using words that have a special meaning in the context of
-  EdgeDB.** In casual speech or writing, you might talk about a "set" of
-  something in a generic sense. Using the word this way in EdgeDB documentation
-  might easily be interpreted as a reference to EdgeDB's :ref:`sets
+  Gel.** In casual speech or writing, you might talk about a "set" of
+  something in a generic sense. Using the word this way in Gel documentation
+  might easily be interpreted as a reference to Gel's :ref:`sets
   <ref_eql_sets>`. Avoid this kind of casual usage of key terms.
 
 
 Where to Find It
 ================
 
-Most of our documentation (including this guide) lives in `the edgedb
-repository <https://github.com/edgedb/edgedb/>`_ in `the docs directory
-<https://github.com/edgedb/edgedb/tree/master/docs>`_.
+Most of our documentation (including this guide) lives in `the geldata
+repository <https://github.com/geldata/gel/>`_ in `the docs directory
+<https://github.com/geldata/gel/tree/master/docs>`_.
 
 Documentation for some of our client libraries lives inside the client's repo.
-If you don't find it in the edgedb repo at ``docs/clients``, you'll probably
+If you don't find it in the geldata repo at ``docs/clients``, you'll probably
 find it alongside the client itself. These clients will also have documentation
-stubs inside the edgedb repository directing you to the documentation's
+stubs inside the geldata repository directing you to the documentation's
 location.
-
-The `EdgeDB tutorial </tutorial>`_ is part of `our web
-site repository <https://github.com/edgedb/website>`_. You'll find it in `the
-tutorial directory <https://github.com/edgedb/website/tree/main/tutorial>`_.
-
-Finally, our book for beginners titled `Easy EdgeDB </easy-edgedb>`_ lives in
-`its own repo <https://github.com/edgedb/easy-edgedb>`_.
 
 
 How to Build It
 ===============
 
-edgedb/edgedb
--------------
+geldata/gel
+-----------
 
-The ``edgedb`` repository contains all of its documentation in the ``docs/``
-directory. Run ``make docs`` to build the documentation in the edgedb repo. The
+The ``geldata`` repository contains all of its documentation in the ``docs/``
+directory. Run ``make docs`` to build the documentation in the geldata repo. The
 repository contains a ``Makefile`` for all of Sphinx's necessary build options.
 The documentation will be built to ``docs/build``.
 
-To run tests, first :ref:`build EdgeDB locally
+To run tests, first :ref:`build Gel locally
 <ref_guide_contributing_code_build>`. Then run ``edb test -k doc``.
 
 Building the docs from this repo will not give you a high-fidelity
@@ -119,9 +112,9 @@ your documentation exactly as the user will see it. This is not required, but
 it can be useful to help us review and approve your request more quickly by
 avoiding mistakes that would be easier to spot when they are fully rendered.
 
-To build, clone `our website repository <https://github.com/edgedb/website>`_
+To build, clone `our website repository <https://github.com/geldata/website>`_
 and `follow the installation instructions
-<https://github.com/edgedb/website#installation>`_. Then run ``yarn dev`` to
+<https://github.com/geldata/website#installation>`_. Then run ``yarn dev`` to
 start a development server which also triggers a build of all the
 documentation.
 
@@ -494,13 +487,13 @@ Below are the most common languages used in our docs:
 
       .. code-block:: bash
 
-          $ edgedb configure set listen_addresses 127.0.0.1 ::1
+          $ gel configure set listen_addresses 127.0.0.1 ::1
 
   **Rendered**
 
   .. code-block:: bash
 
-      $ edgedb configure set listen_addresses 127.0.0.1 ::1
+      $ gel configure set listen_addresses 127.0.0.1 ::1
 
 * ``edgeql``- Used for queries.
 
@@ -895,13 +888,13 @@ Document a CLI command using the ``cli:synopsis`` directive like this:
 
     .. cli:synopsis::
 
-        edgedb dump [<options>] <path>
+        gel dump [<options>] <path>
 
 **Rendered**
 
 .. cli:synopsis::
 
-    edgedb dump [<options>] <path>
+    gel dump [<options>] <path>
 
 The synopsis should follow the format used in the PostgreSQL documentation. See
 `the PostgreSQL SELECT statement reference page
@@ -925,7 +918,7 @@ You can then document arguments and options using the ``:cli:synopsis:`` role.
 Documentation Versioning
 ========================
 
-Since EdgeDB functionality is mostly consistent across versions, we offer a
+Since |Gel| functionality is mostly consistent across versions, we offer a
 simple method of versioning documentation using two directives.
 
 .. warning::
@@ -957,15 +950,15 @@ The directive behaves differently depending on the context.
 
 .. code-block::
 
-    .. versionadded:: 2.0
+    .. versionadded:: 7.0
 
-        This is a new feature that was added in EdgeDB 2.0.
+        This is a new feature that was added in Gel 7.0.
 
 **Rendered**
 
-.. versionadded:: 2.0
+.. versionadded:: 7.0
 
-    This is a new feature that was added in EdgeDB 2.0.
+    This is a new feature that was added in Gel 7.0.
 
 .. note::
 
@@ -979,7 +972,7 @@ The directive behaves differently depending on the context.
     Source deletion
     ^^^^^^^^^^^^^^^
 
-    .. versionadded:: 2.0
+    .. versionadded:: 7.0
 
     Source deletion policies determine what action should be taken when the
     *source* of a given link is deleted. They are declared with the ``on source
@@ -1029,7 +1022,7 @@ Changed in Version
 ------------------
 
 Use the ``versionchanged`` directive to mark content related to a change in
-existing functionality across EdgeDB versions. Provide the applicable version
+existing functionality across |Gel| versions. Provide the applicable version
 as an argument by placing it just after the directive on the same line.
 
 Unlike ``versionadded``, ``versionchanged`` is always used with content to show
@@ -1041,9 +1034,9 @@ or hide that content based on the user's selection in the version dropdown.
 
 .. code-block::
 
-    .. versionchanged:: 3.0
+    .. versionchanged:: 8.0
 
-        Starting with the upcoming EdgeDB 3.0, access policy restrictions will
+        Starting with the upcoming Gel 8.0, access policy restrictions will
         **not** apply to any access policy expression. This means that when
         reasoning about access policies it is no longer necessary to take other
         policies into account. Instead, all data is visible for the purpose of
@@ -1053,9 +1046,9 @@ or hide that content based on the user's selection in the version dropdown.
 
 **Rendered**
 
-.. versionchanged:: 3.0
+.. versionchanged:: 8.0
 
-    Starting with the upcoming EdgeDB 3.0, access policy restrictions will
+    Starting with the upcoming Gel 8.0, access policy restrictions will
     **not** apply to any access policy expression. This means that when
     reasoning about access policies it is no longer necessary to take other
     policies into account. Instead, all data is visible for the purpose of
@@ -1111,7 +1104,7 @@ before the offending block and back on with ``.. lint-on`` after the block.
 Embedding a YouTube Video
 -------------------------
 
-Embed only videos from `the EdgeDB YouTube channel
+Embed only videos from `the Gel YouTube channel
 <https://www.youtube.com/edgedb>`_
 
 .. code-block::
@@ -1139,8 +1132,8 @@ placing it after the directive on the same line.
 .. lint-off
 
 See `the list of illustration names
-<https://github.com/edgedb/website/blob/master/components/docs/introIllustration/introIllustration.module.scss#L3>`_
+<https://github.com/geldata/website/blob/master/components/docs/introIllustration/introIllustration.module.scss#L3>`_
 and `view the images they map to
-<https://github.com/edgedb/website/tree/main/images/doc_illustrations>`_.
+<https://github.com/geldata/website/tree/main/images/doc_illustrations>`_.
 
 .. lint-on

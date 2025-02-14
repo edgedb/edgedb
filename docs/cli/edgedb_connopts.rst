@@ -4,7 +4,7 @@
 Connection flags
 ================
 
-The ``edgedb`` CLI supports a standard set of connection flags used to specify
+The |gelcmd| CLI supports a standard set of connection flags used to specify
 the *target* of a given command. The CLI always respects any connection
 parameters passed explicitly using flags.
 
@@ -28,13 +28,13 @@ Connection flags
     :ref:`ref_cli_edgedb_instance_create` or similar commands. Run ``edgedb
     info`` to see the location of ``<edgedb_config_dir>`` on your machine.
 
-    EdgeDB Cloud instance names are in the format
+    |Gel| Cloud instance names are in the format
     ``<org-name>/<instance-name>``.
 
     This option overrides host and port.
 
 :cli:synopsis:`--dsn=<dsn>`
-    Specifies the DSN for EdgeDB to connect to.
+    Specifies the DSN for |Gel| to connect to.
 
     This option overrides all other options except password.
 
@@ -51,7 +51,7 @@ Connection flags
     if not set, to ``5656``.
 
 :cli:synopsis:`--unix-path /path/to/socket`
-    Specifies a path to a Unix socket for an EdgeDB connection. If the path is
+    Specifies a path to a Unix socket for an |Gel| connection. If the path is
     a directory, the actual path will be computed using the ``port`` and
     ``admin`` parameters.
 
@@ -69,25 +69,25 @@ Connection flags
     the ``EDGEDB_DATABASE`` environment variable. If that variable isn't set,
     local instances will default to ``edgedb`` while remote instances will
     default to the name provided when the link was created. This also includes
-    EdgeDB Cloud instance links created via :ref:`ref_cli_edgedb_project_init`.
+    |Gel| Cloud instance links created via :ref:`ref_cli_edgedb_project_init`.
 
     .. note::
 
-        With EdgeDB 5, databases were refactored as branches. If you're using
-        EdgeDB 5+, use the option below instead of this one.
+        With |Gel| 5, databases were refactored as branches. If you're using
+        |Gel| 5+, use the option below instead of this one.
 
 :cli:synopsis:`-b <branch_name>, --branch=<branch_name>`
     Specifies the name of the branch to connect to. Defaults to the value of
     the ``EDGEDB_BRANCH`` environment variable. If that variable isn't set,
     local instances will default to the most recently switched branch or the
     ``main`` branch, while remote instances will default to the name provided
-    when the link was created. This also includes EdgeDB Cloud instance links
+    when the link was created. This also includes |Gel| Cloud instance links
     created via :ref:`ref_cli_edgedb_project_init`.
 
 :cli:synopsis:`--password | --no-password`
-    If :cli:synopsis:`--password` is specified, force ``edgedb`` to prompt
+    If :cli:synopsis:`--password` is specified, force |gelcmd| to prompt
     for a password before connecting to the database. This is usually not
-    necessary, since ``edgedb`` will prompt for a password automatically
+    necessary, since |gelcmd| will prompt for a password automatically
     if the server requires it.
 
     Specifying :cli:synopsis:`--no-password` disables all password prompts.
@@ -123,18 +123,18 @@ Connection flags
         Disable all TLS security measures.
 
 :cli:synopsis:`--secret-key <key>`
-    Specifies the secret key to use for authentication with EdgeDB Cloud
-    instances. This is not required when connecting to your own EdgeDB Cloud
+    Specifies the secret key to use for authentication with |Gel| Cloud
+    instances. This is not required when connecting to your own Gel Cloud
     instance if you have logged in with :ref:`ref_cli_edgedb_cloud_login`.
 
 :cli:synopsis:`--wait-until-available=<wait_time>`
-    In case EdgeDB connection can't be established, keep retrying up
+    In case |Gel| connection can't be established, keep retrying up
     to :cli:synopsis:`<wait_time>` (e.g. ``30s``). The
     :cli:synopsis:`<timeout>` value must be given using time units (e.g.
     ``hr``, ``min``, ``sec``, ``ms``, etc.).
 
 :cli:synopsis:`--connect-timeout=<timeout>`
-    Specifies a :cli:synopsis:`<timeout>` period. In the event EdgeDB doesn't
+    Specifies a :cli:synopsis:`<timeout>` period. In the event |Gel| doesn't
     respond in this period, the command will fail (or retry if
     :cli:synopsis:`--wait-until-available` is also specified). The
     :cli:synopsis:`<timeout>` value must be given using time units (e.g.

@@ -171,7 +171,7 @@ Constraints
 .. index:: constraint
 
 Properties can be augmented wth constraints. The example below showcases a
-subset of EdgeDB's built-in constraints.
+subset of Gel's built-in constraints.
 
 .. code-block:: sdl
     :version-lt: 3.0

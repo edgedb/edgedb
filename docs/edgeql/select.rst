@@ -206,9 +206,6 @@ this result would look like this:
     {"id": "6c42c4ec-5c03-11ee-99ff-872c9906a467"}
   ]
 
-Learn to select objects by trying it in `our interactive object query
-tutorial </tutorial/basic-queries/objects>`_.
-
 
 .. _ref_eql_shapes:
 
@@ -230,9 +227,6 @@ shape can be attached to any object type expression in EdgeQL.
     default::Villain {id: 6c22c502..., name: 'Doc Ock'},
     default::Villain {id: 6c42c4ec..., name: 'Obadiah Stane'},
   }
-
-To learn to use shapes by trying them yourself, see `our interactive shapes
-tutorial </tutorial/nested-structures/shapes>`_.
 
 Nested shapes
 ^^^^^^^^^^^^^
@@ -580,9 +574,6 @@ of the ``Villain`` type. In other words, we are in the **scope** of the
     boolean cheatsheet <ref_cheatsheet_boolean>` for more info and help on how
     to mitigate this if you know your operands may be an empty set.
 
-Learn to filter your queries by trying it in `our interactive filters
-tutorial </tutorial/basic-queries/config>`_.
-
 Filtering by ID
 ^^^^^^^^^^^^^^^
 
@@ -648,14 +639,14 @@ links to a second object without a link back to the first.
 
 Spider-Man's villains always have a grudging respect for him, and their names
 can be displayed to reflect that if we know the ID of a movie that they
-starred in. (Note the ability to :ref:`cast from a uuid <ref_uuid_casting>`
-to an object type, which was added in EdgeDB 3.0!)
+starred in. Note the ability to :ref:`cast from a uuid <ref_uuid_casting>`
+to an object type.
 
 .. code-block:: edgeql-repl
-    
-    db> select Villain filter .<characters = 
-    ...   <Movie><uuid>'6c60c28a-5c03-11ee-99ff-dfa425012a05' { 
-    ...     name := .name ++ ', who got to see Spider-Man!' 
+
+    db> select Villain filter .<characters =
+    ...   <Movie><uuid>'6c60c28a-5c03-11ee-99ff-dfa425012a05' {
+    ...     name := .name ++ ', who got to see Spider-Man!'
     ...   };
     {
       'Obadiah Stane',
@@ -673,7 +664,7 @@ traversing a backlink would look like this:
 
 .. code-block:: edgeql-repl
 
-    db> with movie := 
+    db> with movie :=
     ...   <Movie><uuid>'6c60c28a-5c03-11ee-99ff-dfa425012a05',
     ...     select movie.characters[is Villain] {
     ...       name := .name ++ ', who got to see Spider-Man!'
@@ -706,7 +697,7 @@ expression, primitive or otherwise.
 
 .. note::
 
-  In EdgeDB all values are orderable. Objects are compared using their ``id``;
+  In Gel all values are orderable. Objects are compared using their ``id``;
   tuples and arrays are compared element-by-element from left to right. By
   extension, the generic comparison operators :eql:op:`= <eq>`,
   :eql:op:`\< <lt>`, :eql:op:`\> <gt>`, etc. can be used with any two
@@ -928,7 +919,7 @@ common to add them directly into your schema as computed links.
 .. note::
 
   In the example above, the ``Person.movies`` is a ``multi`` link. Including
-  these keywords is optional, since EdgeDB can infer this from the assigned
+  these keywords is optional, since Gel can infer this from the assigned
   expression ``.<characters[is Movie]``. However, it's a good practice to
   include the explicit keywords to make the schema more readable and "sanity
   check" the cardinality.
@@ -986,10 +977,6 @@ Polymorphic queries
 All queries thus far have referenced concrete object types: ``Hero`` and
 ``Villain``. However, both of these types extend the abstract type ``Person``,
 from which they inherit the ``name`` property.
-
-To learn how to leverage polymorphism in your queries, see `our interactive
-polymorphism tutorial
-</tutorial/nested-structures/polymorphism>`_.
 
 Polymorphic sets
 ^^^^^^^^^^^^^^^^
@@ -1188,7 +1175,7 @@ know about the type of the current object. The splat operator can be used to
 see this object's makeup, while the double splat operator produces too much
 output to show on this page. Playing around with the splat and double splat
 operator inside ``__type__`` is a quick way to get some insight into the
-internals of EdgeDB.
+internals of Gel.
 
 .. code-block:: edgeql-repl
 
@@ -1218,7 +1205,7 @@ internals of EdgeDB.
 Free objects
 ------------
 
-.. index:: ad hoc type 
+.. index:: ad hoc type
 
 To select several values simultaneously, you can "bundle" them into a "free
 object". Free objects are a set of key-value pairs that can contain any
@@ -1275,13 +1262,3 @@ For full documentation on ``with``, see :ref:`EdgeQL > With <ref_eql_with>`.
   * - **See also**
   * - :ref:`Reference > Commands > Select <ref_eql_statements_select>`
   * - :ref:`Cheatsheets > Selecting data <ref_cheatsheet_select>`
-  * - `Tutorial > Basic Queries > Objects
-      </tutorial/basic-queries/objects>`_
-  * - `Tutorial > Basic Queries > Filters
-      </tutorial/basic-queries/config>`_
-  * - `Tutorial > Basic Queries > Aggregates
-      </tutorial/basic-queries/aggregate-functions>`_
-  * - `Tutorial > Nested Structures > Shapes
-      </tutorial/nested-structures/shapes>`_
-  * - `Tutorial > Nested Structures > Polymorphism
-      </tutorial/nested-structures/polymorphism>`_

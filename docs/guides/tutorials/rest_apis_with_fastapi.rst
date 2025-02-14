@@ -4,17 +4,17 @@
 FastAPI
 =======
 
-:edb-alt-title: Building a REST API with EdgeDB and FastAPI
+:edb-alt-title: Building a REST API with Gel and FastAPI
 
 Because FastAPI encourages and facilitates strong typing, it's a natural
-pairing with EdgeDB. Our Python code generation generates not only typed
+pairing with Gel. Our Python code generation generates not only typed
 query functions but result types you can use to annotate your endpoint handler
 functions.
 
 EdgeDB can help you quickly build REST APIs in Python without getting into the
 rigmarole of using ORM libraries to handle your data effectively. Here, we'll
 be using `FastAPI <https://fastapi.tiangolo.com/>`_ to expose the API endpoints
-and EdgeDB to store the content.
+and Gel to store the content.
 
 We'll build a simple event management system where you'll be able to fetch,
 create, update, and delete *events* and *event hosts* via RESTful API
@@ -29,13 +29,13 @@ Prerequisites
 =============
 
 Before we start, make sure you've :ref:`installed <ref_admin_install>` the
-``edgedb`` command line tool. For this tutorial, we'll use Python 3.10 to 
-take advantage of the asynchronous I/O paradigm to communicate with the 
-database more efficiently. You can use newer versions of Python if you prefer, 
-but you may need to adjust the code accordingly. If you want to skip ahead, 
+|gelcmd| command line tool. For this tutorial, we'll use Python 3.10 to
+take advantage of the asynchronous I/O paradigm to communicate with the
+database more efficiently. You can use newer versions of Python if you prefer,
+but you may need to adjust the code accordingly. If you want to skip ahead,
 the completed source code for this API can be found `in our examples repo
 <https://github.com/edgedb/edgedb-examples/tree/main/fastapi-crud>`_. If you
-want to check out an example with EdgeDB Auth, you can find that in the same
+want to check out an example with Gel Auth, you can find that in the same
 repo in the `fastapi-crud-auth folder
 <https://github.com/edgedb/edgedb-examples/tree/main/fastapi-crud-auth>`_.
 
@@ -62,7 +62,7 @@ note for help with Windows):
 
     $ python -m venv myvenv
     $ source myvenv/bin/activate
-    $ pip install edgedb fastapi 'httpx[cli]' uvicorn
+    $ pip install gel fastapi 'httpx[cli]' uvicorn
 
 .. note::
 
@@ -83,22 +83,22 @@ note for help with Windows):
 Initialize the database
 ^^^^^^^^^^^^^^^^^^^^^^^
 
-Now, let's initialize an EdgeDB project. From the project's root directory:
+Now, let's initialize an Gel project. From the project's root directory:
 
 .. code-block:: bash
 
-    $ edgedb project init
-    No `edgedb.toml` found in `<project-path>` or above
+    $ gel project init
+    No `gel.toml` found in `<project-path>` or above
     Do you want to initialize a new project? [Y/n]
     > Y
-    Specify the name of EdgeDB instance to use with this project [default:
+    Specify the name of Gel instance to use with this project [default:
     fastapi_crud]:
     > fastapi_crud
-    Checking EdgeDB versions...
-    Specify the version of EdgeDB to use with this project [default: 2.7]:
+    Checking Gel versions...
+    Specify the version of Gel to use with this project [default: 2.7]:
     > 2.7
 
-Once you've answered the prompts, a new EdgeDB instance called ``fastapi_crud``
+Once you've answered the prompts, a new Gel instance called ``fastapi_crud``
 will be created and started. If you see ``Project initialized``, you're ready.
 
 
@@ -109,16 +109,16 @@ Let's test that we can connect to the newly started instance. To do so, run:
 
 .. code-block:: bash
 
-    $ edgedb
+    $ gel
 
 You should see this prompt indicating you are now connected to your new
 database instance:
 
 ::
 
-    EdgeDB 2.x (repl 2.x)
+    Gel x.x (repl x.x)
     Type \help for help, \quit to quit.
-    edgedb>
+    gel>
 
 You can start writing queries here. Since this database is empty, that won't
 get you very far, so let's start designing our data model instead.
@@ -133,12 +133,12 @@ and delete the entities while maintaining their relationships.
 
 EdgeDB allows us to declaratively define the structure of the entities. If
 you've worked with SQLAlchemy or Django ORM, you might refer to these
-declarative schema definitions as *models*. In EdgeDB we call them
+declarative schema definitions as *models*. In Gel we call them
 "object types".
 
-The schema lives inside ``.esdl`` files in the ``dbschema`` directory. It's
+The schema lives inside |.gel| files in the ``dbschema`` directory. It's
 common to declare the entire schema in a single file
-``dbschema/default.esdl``. This file is created for you when you run ``edgedb
+``dbschema/default.esdl``. This file is created for you when you run ``gel
 project init``, but you'll need to fill it with your schema. This is what our
 datatypes look like:
 
@@ -172,7 +172,7 @@ datatypes look like:
     }
 
 Here, we've defined an ``abstract`` type called ``Auditable`` to take advantage
-of EdgeDB's schema mixin system. This allows us to add a ``created_at``
+of Gel's schema mixin system. This allows us to add a ``created_at``
 property to multiple types without repeating ourselves. Abstract types
 don't have any concrete footprints in the database, as they don't hold any
 actual data. Their only job is to propagate properties, links, and constraints
@@ -198,7 +198,7 @@ migration.
 
 .. code-block:: bash
 
-    $ edgedb migration create
+    $ gel migration create
 
 When this step is successful, you'll see
 ``Created dbschema/migrations/00001.edgeql``.
@@ -207,15 +207,15 @@ Now run the migration we just created.
 
 .. code-block:: bash
 
-    $ edgedb migrate
+    $ gel migrate
 
 Once this is done, you'll see ``Applied`` along with the migration's ID. I like
 to go one step further in verifying success and see the schema applied to my
-database. To do that, first fire up the EdgeDB console:
+database. To do that, first fire up the Gel console:
 
 .. code-block:: bash
 
-    $ edgedb
+    $ gel
 
 In the console, type ``\ds`` (for "describe schema"). If everything worked, we
 should output very close to the schema we added in the ``default.esdl`` file:
@@ -281,7 +281,7 @@ simple text files containing the queries we want our app to be able to run.
 
 The code generator will search through our project for all files with the
 ``.edgeql`` extension and generate those functions for us as individual Python
-modules. When you installed the EdgeDB client (via ``pip install edgedb``), the
+modules. When you installed the Gel client (via ``pip install gel``), the
 code generator was installed alongside it, so you're already ready to go. We
 just need to write those queries!
 
@@ -310,8 +310,8 @@ Save that file and get ready to kick off the magic that is code generation! 🪄
 
 .. code-block:: bash
 
-    $ edgedb-py
-    Found EdgeDB project: <project-path>
+    $ gel-py
+    Found Gel project: <project-path>
     Processing <project-path>/app/queries/get_user_by_name.edgeql
     Processing <project-path>/app/queries/get_users.edgeql
     Generating <project-path>/app/queries/get_user_by_name.py
@@ -336,7 +336,7 @@ the following code:
     from http import HTTPStatus
     from typing import List
 
-    import edgedb
+    import gel
     from fastapi import APIRouter, HTTPException, Query
     from pydantic import BaseModel
 
@@ -344,7 +344,7 @@ the following code:
     from .queries import get_users_async_edgeql as get_users_qry
 
     router = APIRouter()
-    client = edgedb.create_async_client()
+    client = gel.create_async_client()
 
 
     class RequestData(BaseModel):
@@ -369,7 +369,7 @@ We've imported the generated code and aliased it (using ``as <new-name>``) to
 make the module names we use in our code a bit neater.
 
 The ``APIRouter`` instance does the actual work of exposing the API. We also
-create an async EdgeDB client instance to communicate with the database.
+create an async Gel client instance to communicate with the database.
 
 By default, this API will return a list of all users, but you can also filter
 the user objects by name. We have the ``RequestData`` class to handle the data
@@ -410,7 +410,7 @@ will send the 404 (not found) response to the user.
 .. lint-on
 
 To summarize, in the ``get_users`` function, we use our generated code to
-perform asynchronous queries via the ``edgedb`` client. Then we return the
+perform asynchronous queries via the ``gel`` client. Then we return the
 query results. Afterward, the JSON serialization part is taken care of by
 FastAPI.
 
@@ -507,7 +507,7 @@ Create and open ``app/queries/create_user.edgeql`` and fill it with this query:
     the ``name`` and ``created_at`` properties. If we just ran the ``insert``
     bare, it would return only the ``id``.
 
-Save the file and run ``edgedb-py`` to generate the new function. Now,
+Save the file and run ``gel-py`` to generate the new function. Now,
 we're ready to open ``app/users.py`` again and add the POST endpoint. First,
 import the generated function for the new query:
 
@@ -533,7 +533,7 @@ Then write the endpoint to call that function:
 
         try:
             created_user = await create_user_qry.create_user(client, name=user.name)
-        except edgedb.errors.ConstraintViolationError:
+        except gel.errors.ConstraintViolationError:
             raise HTTPException(
                 status_code=HTTPStatus.BAD_REQUEST,
                 detail={"error": f"Username '{user.name}' already exists."},
@@ -602,7 +602,7 @@ We'll start again with the query. Create a new file in ``app/queries`` named
             set {name := <str>$new_name}
     ) {name, created_at};
 
-Save the file and generate again using ``edgedb-py``. Now, we'll import that
+Save the file and generate again using ``gel-py``. Now, we'll import that
 and add the endpoint over in ``app/users.py``.
 
 .. lint-off
@@ -626,7 +626,7 @@ and add the endpoint over in ``app/users.py``.
                 new_name=user.name,
                 current_name=current_name,
             )
-        except edgedb.errors.ConstraintViolationError:
+        except gel.errors.ConstraintViolationError:
             raise HTTPException(
                 status_code=HTTPStatus.BAD_REQUEST,
                 detail={"error": f"Username '{user.name}' already exists."},
@@ -711,7 +711,7 @@ query:
         delete User filter .name = <str>$name
     ) {name, created_at};
 
-Generate the new function by again running ``edgedb-py``. Then re-open
+Generate the new function by again running ``gel-py``. Then re-open
 ``app/users.py``. This endpoint's code will look similar to the endpoints
 we've already written:
 
@@ -734,7 +734,7 @@ we've already written:
                 client,
                 name=name,
             )
-        except edgedb.errors.ConstraintViolationError:
+        except gel.errors.ConstraintViolationError:
             raise HTTPException(
                 status_code=HTTPStatus.BAD_REQUEST,
                 detail={"error": "User attached to an event. Cannot delete."},
@@ -804,7 +804,7 @@ drop this query into it:
         }
     ) {name, address, schedule, host: {name}};
 
-Run ``edgedb-py`` to generate a function from that query.
+Run ``gel-py`` to generate a function from that query.
 
 Create a file in ``app`` named ``events.py`` and open it in your editor. It's
 time to code up the endpoint to use that freshly generated query.
@@ -819,14 +819,14 @@ time to code up the endpoint to use that freshly generated query.
     from http import HTTPStatus
     from typing import List
 
-    import edgedb
+    import gel
     from fastapi import APIRouter, HTTPException, Query
     from pydantic import BaseModel
 
     from .queries import create_event_async_edgeql as create_event_qry
 
     router = APIRouter()
-    client = edgedb.create_async_client()
+    client = gel.create_async_client()
 
 
     class RequestData(BaseModel):
@@ -847,7 +847,7 @@ time to code up the endpoint to use that freshly generated query.
                 host_name=event.host_name,
             )
 
-        except edgedb.errors.InvalidValueError:
+        except gel.errors.InvalidValueError:
             raise HTTPException(
                 status_code=HTTPStatus.BAD_REQUEST,
                 detail={
@@ -857,7 +857,7 @@ time to code up the endpoint to use that freshly generated query.
                 },
             )
 
-        except edgedb.errors.ConstraintViolationError:
+        except gel.errors.ConstraintViolationError:
             raise HTTPException(
                 status_code=HTTPStatus.BAD_REQUEST,
                 detail=f"Event name '{event.name}' already exists,",
@@ -981,7 +981,7 @@ That query will handle PUT requests. The last method left is DELETE. Create
         delete Event filter .name = <str>$name
     ) {name, address, schedule, host : {name}};
 
-Run ``edgedb-py`` to generate the new functions. Open ``app/events.py``
+Run ``gel-py`` to generate the new functions. Open ``app/events.py``
 so we can start getting these functions implemented in the API! We'll start by
 coding GET. Import the newly generated queries and write the GET endpoint in
 ``events.py``:
@@ -1093,7 +1093,7 @@ Let's finish off the events API with the PUT and DELETE endpoints. Open
                 host_name=event.host_name,
             )
 
-        except edgedb.errors.InvalidValueError:
+        except gel.errors.InvalidValueError:
             raise HTTPException(
                 status_code=HTTPStatus.BAD_REQUEST,
                 detail={
@@ -1102,7 +1102,7 @@ Let's finish off the events API with the PUT and DELETE endpoints. Open
                 },
             )
 
-        except edgedb.errors.ConstraintViolationError:
+        except gel.errors.ConstraintViolationError:
             raise HTTPException(
                 status_code=HTTPStatus.BAD_REQUEST,
                 detail={"error": f"Event name '{event.name}' already exists."},
@@ -1170,40 +1170,40 @@ payload:
 You can do the same to test ``DELETE /events``, just make sure you give it
 whatever name you set for the event in your previous test of the PUT method.
 
-Integrating EdgeDB Auth
-=======================
+Integrating Gel Auth
+====================
 
 EdgeDB Auth provides a built-in authentication solution that is deeply
-integrated with the EdgeDB server. This section outlines how to enable and
-configure EdgeDB Auth in your application schema, manage authentication
+integrated with the Gel server. This section outlines how to enable and
+configure Gel Auth in your application schema, manage authentication
 providers, and set key configuration parameters.
 
-Setting up EdgeDB Auth
-^^^^^^^^^^^^^^^^^^^^^^^
+Setting up Gel Auth
+^^^^^^^^^^^^^^^^^^^
 
-To start using EdgeDB Auth, you must first enable it in your schema. Add the
+To start using Gel Auth, you must first enable it in your schema. Add the
 following to your schema definition:
 
 .. code-block:: sdl
 
-    using extension auth;   
+    using extension auth;
 
 Once added, make sure to apply the schema changes by migrating your database
 schema.
 
 .. code-block:: bash
 
-    $ edgedb migration create
-    $ edgedb migrate
+    $ gel migration create
+    $ gel migrate
 
 
-Configuring EdgeDB Auth
------------------------
+Configuring Gel Auth
+--------------------
 
-The configuration of EdgeDB Auth involves setting various parameters to secure
+The configuration of Gel Auth involves setting various parameters to secure
 and tailor authentication to your needs. For now, we'll focus on the essential
-parameters to get started. You can configure these settings through a Python 
-script, which is recommended for scalability, or you can use the EdgeDB UI for 
+parameters to get started. You can configure these settings through a Python
+script, which is recommended for scalability, or you can use the Gel UI for
 a more user-friendly approach.
 
 **Auth Signing Key**
@@ -1226,7 +1226,7 @@ Using Python:
     import secrets
     print(secrets.token_urlsafe(32))
 
-Once you have generated your key, configure it in EdgeDB like this:
+Once you have generated your key, configure it in Gel like this:
 
 .. code-block:: edgeql
 
@@ -1253,10 +1253,10 @@ To configure this in your application:
 Enabling authentication providers
 ---------------------------------
 
-You need to configure at least one authentication provider to use EdgeDB Auth.
-This can be done via the EdgeDB UI or directly through queries.
+You need to configure at least one authentication provider to use Gel Auth.
+This can be done via the Gel UI or directly through queries.
 
-In this example, we'll configure a email and password provider. You can add 
+In this example, we'll configure a email and password provider. You can add
 it with the following query:
 
 .. code-block:: edgeql
@@ -1268,13 +1268,13 @@ it with the following query:
 
 .. note::
 
-    ``require_verification`` defaults to ``true``. In this example, we're 
-    setting it to ``false`` to simplify the setup. In a production environment, 
-    you should set it to ``true`` to ensure that users verify their email 
+    ``require_verification`` defaults to ``true``. In this example, we're
+    setting it to ``false`` to simplify the setup. In a production environment,
+    you should set it to ``true`` to ensure that users verify their email
     addresses before they can log in.
 
 If you use the Email and Password provider, in addition to the
-``require_verification`` configuration, you’ll need to configure SMTP to allow
+``require_verification`` configuration, you'll need to configure SMTP to allow
 EdgeDB to send email verification and password reset emails on your behalf.
 
 Here is an example of setting a local SMTP server, in this case using a
@@ -1298,7 +1298,7 @@ great for testing in development:
     CONFIGURE CURRENT BRANCH SET
     ext::auth::SMTPConfig::validate_certs := false;
 
-You can query the database configuration to discover which providers are 
+You can query the database configuration to discover which providers are
 configured with the following query:
 
 .. code-block:: edgeql
@@ -1356,7 +1356,7 @@ Next, we're going to create endpoints in FastAPI to handle user registration
     import httpx
 
     router = APIRouter()
-    
+
     # Value should be:
     # {protocol}://${host}:${port}/branch/${branch}/ext/auth/
     EDGEDB_AUTH_BASE_URL = os.getenv('EDGEDB_AUTH_BASE_URL')
@@ -1393,10 +1393,10 @@ Next, we're going to create endpoints in FastAPI to handle user registration
         auth_token = token_response.json().get("auth_token")
 
         response = JSONResponse(content={"message": "User registered"})
-        response.set_cookie(key="edgedb-auth-token", value=auth_token, httponly=True, secure=True, samesite='strict')
+        response.set_cookie(key="gel-auth-token", value=auth_token, httponly=True, secure=True, samesite='strict')
         return response
 
-The sign-up endpoint sends a POST request to the EdgeDB Auth server to register
+The sign-up endpoint sends a POST request to the Gel Auth server to register
 a new user. It also sets the auth token as an HttpOnly cookie in the response.
 
 **Sign-in endpoint**
@@ -1435,11 +1435,11 @@ a new user. It also sets the auth token as an HttpOnly cookie in the response.
 
         auth_token = token_response.json().get("auth_token")
         response = JSONResponse(content={"message": "Authentication successful"})
-        response.set_cookie(key="edgedb-auth-token", value=auth_token, httponly=True, secure=True, samesite='strict')
+        response.set_cookie(key="gel-auth-token", value=auth_token, httponly=True, secure=True, samesite='strict')
         return response
 
-The sign-in endpoint sends a POST request to the EdgeDB Auth server to authenticate
-a user. It then retrieves the code from the response and exchanges it for an auth 
+The sign-in endpoint sends a POST request to the Gel Auth server to authenticate
+a user. It then retrieves the code from the response and exchanges it for an auth
 token. The token is set as an HttpOnly cookie in the response.
 
 **Add the auth endpoints to the FastAPI application**
@@ -1455,23 +1455,23 @@ Creating a new user in the sign-up endpoint
 -------------------------------------------
 
 Now, let's automatically create a new user in the database when a user signs up.
-We'll use the ``create_user_async_edgeql`` query we generated earlier 
+We'll use the ``create_user_async_edgeql`` query we generated earlier
 to achieve this, but we'll need to modify it slightly to link it to the
 EdgeDB Auth identity.
 
-First, let's update the EdgeDB schema to include a new field in the User type
-to store the EdgeDB Auth identity and a new ``current_user`` type.
+First, let's update the Gel schema to include a new field in the User type
+to store the Gel Auth identity and a new ``current_user`` type.
 
 .. code-block:: sdl-diff
     :caption: dbschema/default.esdl
-    
+
     + global current_user := assert_single(
     +     ((
     +         select User
     +         filter .identity = global ext::auth::ClientTokenIdentity
     +     ))
     + );
-      
+
       type User extending Auditable {
     +    required identity: ext::auth::Identity;
          required name: str {
@@ -1484,8 +1484,8 @@ After updating the schema, run the following command to apply the changes:
 
 .. code-block:: bash
 
-    $ edgedb migration create
-    $ edgedb migrate
+    $ gel migration create
+    $ gel migrate
 
 Next, update the ``create_user_async_edgeql`` query to include the identity:
 
@@ -1501,14 +1501,14 @@ Next, update the ``create_user_async_edgeql`` query to include the identity:
           created_at,
       };
 
-Run ``edgedb-py`` to generate the new function. Now, let's update the sign-up
+Run ``gel-py`` to generate the new function. Now, let's update the sign-up
 endpoint to create a new user in the database. We need to do a few things:
 
-1. Import ``edgedb``.
+1. Import ``gel``.
 
-2. Create an EdgeDB client.
+2. Create an Gel client.
 
-3. Get the identity ID from the EdgeDB Auth server response.
+3. Get the identity ID from the Gel Auth server response.
 
 4. Create a new user in the database using the ``create_user_async_edgeql``
    query.
@@ -1516,8 +1516,8 @@ endpoint to create a new user in the database. We need to do a few things:
 
 .. code-block:: python-diff
 
-    + import edgedb
-    + client = edgedb.create_async_client()
+    + import gel
+    + client = gel.create_async_client()
 
       @router.post("/auth/signup")
       async def handle_signup(request: Request):
@@ -1530,7 +1530,7 @@ endpoint to create a new user in the database. We need to do a few things:
     +     if not email or not password or not name:
     -         raise HTTPException(status_code=400, detail="Missing email or password.")
     +         raise HTTPException(status_code=400, detail="Missing email, password, or name.")
-      
+
           verifier, challenge = generate_pkce()
           register_url = f"{EDGEDB_AUTH_BASE_URL}/register"
           register_response = httpx.post(register_url, json={
@@ -1540,14 +1540,14 @@ endpoint to create a new user in the database. We need to do a few things:
               "provider": "builtin::local_emailpassword",
               "verify_url": "http://localhost:8000/auth/verify",
           })
-      
+
           if register_response.status_code != 200 and register_response.status_code != 201:
               return JSONResponse(status_code=400, content={"message": "Registration failed"})
-          
+
           code = register_response.json().get("code")
           token_url = f"{EDGEDB_AUTH_BASE_URL}/token"
           token_response = httpx.get(token_url, params={"code": code, "verifier": verifier})
-      
+
           if token_response.status_code != 200:
               return JSONResponse(status_code=400, content={"message": "Token exchange failed"})
 
@@ -1555,14 +1555,14 @@ endpoint to create a new user in the database. We need to do a few things:
     +     identity_id = token_response.json().get("identity_id")
     +     try:
     +         created_user = await create_user_qry.create_user(client, name=name, identity_id=identity_id)
-    +     except edgedb.errors.ConstraintViolationError:
+    +     except gel.errors.ConstraintViolationError:
     +         raise HTTPException(
     +             status_code=400,
     +             detail={"error": f"User with email '{email}' already exists."},
     +         )
-              
+
           response = JSONResponse(content={"message": "User registered"})
-          response.set_cookie(key="edgedb-auth-token", value=auth_token, httponly=True, secure=True, samesite='strict')
+          response.set_cookie(key="gel-auth-token", value=auth_token, httponly=True, secure=True, samesite='strict')
           return response
 
 You can now test the sign-up endpoint by sending a POST request to
@@ -1578,24 +1578,19 @@ You can now test the sign-up endpoint by sending a POST request to
 
 If the request is successful, you should see a response with the message
 ``User registered``.
- 
+
 
 Wrapping up
 ===========
 
-Now you have a fully functioning events API in FastAPI backed by EdgeDB. If you
+Now you have a fully functioning events API in FastAPI backed by Gel. If you
 want to see all the source code for the completed project, you'll find it in
 `our examples repo
-<https://github.com/edgedb/edgedb-examples/tree/main/fastapi-crud>`_. We also 
-have a separate example that demonstrates how to integrate EdgeDB Auth with
-FastAPI in the same repo. Check it out 
+<https://github.com/edgedb/edgedb-examples/tree/main/fastapi-crud>`_. We also
+have a separate example that demonstrates how to integrate Gel Auth with
+FastAPI in the same repo. Check it out
 `here <https://github.com/edgedb/edgedb-examples/tree/main/fastapi-crud-auth>`_.
-If you're stuck or if you just want to show off what you've built, come talk 
-to us `on Discord <https://discord.gg/umUueND6ag>`_. It's a great community of 
-helpful folks, all passionate about being part of the next generation of 
+If you're stuck or if you just want to show off what you've built, come talk
+to us `on Discord <https://discord.gg/umUueND6ag>`_. It's a great community of
+helpful folks, all passionate about being part of the next generation of
 databases.
-
-If you like what you see and want to dive deeper into EdgeDB and what it can
-do, check out our `Easy EdgeDB book </easy-edgedb>`_. In
-it, you'll get to learn more about EdgeDB as we build an imaginary role-playing
-game based on Bram Stoker's Dracula.

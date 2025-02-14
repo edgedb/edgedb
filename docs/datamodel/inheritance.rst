@@ -4,10 +4,10 @@
 Inheritance
 ===========
 
-.. index:: abstract, extending, extends, subtype, supertype, parent type, 
+.. index:: abstract, extending, extends, subtype, supertype, parent type,
            child type
 
-Inheritance is a crucial aspect of schema modeling in EdgeDB. Schema items can
+Inheritance is a crucial aspect of schema modeling in Gel. Schema items can
 *extend* one or more parent types. When extending, the child (subclass)
 inherits the definition of its parents (superclass).
 

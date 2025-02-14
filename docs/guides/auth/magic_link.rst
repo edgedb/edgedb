@@ -4,25 +4,25 @@
 Magic Link Auth
 ================
 
-:edb-alt-title: Integrating EdgeDB Auth's Magic Link provider
+:edb-alt-title: Integrating Gel Auth's Magic Link provider
 
-Magic Link is a passwordless authentication method that allows users to log in via a unique, time-sensitive link sent to their email. This guide will walk you through integrating Magic Link authentication with your application using EdgeDB Auth.
+Magic Link is a passwordless authentication method that allows users to log in via a unique, time-sensitive link sent to their email. This guide will walk you through integrating Magic Link authentication with your application using Gel Auth.
 
 Enable Magic Link provider
 ==========================
 
-Before you can use Magic Link authentication, you need to enable the Magic Link provider in your EdgeDB Auth configuration. This can be done through the EdgeDB UI under the "Providers" section.
+Before you can use Magic Link authentication, you need to enable the Magic Link provider in your Gel Auth configuration. This can be done through the Gel UI under the "Providers" section.
 
 Magic Link flow
 ===============
 
 The Magic Link authentication flow involves three main steps:
 
-1. **Sending a Magic Link Email**: Your application requests EdgeDB Auth to send a magic link to the user's email.
+1. **Sending a Magic Link Email**: Your application requests Gel Auth to send a magic link to the user's email.
 
 2. **User Clicks Magic Link**: The user receives the email and clicks on the magic link.
 
-3. **Authentication and Token Retrieval**: The magic link directs the user to your application, which then authenticates the user and retrieves an authentication token from EdgeDB Auth.
+3. **Authentication and Token Retrieval**: The magic link directs the user to your application, which then authenticates the user and retrieves an authentication token from Gel Auth.
 
 UI considerations
 =================
@@ -212,7 +212,7 @@ Sign up
 Sign in
 -------
 
-Signing in with a magic link simply involves telling the EdgeDB Auth server to
+Signing in with a magic link simply involves telling the Gel Auth server to
 send a magic link to the user's email. The user will then click on the link to
 authenticate.
 
@@ -403,4 +403,4 @@ object:
 
 .. lint-on
 
-:ref:`Back to the EdgeDB Auth guide <ref_guide_auth>`
+:ref:`Back to the Gel Auth guide <ref_guide_auth>`

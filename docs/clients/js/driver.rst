@@ -23,21 +23,21 @@ executing queries.
 
 To create a client:
 
-.. code-block:: js
+.. code-block:: javascript
 
-    const edgedb = require("edgedb");
+    const gel = require("gel");
 
-    const client = edgedb.createClient();
+    const client = gel.createClient();
 
 
 If you're using TypeScript or have ES modules enabled, you can use
 ``import`` syntax instead:
 
-.. code-block:: js
+.. code-block:: javascript
 
-    import * as edgedb from "edgedb";
+    import * as gel from "gel";
 
-    const client = edgedb.createClient();
+    const client = gel.createClient();
 
 
 Connections
@@ -45,7 +45,7 @@ Connections
 
 Notice we didn't pass any arguments into ``createClient``. That's intentional.
 
-**In development**, we recommend using ``edgedb project init`` to create an
+**In development**, we recommend using ``gel project init`` to create an
 instance and link it to your project directory. As long as you're inside this
 directory, ``createClient()`` with auto-detect the project and connect to the
 associated instance automatically.
@@ -71,7 +71,7 @@ value specified below is the *default value* for that setting.
 
 .. code-block:: typescript
 
-  import {createClient, Duration, IsolationLevel} from "edgedb";
+  import {createClient, Duration, IsolationLevel} from "gel";
 
   const baseClient = createClient();
   const client = baseClient
@@ -102,11 +102,11 @@ Running queries
 
 To execute a basic query:
 
-.. code-block:: js
+.. code-block:: javascript
 
-  const edgedb = require("edgedb");
+  const gel = require("gel");
 
-  const client = edgedb.createClient();
+  const client = gel.createClient();
 
   async function main() {
     const result = await client.query(`select 2 + 2;`);
@@ -118,7 +118,7 @@ To execute a basic query:
 
 In TypeScript, you can supply a type hint to receive a strongly typed result.
 
-.. code-block:: js
+.. code-block:: javascript
 
   const result = await client.query<number>(`select 2 + 2;`);
   // number[]
@@ -129,7 +129,7 @@ In TypeScript, you can supply a type hint to receive a strongly typed result.
 The ``.query`` method always returns an array of results. It places no
 constraints on cardinality.
 
-.. code-block:: js
+.. code-block:: javascript
 
   await client.query(`select 2 + 2;`); // [4]
   await client.query(`select [1, 2, 3];`); // [[1, 2, 3]]
@@ -139,7 +139,7 @@ constraints on cardinality.
 ``.querySingle`` method
 ^^^^^^^^^^^^^^^^^^^^^^^
 
-If you know your query will only return a single element, you can tell EdgeDB
+If you know your query will only return a single element, you can tell |Gel|
 to expect a *singleton result* by using the ``.querySingle`` method. This is
 intended for queries that return *zero or one* elements. If the query returns
 a set with more than one elements, the ``Client`` will throw a runtime error.
@@ -149,7 +149,7 @@ a set with more than one elements, the ``Client`` will throw a runtime error.
   Note that if you're selecting an array or tuple, the returned value may
   still be an array.
 
-.. code-block:: js
+.. code-block:: javascript
 
   await client.querySingle(`select 2 + 2;`); // 4
   await client.querySingle(`select [1, 2, 3];`); // [1, 2, 3]
@@ -163,7 +163,7 @@ Use ``queryRequiredSingle`` for queries that return *exactly one* element. If
 the query returns an empty set or a set with multiple elements, the ``Client``
 will throw a runtime error.
 
-.. code-block:: js
+.. code-block:: javascript
 
   await client.queryRequiredSingle(`select 2 + 2;`); // 4
   await client.queryRequiredSingle(`select [1, 2, 3];`); // [1, 2, 3]
@@ -190,14 +190,14 @@ The TypeScript signatures of these methods reflects their behavior.
 Type conversion
 ---------------
 
-The client converts EdgeDB types into a corresponding JavaScript data
-structure. Some EdgeDB types like ``duration`` don't have a corresponding type
+The client converts |Gel| types into a corresponding JavaScript data
+structure. Some Gel types like ``duration`` don't have a corresponding type
 in the JavaScript type system, so we've implemented classes like
 :js:class:`Duration` to represent them.
 
 .. list-table::
 
-  * - **EdgeDB type**
+  * - **Gel type**
     - **JavaScript type**
   * - Sets
     - ``Array``
@@ -260,13 +260,6 @@ documentation.
 - :js:class:`Range`
 
 
-.. .. note::
-
-..   **A message for query builder users**
-
-..   Everything below this point isn't necessary/applicable for query builder users. Continue to the :ref:`Query Builder <edgedb-js-qb>` docs.
-
-
 JSON results
 ------------
 
@@ -274,7 +267,7 @@ Client provide additional methods for running queries and retrieving results
 as a *serialized JSON string*. This serialization happens inside the database
 and is typically more performant than running ``JSON.stringify`` yourself.
 
-.. code-block:: js
+.. code-block:: javascript
 
   await client.queryJSON(`select {1, 2, 3};`);
   // "[1, 2, 3]"
@@ -292,16 +285,16 @@ To execute a query without retrieving a result, use the ``.execute`` method.
 This is especially useful for mutations, where there's often no need for the
 query to return a value.
 
-.. code-block:: js
+.. code-block:: javascript
 
   await client.execute(`insert Movie {
     title := "Avengers: Endgame"
   };`);
 
-With EdgeDB 2.0 or later, you can execute a "script" consisting of multiple
+You can also execute a "script" consisting of multiple
 semicolon-separated statements in a single ``.execute`` call.
 
-.. code-block:: js
+.. code-block:: javascript
 
   await client.execute(`
     insert Person { name := "Robert Downey Jr." };
@@ -323,7 +316,7 @@ Parameters
 If your query contains parameters (e.g. ``$foo``), you can pass in values as
 the second argument. This is true for all ``query*`` methods and ``execute``.
 
-.. code-block:: js
+.. code-block:: javascript
 
   const INSERT_MOVIE = `insert Movie {
     title := <str>$title
@@ -346,7 +339,7 @@ transaction (unless already in an explicit transaction), so the whole script
 remains atomic. For the ``query*`` methods only the result of the final
 statement in the script will be returned.
 
-.. code-block:: js
+.. code-block:: javascript
 
   const result = await client.query(`
     insert Movie {
@@ -374,11 +367,11 @@ established until the first time you execute a query.
 If you want to explicitly ensure that the client is connected without running
 a query, use the ``.ensureConnected()`` method.
 
-.. code-block:: js
+.. code-block:: javascript
 
-  const edgedb = require("edgedb");
+  const gel = require("gel");
 
-  const client = edgedb.createClient();
+  const client = gel.createClient();
 
   async function main() {
     await client.ensureConnected();
@@ -392,7 +385,7 @@ Transactions
 The most robust way to execute transactional code is to use
 the ``transaction()`` API:
 
-.. code-block:: js
+.. code-block:: javascript
 
     await client.transaction(tx => {
       await tx.execute("insert User {name := 'Don'}");
@@ -419,9 +412,9 @@ The key implication of retrying transactions is that the entire
 nested code block can be re-run, including any non-querying
 JavaScript code. Here is an example:
 
-.. code-block:: js
+.. code-block:: javascript
 
-    const email = "timmy@edgedb.com"
+    const email = "timmy@geldata.com"
 
     await client.transaction(async tx => {
       await tx.execute(
@@ -455,7 +448,7 @@ shouldn't have side effects or run for a significant amount of time.
   * RFC1004_
   * :js:meth:`Client.transaction\<T\>`
 
-  .. _RFC1004: https://github.com/edgedb/rfcs/blob/master/text/1004-transactions-api.rst
+  .. _RFC1004: https://github.com/geldata/rfcs/blob/master/text/1004-transactions-api.rst
 
 
 Next up

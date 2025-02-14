@@ -78,7 +78,7 @@ Empty arrays
 ^^^^^^^^^^^^
 
 You can also create an empty array, but it must be done by providing the type
-information using type casting. EdgeDB cannot infer the type of an empty array
+information using type casting. Gel cannot infer the type of an empty array
 created otherwise. For example:
 
 .. code-block:: edgeql-repl
@@ -105,7 +105,7 @@ Reference
 
     Array indexing starts at zero.
 
-    An array can contain any type except another array. In EdgeDB, arrays are
+    An array can contain any type except another array. In Gel, arrays are
     always one-dimensional.
 
     An array type is created implicitly when an :ref:`array

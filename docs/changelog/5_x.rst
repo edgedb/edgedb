@@ -32,7 +32,7 @@ Alternatively, specify an instance name if you aren't using a project.
 
   $ edgedb instance upgrade -I my_instance
 
-The CLI will first check to see if your schema will migrate cleanly to EdgeDB
+The CLI will first check to see if your schema will migrate cleanly to |EdgeDB|
 5.0. If the upgrade check finds any problems, it will report them back to you.
 
 **Hosted instances**
@@ -40,14 +40,14 @@ The CLI will first check to see if your schema will migrate cleanly to EdgeDB
 To upgrade a remote (hosted) instance, we recommend the following
 dump-and-restore process.
 
-1. EdgeDB v5.0 supports PostgreSQL 14 (or above). So check the version of
+1. |EdgeDB| v5.0 supports PostgreSQL 14 (or above). So check the version of
    PostgreSQL you are using before upgrading EdgeDB. If you're using Postgres
    13 or below, you should upgrade Postgres first.
 
 2. Spin up an empty 5.0 instance. You can use one of our :ref:`deployment
    guides <ref_guide_deployment>`.
 
-   Under Debian/Ubuntu, when adding the EdgeDB package repository, use this
+   Under Debian/Ubuntu, when adding the |EdgeDB| package repository, use this
    command instead:
 
    .. code-block:: bash
@@ -102,11 +102,11 @@ New features
 EdgeDB + AI
 -----------
 
-We've added an ``ext::ai`` extension for handling the integration of EdgeDB
+We've added an ``ext::ai`` extension for handling the integration of |EdgeDB|
 with various AI backends such as: OpenAI, Mistral and Anthropic.
 
 There is a special ``ext::ai::index`` that can be used to delegate the search
-functionality of EdgeDB objects to a specific AI search provider.
+functionality of |EdgeDB| objects to a specific AI search provider.
 
 The function ``ext::ai::to_context(object: anyobject)`` evaluates the
 expression of the specific ``ext::ai::index`` defined on the passed object
@@ -124,7 +124,7 @@ There are also two HTTP API points for interacting with the data:
 EdgeDB branches
 ---------------
 
-EdgeDB 5.0 adds branching functionality in order to help bridge the gap between
+|EdgeDB| 5.0 adds branching functionality in order to help bridge the gap between
 the code (and schema) managed by version control systems and the actual
 development database.
 
@@ -167,7 +167,7 @@ With these new commands, here's how we envision developers using them to
 manage "feature" branches:
 
 1) Create a new "feature" VCS branch (a clone of the "main" branch) and a
-   corresponding "feature" EdgeDB branch.
+   corresponding "feature" |EdgeDB| branch.
 
 2) Work on the "feature" branch, add migrations, etc.
 
@@ -181,7 +181,7 @@ manage "feature" branches:
 5) Then we want to rebase the "feature" branch code on top of the "main"
    branch code.
 
-6) After that we need to replicate the same rebase operation with the EdgeDB
+6) After that we need to replicate the same rebase operation with the |EdgeDB|
    branch. Our CLI tools may need to first clone the "main" branch with the
    data into a "temp" branch. Then we can introspect the migration histories
    of the "temp" and "feature" branches so that we can establish where they
@@ -196,7 +196,7 @@ manage "feature" branches:
    to "main", if the old branch is no longer needed).
 
 We've added :ref:`edgedb branch commands <ref_cli_edgedb_branch>` to our CLI
-as well that create, copy, rename, drop, and rebase EdgeDB branches.
+as well that create, copy, rename, drop, and rebase |EdgeDB| branches.
 
 
 Updated pgvector extension

@@ -1,19 +1,16 @@
 .. _ref_cli_edgedb_cloud_secretkey_list:
 
 
-===========================
-edgedb cloud secretkey list
-===========================
+========================
+gel cloud secretkey list
+========================
 
-.. note::
-
-    This CLI command requires CLI version 3.0 or later.
 
 List existing secret keys
 
 .. cli:synopsis::
 
-    edgedb cloud secretkey list [<options>]
+    gel cloud secretkey list [<options>]
 
 .. note::
 

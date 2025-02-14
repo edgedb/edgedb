@@ -4,9 +4,9 @@
 HTTP & GraphQL APIs
 ===================
 
-:edb-alt-title: Querying EdgeDB Cloud over HTTP and GraphQL
+:edb-alt-title: Querying Gel Cloud over HTTP and GraphQL
 
-Using EdgeDB Cloud via HTTP and GraphQL works the same as :ref:`using any other
+Using |Gel| Cloud via HTTP and GraphQL works the same as :ref:`using any other
 EdgeDB instance <ref_edgeql_http>`. The two differences are in **how to
 discover your instance's URL** and **authentication**.
 
@@ -37,10 +37,10 @@ Your instance can now receive EdgeQL queries over HTTP at
 Instance URL
 ============
 
-To determine the URL of an EdgeDB Cloud instance, find the host by running
+To determine the URL of an |Gel| Cloud instance, find the host by running
 ``edgedb instance credentials -I <org-name>/<instance-name>``. Use the
 ``host`` and ``port`` from that table in the URL format above this note.
-Change the protocol to ``https`` since EdgeDB Cloud instances are secured
+Change the protocol to ``https`` since Gel Cloud instances are secured
 with TLS.
 
 Your instance can now receive EdgeQL queries over HTTP at
@@ -51,8 +51,8 @@ Authentication
 ==============
 
 
-To authenticate to your EdgeDB Cloud instance, first create a secret key using
-the EdgeDB Cloud UI or :ref:`ref_cli_edgedb_cloud_secretkey_create`. Use the
+To authenticate to your |Gel| Cloud instance, first create a secret key using
+the Gel Cloud UI or :ref:`ref_cli_edgedb_cloud_secretkey_create`. Use the
 secret key as your token with the bearer authentication method. Here is an
 example showing how you might send the query ``select Person {*};`` using cURL:
 
@@ -70,7 +70,7 @@ example showing how you might send the query ``select Person {*};`` using cURL:
 Usage
 =====
 
-Usage of the HTTP and GraphQL APIs is identical on an EdgeDB Cloud instance.
+Usage of the HTTP and GraphQL APIs is identical on an |Gel| Cloud instance.
 Reference the HTTP and GraphQL documentation for more information.
 
 

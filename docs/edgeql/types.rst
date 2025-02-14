@@ -5,7 +5,7 @@
 Types
 =====
 
-The foundation of EdgeQL is EdgeDB's rigorous type system. There is a set of
+The foundation of EdgeQL is Gel's rigorous type system. There is a set of
 EdgeQL operators and functions for changing, introspecting, and filtering by
 types.
 
@@ -199,9 +199,7 @@ operator. This can be used in any expression that expects a type.
 Introspection
 -------------
 
-The entire type system of EdgeDB is *stored inside EdgeDB*. All types are
+The entire type system of Gel is *stored inside Gel*. All types are
 introspectable as instances of the ``schema::Type`` type. For a set of
 introspection examples, see :ref:`Guides > Introspection
-<ref_datamodel_introspection>`. To try introspection for yourself, see `our
-interactive introspection tutorial
-</tutorial/advanced-edgeql/introspection>`_.
+<ref_datamodel_introspection>`.

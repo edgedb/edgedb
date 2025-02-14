@@ -154,7 +154,7 @@ Sets
 
     Merges two sets.
 
-    Since EdgeDB sets are formally multisets, ``union`` is a *multiset sum*,
+    Since Gel sets are formally multisets, ``union`` is a *multiset sum*,
     so effectively it merges two multisets keeping all of their members.
 
     For example, applying ``union`` to ``{1, 2, 2}`` and
@@ -244,21 +244,12 @@ Sets
     some condition:
 
     .. code-block:: edgeql
-    
+
         with
           name := <str>$0,
           admin := <bool>$1
         select (insert AdminUser { name := name }) if admin
           else (insert User { name := name });
-
-    .. note::
-
-        DML (i.e., :ref:`insert <ref_eql_insert>`, :ref:`update
-        <ref_eql_update>`, :ref:`delete <ref_eql_delete>`) was not supported
-        in ``if...else`` prior to EdgeDB 4.0. If you need to do one of these
-        on an older version of EdgeDB, you can use a 
-        :ref:`for loop conditional <ref_eql_for_conditional_dml>` as a
-        workaround.
 
 
 -----------
@@ -272,7 +263,7 @@ Sets
     .. versionadded:: 4.0
 
     Produces one of two possible results based on a given condition.
-    
+
     Uses ``then`` for an alternative syntax order to ``if..else`` above.
 
     .. eql:synopsis::
@@ -309,7 +300,7 @@ Sets
     some condition:
 
     .. code-block:: edgeql
-    
+
         with
           name := <str>$0,
           admin := <bool>$1
@@ -344,14 +335,14 @@ Sets
     Without the coalescing operator, the above query will skip any
     ``Issue`` without priority.
 
-    As of EdgeDB 4.0, the coalescing operator can be used to express
-    things like "select or insert if missing":
-  
+    The coalescing operator can be used to express things like
+    "select or insert if missing":
+
     .. code-block:: edgeql
 
-        select 
+        select
           (select User filter .name = 'Alice') ??
-          (insert User { name := 'Alice' }); 
+          (insert User { name := 'Alice' });
 
 ----------
 

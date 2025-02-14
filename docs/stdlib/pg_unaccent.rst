@@ -25,8 +25,8 @@ That will give you access to the ``ext::pg_unaccent`` module where you may find
 the function ``unaccent``.
 
 PostgreSQL extension ``unaccent`` also supports creating dictionaries that are
-used by other PostgreSQL text search, such as ``to_tsvector``. EdgeDB extension
-currently does not support creating such dictionaries, but one can use the 
+used by other PostgreSQL text search, such as ``to_tsvector``. Gel extension
+currently does not support creating such dictionaries, but one can use the
 ``unaccent`` function to achieve the same effect:
 
 .. code-block:: sdl

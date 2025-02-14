@@ -118,7 +118,7 @@ This achieves a couple of things: it's easier to see which friends
 belong to which user and we no longer need the placeholder ``''`` for
 those users who don't have friends.
 
-The recommended way to get this information in EdgeDB, however, is to
+The recommended way to get this information in Gel, however, is to
 use *shapes*, because they mimic the structure of the data and the output:
 
 .. code-block:: edgeql-repl
@@ -260,7 +260,7 @@ leaking them into the output.
 General Shaping Rules
 =====================
 
-In EdgeDB typically all shapes appearing in the top-level
+In Gel typically all shapes appearing in the top-level
 :eql:stmt:`select` should be reflected in the output. This
 also applies to shapes no matter where and how they are nested.
 Aside from other shapes, this includes nesting in arrays:

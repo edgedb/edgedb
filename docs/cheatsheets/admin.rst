@@ -103,4 +103,4 @@ Run a script from command line:
 
 .. cli:synopsis::
 
-    cat myscript.edgeql | edgedb [<connection-option>...]
+    cat myscript.edgeql | gel [<connection-option>...]

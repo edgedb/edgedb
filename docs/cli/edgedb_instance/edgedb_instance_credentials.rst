@@ -1,22 +1,22 @@
 .. _ref_cli_edgedb_instance_credentials:
 
 
-===========================
-edgedb instance credentials
-===========================
+========================
+gel instance credentials
+========================
 
 Display instance credentials.
 
 .. cli:synopsis::
 
-     edgedb instance credentials [options] [connection-options]
+     gel instance credentials [options] [connection-options]
 
 
 Description
 ===========
 
-``edgedb instance credentials`` is a terminal command for displaying the
-credentials of an EdgeDB instance.
+``gel instance credentials`` is a terminal command for displaying the
+credentials of an |Gel| instance.
 
 
 Options
@@ -33,7 +33,7 @@ Options
 Connection Options
 ==================
 
-By default, the ``edgedb.toml`` connection is used.
+By default, the |gel.toml| connection is used.
 
 :cli:synopsis:`<connection-options>`
     See :ref:`connection options <ref_cli_edgedb_connopts>`.
