@@ -63,6 +63,27 @@ Setting up your environment
   - ``dbschema/default.gel``: The default schema file that you'll use to define your data model. It is empty for now, but you'll add your data model to this file in the next step.
   - ``lib/gel.ts``: A utility module that exports the Gel client, which you'll use to interact with the database.
 
-  .. code-block:: sh
+  .. tabs::
 
-    $ tree
+    .. code-tab:: toml
+      :caption: gel.toml
+
+      [instance]
+      server-version = 6.0
+
+      [hooks]
+      schema.update.after = "npx @gel/generate edgeql-js"
+
+    .. code-tab:: sdl
+      :caption: dbschema/default.gel
+
+      module default {
+
+      }
+
+    .. code-tab:: typescript
+      :caption: lib/gel.ts
+
+      import { createClient } from "gel";
+
+      export const client = createClient();
