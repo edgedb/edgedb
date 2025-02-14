@@ -54,13 +54,17 @@ Modeling the data
 
   To make Gel do that, you need to do two quick steps:
 
-  * **Create a migration**: a file with a list of low-level instructions.
+  1. **Create a migration**: a file with a list of low-level instructions.
 
-    .. note::
+     .. note::
 
-      When you are changing existing schema, the CLI migration tool might ask questions to ensure that it understands your changes exactly. Since the existing schema was empty, the CLI will skip asking any questions and simply create the migration file.
+       When you are changing existing schema, the CLI migration tool might ask questions to ensure that it understands your changes exactly. Since the existing schema was empty, the CLI will skip asking any questions and simply create the migration file.
 
-  * **Apply the migration**: basically, tell Gel "I want you to use these instructions and get my types ready for action."
+  2. **Apply the migration**: basically, tell Gel "I want you to use these instructions and get my types ready for action."
+
+     .. note::
+
+       Notice that after the migration is applied, the CLI will automatically run the script to generate the query builder. This is a convenience feature that is enabled by the ``schema.update.after`` hook in the ``gel.toml`` file.
 
   .. code-block:: sh
 
@@ -70,6 +74,22 @@ Modeling the data
       Applying m125ajrbqp7ov36s7aniefxc376ofxdlketzspy4yddd3hrh4lxmla (00001-m125ajr.edgeql)
       ... parsed
       ... applied
+      Generating query builder...
+      Detected tsconfig.json, generating TypeScript files.
+        To override this, use the --target flag.
+        Run `npx @gel/generate --help` for full options.
+      Introspecting database schema...
+      Generating runtime spec...
+      Generating cast maps...
+      Generating scalars...
+      Generating object types...
+      Generating function types...
+      Generating operators...
+      Generating set impl...
+      Generating globals...
+      Generating index...
+      Writing files to ./dbschema/edgeql-js
+      Generation complete! 🤘
 
 
 .. edb:split-section::
