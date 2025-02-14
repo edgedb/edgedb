@@ -22,8 +22,8 @@ current branch.
 .. note::
 
     When rebasing, the data of the target branch is preserved. This means that
-    if you switch to a branch ``feature`` and run ``gel branch rebase
-    main``, you will end up with a branch with the schema from ``main`` and any
+    if you switch to a branch ``feature`` and run :gelcmd:`branch rebase
+    main`, you will end up with a branch with the schema from ``main`` and any
     new migrations from ``feature`` and the data from ``main``.
 
 For more about how rebasing works, check out the breakdown :ref:`in our schema
