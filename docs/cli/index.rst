@@ -103,7 +103,7 @@ respectively:
 
 .. rubric:: Configure CLI and REPL
 
-You can customize the behavior of the ``edgedb`` CLI and REPL with a
+You can customize the behavior of the |gelcmd| CLI and REPL with a
 global configuration file. The file is called ``cli.toml`` and its
 location differs between operating systems. Use
 :ref:`ref_cli_edgedb_info` to find the "Config" directory on your
