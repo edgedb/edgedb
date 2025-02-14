@@ -18,8 +18,6 @@ Get Started
     branches
     edgeql
     clients
-    Live tutorial <https://docs.edgedb.com/tutorial>
-    Easy Gel book <https://docs.edgedb.com/easy-edgedb>
 
 EdgeDB is a next-generation `graph-relational database
 <https://www.edgedb.com/blog/the-graph-relational-database-defined>`_ designed

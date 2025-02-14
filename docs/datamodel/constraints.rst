@@ -538,5 +538,3 @@ name as the one we had just inserted.
   * - :ref:`Introspection > Constraints
       <ref_datamodel_introspection_constraints>`
   * - :ref:`Standard Library > Constraints <ref_std_constraints>`
-  * - `Tutorial > Advanced EdgeQL > Constraints
-      </tutorial/advanced-edgeql/constraints>`_

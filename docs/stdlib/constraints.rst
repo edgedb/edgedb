@@ -166,8 +166,8 @@ Constraints
     Scalar type definitions cannot include this constraint.
 
     This constraint has an additional effect of creating an
-    implicit :ref:`index <ref_datamodel_indexes>` on a property. 
-    This means that there's no need to add explicit indexes 
+    implicit :ref:`index <ref_datamodel_indexes>` on a property.
+    This means that there's no need to add explicit indexes
     for properties with this constraint.
 
     Example:
@@ -181,7 +181,7 @@ Constraints
                 constraint exclusive;
             }
             # Already indexed, don't need to do this:
-            # index on (.name) 
+            # index on (.name)
 
             # Make sure none of the "owned" items belong
             # to any other user.
@@ -252,5 +252,3 @@ Constraints
   * - :ref:`DDL > Constraints <ref_eql_ddl_constraints>`
   * - :ref:`Introspection > Constraints
       <ref_datamodel_introspection_constraints>`
-  * - `Tutorial > Advanced EdgeQL > Constraints
-      </tutorial/advanced-edgeql/constraints>`_
