@@ -14,7 +14,7 @@ Auth
     magic_link
     webauthn
 
-:edb-alt-title: Using EdgeDB Auth
+:edb-alt-title: Using Gel Auth
 
 EdgeDB Auth is a batteries-included authentication solution for your app built
 into the EdgeDB server. Here's how you can integrate it with your app.

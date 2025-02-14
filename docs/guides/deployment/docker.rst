@@ -4,7 +4,7 @@
 Docker
 ======
 
-:edb-alt-title: Deploying EdgeDB with Docker
+:edb-alt-title: Deploying Gel with Docker
 
 When to use the `edgedb/edgedb`_ Docker image
 =============================================

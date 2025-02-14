@@ -4,7 +4,7 @@
 Web GUI
 =======
 
-:edb-alt-title: Using EdgeDB Cloud via the web GUI
+:edb-alt-title: Using Gel Cloud via the web GUI
 
 If you'd prefer, you can also manage your account via `the EdgeDB Cloud
 web-based GUI <https://cloud.edgedb.com/>`_.

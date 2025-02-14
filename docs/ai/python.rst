@@ -4,7 +4,7 @@
 Python
 ======
 
-:edb-alt-title: EdgeDB AI's Python package
+:edb-alt-title: Gel AI's Python package
 
 The ``edgedb.ai`` package is an optional binding of the AI extension in EdgeDB.
 To use the AI binding, you need to install ``edgedb-python`` with the ``ai``

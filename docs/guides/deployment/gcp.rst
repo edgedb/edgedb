@@ -4,7 +4,7 @@
 Google Cloud
 ============
 
-:edb-alt-title: Deploying EdgeDB to Google Cloud
+:edb-alt-title: Deploying Gel to Google Cloud
 
 In this guide we show how to deploy EdgeDB on GCP using Cloud SQL and
 Kubernetes.

@@ -4,7 +4,7 @@
 Railway
 =======
 
-:edb-alt-title: Deploying applications built on EdgeDB Cloud to Railway
+:edb-alt-title: Deploying applications built on Gel Cloud to Railway
 
 1. Push project to GitHub or some other Git remote repository
 2. Create and make note of a secret key for your EdgeDB Cloud instance
@@ -21,7 +21,7 @@ Railway
 
 .. image:: images/cloud-railway-config.png
     :width: 100%
-    :alt: A screenshot of the Railway deployment configuration view 
-          highlighting the environment variables section where a user will 
-          need to set the necessary variables for EdgeDB Cloud instance 
+    :alt: A screenshot of the Railway deployment configuration view
+          highlighting the environment variables section where a user will
+          need to set the necessary variables for EdgeDB Cloud instance
           connection.

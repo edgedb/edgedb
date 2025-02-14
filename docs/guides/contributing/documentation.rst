@@ -4,7 +4,7 @@
 Documentation
 =============
 
-:edb-alt-title: Writing EdgeDB Documentation
+:edb-alt-title: Writing Gel Documentation
 
 We pride ourselves on having some of the best documentation around, but we want
 you to help us make it even better. Documentation is a great way to get started

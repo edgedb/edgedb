@@ -6,7 +6,7 @@
 CLI
 ===
 
-:edb-alt-title: The EdgeDB CLI
+:edb-alt-title: The Gel CLI
 
 The ``edgedb`` command-line interface (CLI) provides an idiomatic way to
 install EdgeDB, spin up local instances, open a REPL, execute queries,

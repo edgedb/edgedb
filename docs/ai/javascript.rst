@@ -4,7 +4,7 @@
 JavaScript
 ==========
 
-:edb-alt-title: EdgeDB AI's JavaScript package
+:edb-alt-title: Gel AI's JavaScript package
 
 ``@edgedb/ai`` offers a convenient wrapper around ``ext::ai``. Install it with
 npm or via your package manager of choice:
@@ -179,11 +179,11 @@ Public methods
 
     Can be used in two ways:
 
-    - as **an async iterator** - if you want to process streaming data in 
+    - as **an async iterator** - if you want to process streaming data in
         real-time as it arrives, ideal for handling long-running streams.
 
-    - as **a Promise that resolves to a full Response object** - you have 
-        complete control over how you want to handle the stream, this might be 
+    - as **a Promise that resolves to a full Response object** - you have
+        complete control over how you want to handle the stream, this might be
         useful when you want to manipulate the raw stream or parse it in a custom way.
 
     :param string message:

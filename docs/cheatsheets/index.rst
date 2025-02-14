@@ -4,7 +4,7 @@
 Cheatsheets
 ===========
 
-:edb-alt-title: Cheatsheets: EdgeDB by example
+:edb-alt-title: Cheatsheets: Gel by example
 
 .. toctree::
     :maxdepth: 3

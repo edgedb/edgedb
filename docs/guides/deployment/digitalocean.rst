@@ -4,7 +4,7 @@
 DigitalOcean
 ============
 
-:edb-alt-title: Deploying EdgeDB to DigitalOcean
+:edb-alt-title: Deploying Gel to DigitalOcean
 
 In this guide we show how to deploy EdgeDB to DigitalOcean either with a
 One-click Deploy option or a
