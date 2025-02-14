@@ -956,7 +956,6 @@ class TestOthers(unittest.TestCase, BaseDomainTest):
         '''
 
         out = self.build(src, format='xml')
-        print(out, '\n')
         x = requests_xml.XML(xml=out)
 
         self.assertEqual(
@@ -967,3 +966,36 @@ class TestOthers(unittest.TestCase, BaseDomainTest):
 
 
         print(x)
+
+    def test_sphinx_edb_brand_name_02(self):
+        src = '''
+        blah |gelcmd|
+        blah 2 :gelcmd:`migrate --help`
+
+
+        DONE
+        '''
+
+        out = self.build(src, format='xml')
+        x = requests_xml.XML(xml=out)
+
+        self.assertEqual(
+            x.xpath('''
+                //paragraph/literal
+                    [@edb-substitution="true"]
+                    [@edb-gelcmd="true"]
+                    [@edb-gelcmd-top="true"]
+                    / text()
+            '''),
+            ['gel'])
+
+        self.assertEqual(
+            x.xpath('''
+                //paragraph/literal
+                    [@edb-substitution="true"]
+                    [@edb-gelcmd="true"]
+                    [@edb-gelcmd-top="false"]
+                    / text()
+            '''),
+            ['gel migrate --help'])
+
