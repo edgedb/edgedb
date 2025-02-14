@@ -317,7 +317,7 @@ the Wireguard `VPN <vpn_>`_ and create a tunnel, as described on Fly's
 <https://fly.io/docs/reference/private-networking/#private-network-vpn>`_
 docs.
 
-Once it's up and running, use ``edgedb instance link`` to create a local
+Once it's up and running, use :gelcmd:`instance link` to create a local
 alias to the remote instance.
 
 .. code-block:: bash
@@ -336,7 +336,7 @@ with ``-I fly``; for example, to apply migrations:
 
 .. note::
 
-   The command groups ``edgedb instance`` and ``edgedb project`` are not
+   The command groups :gelcmd:`instance` and :gelcmd:`project` are not
    intended to manage production instances.
 
 .. code-block:: bash

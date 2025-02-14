@@ -241,7 +241,7 @@ that instance.
 
 - Confirm project creation by checking for an |gel.toml| file and a
   ``dbschema`` directory in the project root.
-- Confirm the instance is running with the ``edgedb instance list`` command.
+- Confirm the instance is running with the :gelcmd:`instance list` command.
   Search for the name of the instance you've just created (``docs_chatbot`` if
   you're following along) and check the status. (Don't worry if the status is
   "inactive"; the status will change to "running" automatically when you

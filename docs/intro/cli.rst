@@ -44,12 +44,6 @@ shell environment. Then test the installation:
   If you encounter a ``command not found`` error, you may need to open a fresh
   shell window.
 
-.. note::
-
-    To install the CLI with a package manager, refer to the "Additional
-    methods" section of the `Install <https://www.edgedb.com/install>`_ page
-    for instructions.
-
 
 See ``help`` commands
 ---------------------
@@ -108,9 +102,9 @@ information like TLS certificates. The following command documents these flags.
             computed using the `--port` and `--admin` parameters.
     ...
 
-If you ever want to see documentation for a particular command (``edgedb
-migration create``) or group of commands (``edgedb instance``), just append
-the ``--help`` flag.
+If you ever want to see documentation for a particular command (
+:gelcmd:`migration create`) or group of commands (:gelcmd:`instance`),
+just append the ``--help`` flag.
 
 .. code-block:: bash
 

@@ -178,7 +178,7 @@ Let's dig into each of these a bit more.
   Relative paths are resolved relative to the current working directory.
 
 **Project-linked instances**
-  When you run ``edgedb project init`` in a given directory, Gel creates an
+  When you run :gelcmd:`project init` in a given directory, Gel creates an
   instance and "links" it to that directory. There's nothing magical about this
   link; it's just a bit of metadata that gets stored in the Gel config
   directory. When you use the client libraries or run a CLI command inside a
@@ -186,7 +186,7 @@ Let's dig into each of these a bit more.
   instance's credentials, and connect automatically.
 
   For more information on how this works, check out the `release post
-  <https://www.edgedb.com/blog/introducing-edgedb-projects>`_ for ``edgedb project``.
+  <https://www.edgedb.com/blog/introducing-edgedb-projects>`_ for :gelcmd:`project`.
 
 .. _ref_reference_connection_priority:
 
@@ -197,7 +197,7 @@ The section above describes the various ways of specifying an Gel instance.
 There are also several ways to provide this configuration information to the
 client. From highest to lowest priority, you can pass them explicitly as
 parameters/flags (useful for debugging), use environment variables (recommended
-for production), or rely on ``edgedb project`` (recommended for development).
+for production), or rely on :gelcmd:`project` (recommended for development).
 
 1. **Explicit connection parameters**. For security reasons,
    hard-coding connection information or credentials in your codebase is not
@@ -269,12 +269,12 @@ for production), or rely on ``edgedb project`` (recommended for development).
 
 3. **Project-linked credentials**
 
-   If you are using ``edgedb project`` (which we recommend!) and haven't
+   If you are using :gelcmd:`project` (which we recommend!) and haven't
    otherwise specified any connection parameters, the CLI and client libraries
    will connect to the instance that's been linked to your project.
 
    This makes it easy to get up and running with Gel. Once you've run
-   ``edgedb project init``, the CLI and client libraries will be able to
+   :gelcmd:`project init`, the CLI and client libraries will be able to
    connect to your database without any explicit flags or parameters, as long
    as you're inside the project directory.
 

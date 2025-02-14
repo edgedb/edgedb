@@ -152,12 +152,12 @@ migration right away — ``edgedb watch`` might not be the tool you reach for.
 Instead, you might use this method:
 
 1. Edit your schema files
-2. Create your migration with ``edgedb migration create``
-3. Apply your migration with ``edgedb migrate``
+2. Create your migration with :gelcmd:`migration create`
+3. Apply your migration with :gelcmd:`migrate`
 
 Since you're not using ``watch``, the schema changes are not applied when you
 save your schema files. As a result, we need to tack an extra step on the end
-of the process of applying the migration. That's handled by ``edgedb migrate``.
+of the process of applying the migration. That's handled by :gelcmd:`migrate`.
 
 .. code-block:: bash
 
@@ -212,7 +212,7 @@ we have data in here we don't want to lose though, that's not a good option. In
 that case, we might drop back to creating and applying the migration outside of
 ``edgedb watch``.
 
-To start, run ``edgedb migration create``. The interactive plan generator will
+To start, run :gelcmd:`migration create`. The interactive plan generator will
 ask you for an EdgeQL expression to map the contents of your database to the
 new schema.
 
@@ -300,5 +300,5 @@ Further reading
 
 Further information can be found in the :ref:`CLI
 reference <ref_cli_edgedb_migration>` or the `Beta 1 blog post
-<https://www.edgedb.com/blog/edgedb-1-0-beta-1-sirius#built-in-database-migrations-in-use>`_,
+<https://www.geldata.com/blog/edgedb-1-0-beta-1-sirius#built-in-database-migrations-in-use>`_,
 which describes the design of the migration system.
