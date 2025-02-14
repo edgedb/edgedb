@@ -2,7 +2,7 @@
 v6.0
 ====
 
-:edb-alt-title: EdgeDB v6
+:edb-alt-title: Gel v6
 
 To explore the new features, ensure you specify version 6.0 when initializing
 your project. Pre-release versions are not considered stable and will not be

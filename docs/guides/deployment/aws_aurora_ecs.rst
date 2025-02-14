@@ -4,7 +4,7 @@
 AWS
 ===
 
-:edb-alt-title:  Deploying EdgeDB to AWS
+:edb-alt-title:  Deploying Gel to AWS
 
 In this guide we show how to deploy EdgeDB on AWS using Amazon Aurora and
 Elastic Container Service.

@@ -4,7 +4,7 @@
 Netlify
 =======
 
-:edb-alt-title: Deploying applications built on EdgeDB Cloud to Netlify
+:edb-alt-title: Deploying applications built on Gel Cloud to Netlify
 
 .. note::
 

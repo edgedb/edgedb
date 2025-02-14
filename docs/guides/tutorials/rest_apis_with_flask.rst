@@ -4,7 +4,7 @@
 Flask
 =====
 
-:edb-alt-title: Building a REST API with EdgeDB and Flask
+:edb-alt-title: Building a REST API with Gel and Flask
 
 The EdgeDB Python client makes it easy to integrate EdgeDB into your preferred
 web development stack. In this tutorial, we'll see how you can quickly start

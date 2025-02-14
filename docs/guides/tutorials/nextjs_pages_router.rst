@@ -4,7 +4,7 @@
 Next.js (Pages Router)
 ======================
 
-:edb-alt-title: Building a simple blog application with EdgeDB and 
+:edb-alt-title: Building a simple blog application with Gel and
    Next.js (Pages Router)
 
 We're going to build a simple blog application with
@@ -125,11 +125,11 @@ something like this.
 Initializing EdgeDB
 -------------------
 
-Now let's spin up a database for the app. You have two options to initialize 
-an EdgeDB project: using ``npx edgedb`` without installing the CLI, or 
+Now let's spin up a database for the app. You have two options to initialize
+an EdgeDB project: using ``npx edgedb`` without installing the CLI, or
 installing the edgedb CLI directly. In this tutorial, we'll use the first
-option. If you prefer to install the CLI, see the 
-`EdgeDB CLI installation guide <https://docs.edgedb.com/cli>`_ 
+option. If you prefer to install the CLI, see the
+`EdgeDB CLI installation guide <https://docs.edgedb.com/cli>`_
 for more information.
 
 From the application's root directory, run the following command:

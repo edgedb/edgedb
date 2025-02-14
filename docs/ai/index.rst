@@ -12,7 +12,7 @@ AI
     python
     reference
 
-:edb-alt-title: Using EdgeDB AI
+:edb-alt-title: Using Gel AI
 
 EdgeDB AI allows you to ship AI-enabled apps with practically no effort. It
 automatically generates embeddings for your data. Works with OpenAI, Mistral

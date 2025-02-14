@@ -2,7 +2,7 @@
 Strawberry
 ==========
 
-:edb-alt-title: Building a GraphQL API with EdgeDB and Strawberry
+:edb-alt-title: Building a GraphQL API with Gel and Strawberry
 
 EdgeDB allows you to query your database with GraphQL via the built-in GraphQL
 extension. It enables you to expose GraphQL-driven CRUD APIs for all object

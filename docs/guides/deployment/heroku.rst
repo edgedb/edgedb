@@ -4,7 +4,7 @@
 Heroku
 ======
 
-:edb-alt-title: Deploying EdgeDB to Heroku
+:edb-alt-title: Deploying Gel to Heroku
 
 In this guide we show how to deploy EdgeDB to Heroku using a Heroku PostgreSQL
 add-on as the backend.

@@ -2,7 +2,7 @@
 v5.0
 ====
 
-:edb-alt-title: EdgeDB v5
+:edb-alt-title: Gel v5
 
 To play with the new features, make sure to specify version 5.0 when
 initializing the project as pre-release versions are not considered stable

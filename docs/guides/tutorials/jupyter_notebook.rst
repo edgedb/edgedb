@@ -4,7 +4,7 @@
 Jupyter Notebook
 ================
 
-:edb-alt-title: Using EdgeDB with Jupyter Notebook
+:edb-alt-title: Using Gel with Jupyter Notebook
 
 1. `Install Jupyter Notebook
    <https://docs.jupyter.org/en/latest/install/notebook-classic.html>`__

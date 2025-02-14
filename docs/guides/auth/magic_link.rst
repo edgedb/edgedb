@@ -4,7 +4,7 @@
 Magic Link Auth
 ================
 
-:edb-alt-title: Integrating EdgeDB Auth's Magic Link provider
+:edb-alt-title: Integrating Gel Auth's Magic Link provider
 
 Magic Link is a passwordless authentication method that allows users to log in via a unique, time-sensitive link sent to their email. This guide will walk you through integrating Magic Link authentication with your application using EdgeDB Auth.
 
