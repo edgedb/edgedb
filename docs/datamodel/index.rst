@@ -46,20 +46,6 @@ By convention, your schema files should live in a directory called ``dbschema``
 in the root of your project.
 
 .. code-block:: sdl
-    :version-lt: 3.0
-
-    # dbschema/default.esdl
-
-    type Movie {
-      required property title -> str;
-      required link director -> Person;
-    }
-
-    type Person {
-      required property name -> str;
-    }
-
-.. code-block:: sdl
 
     # dbschema/default.esdl
 
@@ -120,17 +106,22 @@ An EdgeDB **instance** is a running EdgeDB process. Instances can be created,
 started, stopped, and destroyed locally with the :ref:`EdgeDB CLI
 <ref_cli_overview>`.
 
+.. _ref_datamodel_databases:
 .. _ref_datamodel_branches:
 
-Branches
-^^^^^^^^
+Branch
+^^^^^^
 
 .. versionadded:: 5.0
+
+.. versionchanged:: 5.0
+
+   Prior to |Gel| 5, *branches* were called "databases"
+   (and "databases" is what Gel branches map to in PostgreSQL).
 
 Instances can be branched when working on new features, similar to branches in
 your VCS. Each branch has its own schema and data.
 
-.. _ref_datamodel_databases:
 
 Database
 ^^^^^^^^

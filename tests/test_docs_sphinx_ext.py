@@ -945,3 +945,25 @@ class TestBlockquote(unittest.TestCase, BaseDomainTest):
                 //container[@collapsed_block="True"]/paragraph/text()
             '''),
             ['spam', 'ham'])
+
+
+@unittest.skipIf(requests_xml is None, 'requests-xml package is not installed')
+class TestOthers(unittest.TestCase, BaseDomainTest):
+
+    def test_sphinx_edb_brand_name_01(self):
+        src = '''
+        blah |Gel|
+        '''
+
+        out = self.build(src, format='xml')
+        print(out, '\n')
+        x = requests_xml.XML(xml=out)
+
+        self.assertEqual(
+            x.xpath('''
+                //paragraph/inline[@edb-substitution="true"]/text()
+            '''),
+            ['Gel'])
+
+
+        print(x)
