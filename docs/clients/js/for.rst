@@ -79,7 +79,7 @@ Note that the ``Movie`` type's ``title`` property has an exclusive constraint.
 
 Here's the data we want to bulk insert:
 
-.. code-block:: js
+.. code-block:: javascript
 
     [
       {
