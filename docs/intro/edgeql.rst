@@ -19,7 +19,7 @@ EdgeDB. Refer to the linked pages for more in-depth documentation.
 Scalar literals
 ^^^^^^^^^^^^^^^
 
-EdgeDB has a rich primitive type system consisting of the following data types.
+|Gel| has a rich primitive type system consisting of the following data types.
 
 .. list-table::
 
@@ -141,7 +141,7 @@ nested.
     // unknown
 
 
-EdgeDB also supports a special ``json`` type for representing unstructured
+|Gel| also supports a special ``json`` type for representing unstructured
 data. Primitive data structures can be converted to JSON using a type cast
 (``<json>``). Alternatively, a properly JSON-encoded string can be converted
 to ``json`` with the built-in ``to_json`` function. Indexing a ``json`` value
@@ -177,7 +177,7 @@ Refer to :ref:`Docs > EdgeQL > Literals <ref_eql_literals>` for complete docs.
 Functions and operators
 ^^^^^^^^^^^^^^^^^^^^^^^
 
-EdgeDB provides a rich standard library of functions to operate and manipulate
+|Gel| provides a rich standard library of functions to operate and manipulate
 various data types.
 
 .. tabs::

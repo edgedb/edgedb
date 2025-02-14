@@ -4,7 +4,7 @@
 Server configuration
 ====================
 
-EdgeDB exposes a number of configuration parameters that affect its
+|Gel| exposes a number of configuration parameters that affect its
 behavior.  In this section we review the ways to change the server
 configuration, as well as detail each available configuration parameter.
 

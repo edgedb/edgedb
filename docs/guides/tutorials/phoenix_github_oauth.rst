@@ -254,7 +254,7 @@ Ecto schemas
 
 In this tutorial we will define 2 ``Ecto.Schema`` modules, for
 ``default::User`` and ``default::Identity`` types, so that we can work with
-EdgeDB in a more convenient way that is familiar to the world of Elixir.
+|Gel| in a more convenient way that is familiar to the world of Elixir.
 
 Here is the definition for the user in the ``lib/accounts/user.ex`` file.
 

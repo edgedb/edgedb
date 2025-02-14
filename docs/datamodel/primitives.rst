@@ -4,7 +4,7 @@
 Primitives
 ==========
 
-EdgeDB has a robust type system consisting of primitive and object types.
+|Gel| has a robust type system consisting of primitive and object types.
 Below is a review of Gel's primitive types; later, these will be used to
 declare *properties* on object types.
 

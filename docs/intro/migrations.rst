@@ -172,7 +172,7 @@ Data migrations
 ---------------
 
 Depending on how the schema was changed, data in your database may prevent
-EdgeDB from applying your schema changes. Imagine we added a required ``body``
+|Gel| from applying your schema changes. Imagine we added a required ``body``
 property to our ``Post`` type:
 
 .. code-block:: sdl-diff

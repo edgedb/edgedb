@@ -4,7 +4,7 @@
 Date/Time Handling
 ==================
 
-EdgeDB has 6 types related to date and time handling:
+|Gel| has 6 types related to date and time handling:
 
 * :eql:type:`datetime` (:ref:`binary format <ref_protocol_fmt_datetime>`)
 * :eql:type:`duration` (:ref:`binary format <ref_protocol_fmt_duration>`)

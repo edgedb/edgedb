@@ -841,7 +841,7 @@ The migration gives us this:
     Applied m1ljrgrofsqkvo5hsxc62mnztdhlerxp6ucdto262se6dinhuj4mqq
     (00002.edgeql)
 
-EdgeDB detected that the change looked like a property was being
+|Gel| detected that the change looked like a property was being
 renamed, which we confirmed. Since this was an existing property being
 renamed, the data is all preserved:
 

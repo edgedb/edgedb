@@ -101,7 +101,7 @@ Dates and Times
 
 .. _ref_std_datetime_intro:
 
-EdgeDB offers two ways of representing date/time values:
+|Gel| offers two ways of representing date/time values:
 
 * a timezone-aware :eql:type:`std::datetime` type;
 
@@ -119,7 +119,7 @@ There are also two different ways of measuring duration:
 All related operators, functions, and type casts are designed to maintain a
 strict separation between timezone-aware and "local" date/time values.
 
-EdgeDB stores and outputs timezone-aware values in UTC format.
+|Gel| stores and outputs timezone-aware values in UTC format.
 
 .. note::
 

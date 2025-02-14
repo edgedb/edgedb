@@ -797,7 +797,7 @@ Strings
 Regular Expressions
 -------------------
 
-EdgeDB supports Regular expressions (REs), as defined in POSIX 1003.2.
+|Gel| supports Regular expressions (REs), as defined in POSIX 1003.2.
 They come in two forms: BRE (basic RE) and ERE (extended RE). In
 addition, Gel supports certain common extensions to the POSIX
 standard commonly known as ARE (advanced RE). More details about

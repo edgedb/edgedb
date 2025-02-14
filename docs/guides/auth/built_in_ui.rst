@@ -8,7 +8,7 @@ Built-in UI
 
 To use the built-in UI for Gel Auth, enable the built-in Auth UI by clicking
 the "Enable UI" button under "Login UI" in the configuration section of the
-EdgeDB UI. Set these configuration values:
+|Gel| UI. Set these configuration values:
 
 -  ``redirect_to``: Once the authentication flow is complete, Gel will
    redirect the user's browser back to this URL in your application's

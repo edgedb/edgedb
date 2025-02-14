@@ -136,7 +136,7 @@ The Docker image supports the same set of enviroment variables as the Gel
 server process, which are documented under :ref:`Reference > Environment
 Variables <ref_reference_environment>`.
 
-EdgeDB containers can be additionally configured using initialization scripts
+|Gel| containers can be additionally configured using initialization scripts
 and some Docker-specific environment variables, documented below.
 
 .. note::

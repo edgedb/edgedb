@@ -6,7 +6,7 @@ Contributing
 
 :edb-alt-title: Contributing to Gel
 
-EdgeDB is an open-source project, and we welcome contributions from our
+|Gel| is an open-source project, and we welcome contributions from our
 community. You can contribute by writing code or by helping us improve our
 documentation.
 
