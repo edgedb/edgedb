@@ -74,7 +74,7 @@ macOS run:
 
    $ rm "$(which gel)"
 
-To remove all configuration files, run ``gel info`` to list the directories
+To remove all configuration files, run :gelcmd:`info` to list the directories
 where |Gel| stores data, then use ``rm -rf <dir>`` to delete those
 directories.
 

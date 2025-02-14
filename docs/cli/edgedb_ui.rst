@@ -15,7 +15,7 @@ Open the |Gel| UI of the current instance in your default browser.
 Description
 ===========
 
-``gel ui`` is a terminal command used to open the |Gel| UI in your default
+:gelcmd:`ui` is a terminal command used to open the |Gel| UI in your default
 browser. Alternatively, it can be used to print the UI URL with the
 ``--print-url`` option.
 

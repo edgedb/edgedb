@@ -29,7 +29,7 @@ offers tools to manage your instances running on our Gel Cloud.
 
 .. warning:: CI users and scripters
 
-    The ``gel cloud login`` and ``gel cloud logout`` commands are not
+    The :gelcmd:`cloud login` and :gelcmd:`cloud logout` commands are not
     intended for use in scripting and CI. Instead, you should generate a secret
     key in the |Gel| Cloud UI or by running
     :ref:`ref_cli_edgedb_cloud_secretkey_create` and set the

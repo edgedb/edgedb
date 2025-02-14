@@ -15,7 +15,7 @@ Display instance credentials.
 Description
 ===========
 
-``gel instance credentials`` is a terminal command for displaying the
+:gelcmd:`instance credentials` is a terminal command for displaying the
 credentials of an |Gel| instance.
 
 

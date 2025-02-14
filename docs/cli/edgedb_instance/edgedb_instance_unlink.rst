@@ -14,7 +14,7 @@ Unlink from a previously linked remote Gel instance.
 Description
 ===========
 
-``gel instance unlink`` is a terminal command used to unlink a
+:gelcmd:`instance unlink` is a terminal command used to unlink a
 remote instance. This removes the instance name from the list of valid
 instances.
 

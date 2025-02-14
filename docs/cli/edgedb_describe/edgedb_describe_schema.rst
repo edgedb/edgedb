@@ -16,7 +16,7 @@ database specified by the connection options.
 Description
 ===========
 
-``gel describe schema`` is a terminal command equivalent to
+:gelcmd:`describe schema` is a terminal command equivalent to
 :eql:stmt:`describe schema as sdl <describe>` introspection command.
 
 

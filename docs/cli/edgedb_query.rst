@@ -15,7 +15,7 @@ Execute one or more EdgeQL queries.
 Description
 ===========
 
-``gel query`` is a terminal command used to execute EdgeQL queries
+:gelcmd:`query` is a terminal command used to execute EdgeQL queries
 provided as space-separated strings.
 
 

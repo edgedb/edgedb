@@ -67,8 +67,8 @@ logging facility can be used::
 
 .. _ref_cli_edgedb_net_server:
 
-``gel server`` and ``gel self upgrade``
-=============================================
+"gel server" and "gel self upgrade"
+===================================
 
 Generally these commands do requests with exactly the headers
 like :ref:`version check <ref_cli_edgedb_version_check>`.
@@ -90,7 +90,7 @@ Data sources that can be used indirectly:
    data from any sources listed in repositories configured in the
    system.
 
-To avoid reaching these hosts, avoid using: ``gel server`` and
-``gel self upgrade`` subcommands. These commands only simplify
+To avoid reaching these hosts, avoid using: :gelcmd:`server` and
+:gelcmd:`self upgrade` subcommands. These commands only simplify
 installation and maintenance of the installations. All |Gel| features
 are available without using them.

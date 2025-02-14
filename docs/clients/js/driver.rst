@@ -45,7 +45,7 @@ Connections
 
 Notice we didn't pass any arguments into ``createClient``. That's intentional.
 
-**In development**, we recommend using ``gel project init`` to create an
+**In development**, we recommend using :gelcmd:`project init` to create an
 instance and link it to your project directory. As long as you're inside this
 directory, ``createClient()`` with auto-detect the project and connect to the
 associated instance automatically.

@@ -4,7 +4,7 @@
 gel server
 ==========
 
-The ``gel server`` group of commands contains all sorts of tools
+The :gelcmd:`server` group of commands contains all sorts of tools
 for managing |Gel| server versions.
 
 .. toctree::

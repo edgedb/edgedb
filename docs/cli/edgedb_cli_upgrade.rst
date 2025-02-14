@@ -15,7 +15,7 @@ Upgrade the CLI binary.
 Description
 ===========
 
-``gel cli upgrade`` is a terminal command used to upgrade the CLI
+:gelcmd:`cli upgrade` is a terminal command used to upgrade the CLI
 tools to keep them up-to-date.
 
 

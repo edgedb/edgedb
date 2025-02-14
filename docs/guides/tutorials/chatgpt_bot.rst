@@ -247,7 +247,7 @@ that instance.
   "inactive"; the status will change to "running" automatically when you
   connect to the instance.)
 - Confirm you can connect to the created instance by running |gelcmd| in the
-  terminal to connect to it via REPL or by running ``gel ui`` to connect
+  terminal to connect to it via REPL or by running :gelcmd:`ui` to connect
   using the UI.
 
 

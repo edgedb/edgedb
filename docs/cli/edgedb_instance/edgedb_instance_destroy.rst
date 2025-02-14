@@ -15,12 +15,12 @@ Remove an |Gel| instance.
 Description
 ===========
 
-``gel instance destroy`` is a terminal command for removing an (or edgedb.toml)
+:gelcmd:`instance destroy` is a terminal command for removing an (or edgedb.toml)
 instance and all its data.
 
 .. note::
 
-    The ``gel instance destroy`` command is not intended for use with
+    The :gelcmd:`instance destroy` command is not intended for use with
     self-hosted instances.
 
 

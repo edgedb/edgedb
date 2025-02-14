@@ -5,7 +5,7 @@
 gel database
 ============
 
-The ``gel database`` group of commands contains various database
+The :gelcmd:`database` group of commands contains various database
 manipulation tools.
 
 .. note::

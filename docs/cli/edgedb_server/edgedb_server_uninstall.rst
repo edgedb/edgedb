@@ -15,7 +15,7 @@ Uninstall |Gel| server.
 Description
 ===========
 
-``gel server uninstall`` is a terminal command for removing a
+:gelcmd:`server uninstall` is a terminal command for removing a
 specific |Gel| server version from your system.
 
 
