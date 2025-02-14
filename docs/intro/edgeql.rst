@@ -8,9 +8,6 @@ to SQL that solves some of its biggest design limitations. This page is
 intended as a rapid-fire overview so you can hit the ground running with
 EdgeDB. Refer to the linked pages for more in-depth documentation.
 
-Want to follow along with the queries below? Open the `Interactive
-Tutorial </tutorial>`_ in a separate tab. Copy and paste the queries below and
-execute them directly from the browser.
 
 .. note::
 

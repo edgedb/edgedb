@@ -391,9 +391,6 @@ When a conflict occurs during the initial ``insert``, the statement falls back
 to the ``update`` statement in the ``else`` clause. This updates the
 ``release_year`` of the conflicting object.
 
-To learn to use upserts by trying them yourself, see `our interactive upserts
-tutorial </tutorial/data-mutations/upsert>`_.
-
 .. note::
 
     It can be useful to know the outcome of an upsert. Here's an example
@@ -518,7 +515,3 @@ using a :ref:`for loop <ref_eql_for>` to insert the objects.
   * - **See also**
   * - :ref:`Reference > Commands > Insert <ref_eql_statements_insert>`
   * - :ref:`Cheatsheets > Inserting data <ref_cheatsheet_insert>`
-  * - `Tutorial > Data Mutations > Insert
-      </tutorial/data-mutations/insert>`_
-  * - `Tutorial > Data Mutations > Upsert
-      </tutorial/data-mutations/upsert>`_

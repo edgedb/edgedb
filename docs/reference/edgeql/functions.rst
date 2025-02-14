@@ -53,6 +53,4 @@ default value:
   * - :ref:`DDL > Functions <ref_eql_ddl_functions>`
   * - :ref:`Introspection > Functions <ref_datamodel_introspection_functions>`
   * - :ref:`Cheatsheets > Functions <ref_cheatsheet_functions>`
-  * - `Tutorial > Advanced EdgeQL > User-Defined Functions
-      </tutorial/advanced-edgeql/user-def-functions>`_
 

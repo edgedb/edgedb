@@ -612,7 +612,7 @@ require appending ``--allow-empty`` to the command. Just do the following:
    schema file manually, copy the suggested name into the migration hash
    and type ``edgedb migrate`` again.
 
-The `Gel tutorial </tutorial>`_ is a good example of a database
+The Gel tutorial is a good example of a database
 set up with both a schema migration and a data migration. Setting
 up a database with `schema changes in one file and default data in
 a second file <tutorial_files_>`_ is a nice way to separate the two operations

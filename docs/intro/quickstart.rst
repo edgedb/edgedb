@@ -542,14 +542,6 @@ and used a client library.
   <https://www.edgedb.com/showcase/edgeql>`_, and `Migrations
   <https://www.edgedb.com/showcase/migrations>`_.
 
-- For a deep dive into the EdgeQL query language, check out the
-  `Interactive Tutorial </tutorial>`_.
-
-- For an immersive, comprehensive walkthrough of Gel concepts, check out
-  our illustrated e-book `Easy Gel </easy-edgedb>`_; it's designed to walk a
-  total beginner through Gel, from the basics all the way through advanced
-  concepts.
-
 - To start building an application using the language of your choice, check out
   our client libraries:
 
