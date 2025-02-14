@@ -389,5 +389,8 @@ QUERIES = [
         };
     ''',
     '''sdl# comment
+    ''',
+    '''
+       CREATE BRANCH hello;
     '''
 ]

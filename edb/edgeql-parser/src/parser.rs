@@ -591,7 +591,7 @@ fn injection_cost(kind: &Kind) -> u16 {
             | "database",
         )) => 100,
         Keyword(keywords::Keyword("insert" | "module" | "extension" | "branch")) => 20,
-        Keyword(keywords::Keyword("select" | "property" | "type")) => 10,
+        Keyword(keywords::Keyword("select" | "property" | "type" | "empty")) => 10,
         Keyword(_) => 15,
 
         Dot => 5,
