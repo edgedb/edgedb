@@ -75,12 +75,12 @@ The first user reciprocates, adding the new user as a friend:
     ... friends += (select detached User filter .email = "user2@me.com")
     ... };
 
-The second user writes a blog post about how nice EdgeDB is:
+The second user writes a blog post about how nice Gel is:
 
 .. code-block:: edgeql-repl
 
     db> insert BlogPost {
-    ... title := "EdgeDB is awesome",
+    ... title := "Gel is awesome",
     ... author := assert_single((select User filter .email = "user2@me.com"))
     ... };
 
@@ -150,7 +150,7 @@ database. However, we can't impose a shape on it:
 
     select User.<author { text };
 
-As written, EdgeDB infers the *type* of this expression to be
+As written, Gel infers the *type* of this expression to be
 :eql:type:`BaseObject`. Why? Because in theory, there may be
 several links named ``author`` from different object types
 that point to ``User``. And there is no guarantee that each
@@ -310,12 +310,12 @@ Below, the root of the path is a *subquery*.
 .. code-block:: edgeql-repl
 
     db> with edgedb_lovers := (
-    ...   select BlogPost filter .title ilike "EdgeDB is awesome"
+    ...   select BlogPost filter .title ilike "Gel is awesome"
     ... )
     ... select edgedb_lovers.author;
 
 This expression returns a set of all ``Users`` who have written a blog post
-titled "EdgeDB is awesome".
+titled "Gel is awesome".
 
 For a full syntax definition, see the :ref:`Reference > Paths
 <ref_reference_paths>`.

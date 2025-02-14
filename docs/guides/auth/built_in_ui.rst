@@ -6,14 +6,14 @@ Built-in UI
 
 :edb-alt-title: Integrating Gel Auth's built-in UI
 
-To use the built-in UI for EdgeDB Auth, enable the built-in Auth UI by clicking
+To use the built-in UI for Gel Auth, enable the built-in Auth UI by clicking
 the "Enable UI" button under "Login UI" in the configuration section of the
 EdgeDB UI. Set these configuration values:
 
--  ``redirect_to``: Once the authentication flow is complete, EdgeDB will
+-  ``redirect_to``: Once the authentication flow is complete, Gel will
    redirect the user's browser back to this URL in your application's
    backend.
--  ``redirect_to_on_signup``: If this is a new user, EdgeDB will redirect
+-  ``redirect_to_on_signup``: If this is a new user, Gel will redirect
    the user's browser back to this URL in your application's backend.
 -  ``app_name``: Used in the built-in UI to show the user the
    application's name in a few important places.
@@ -111,7 +111,7 @@ base64url encode the resulting string. This new string is called the
 
 .. note::
 
-    For EdgeDB versions before 5.0, the value for ``EDGEDB_AUTH_BASE_URL``
+    For |EdgeDB| versions before 5.0, the value for ``EDGEDB_AUTH_BASE_URL``
     in the above snippet should have the form:
 
     ``${protocol}://${host}:${port}/db/${database}/ext/auth/``
@@ -174,7 +174,7 @@ to the built-in UI with the ``challenge`` in the search parameters.
    });
 
    /**
-    * Redirects browser requests to EdgeDB Auth UI sign in page with the
+    * Redirects browser requests to Gel Auth UI sign in page with the
     * PKCE challenge, and saves PKCE verifier in an HttpOnly cookie.
     *
     * @param {Request} req
@@ -194,7 +194,7 @@ to the built-in UI with the ``challenge`` in the search parameters.
    };
 
    /**
-    * Redirects browser requests to EdgeDB Auth UI sign up page with the
+    * Redirects browser requests to Gel Auth UI sign up page with the
     * PKCE challenge, and saves PKCE verifier in an HttpOnly cookie.
     *
     * @param {Request} req
@@ -224,11 +224,11 @@ to the built-in UI with the ``challenge`` in the search parameters.
 Retrieve ``auth_token``
 -----------------------
 
-At the very end of the flow, the EdgeDB server will redirect the user's browser
+At the very end of the flow, the Gel server will redirect the user's browser
 to the ``redirect_to`` address with a single query parameter: ``code``. This
 route should be a server route that has access to the ``verifier``. You then
 take that ``code`` and look up the ``verifier`` in the ``edgedb-pkce-verifier``
-cookie, and make a request to the EdgeDB Auth extension to exchange these two
+cookie, and make a request to the Gel Auth extension to exchange these two
 pieces of data for an ``auth_token``.
 
 .. lint-off
@@ -293,4 +293,4 @@ pieces of data for an ``auth_token``.
 
 .. lint-on
 
-:ref:`Back to the EdgeDB Auth guide <ref_guide_auth>`
+:ref:`Back to the Gel Auth guide <ref_guide_auth>`

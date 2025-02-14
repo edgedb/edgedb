@@ -114,7 +114,7 @@ base64url encode the resulting string. This new string is called the
 
 .. note::
 
-    For EdgeDB versions before 5.0, the value for ``EDGEDB_AUTH_BASE_URL``
+    For |EdgeDB| versions before 5.0, the value for ``EDGEDB_AUTH_BASE_URL``
     in the above snippet should have the form:
 
     ``${protocol}://${host}:${port}/db/${database}/ext/auth/``
@@ -154,7 +154,7 @@ the end user's browser to the Identity Provider with the proper setup.
    });
 
    /**
-    * Redirects OAuth requests to EdgeDB Auth OAuth authorize redirect
+    * Redirects OAuth requests to Gel Auth OAuth authorize redirect
     * with the PKCE challenge, and saves PKCE verifier in an HttpOnly
     * cookie for later retrieval.
     *
@@ -197,11 +197,11 @@ the end user's browser to the Identity Provider with the proper setup.
 Retrieve ``auth_token``
 -----------------------
 
-At the very end of the flow, the EdgeDB server will redirect the user's browser
+At the very end of the flow, the Gel server will redirect the user's browser
 to the ``redirect_to`` address with a single query parameter: ``code``. This
 route should be a server route that has access to the ``verifier``. You then
 take that ``code`` and look up the ``verifier`` in the ``edgedb-pkce-verifier``
-cookie, and make a request to the EdgeDB Auth extension to exchange these two
+cookie, and make a request to the Gel Auth extension to exchange these two
 pieces of data for an ``auth_token``.
 
 .. lint-off
@@ -417,4 +417,4 @@ it:
        "Set-Cookie": `edgedb-auth-token=${auth_token}; HttpOnly; Path=/; Secure; SameSite=Strict`,
      });
 
-:ref:`Back to the EdgeDB Auth guide <ref_guide_auth>`
+:ref:`Back to the Gel Auth guide <ref_guide_auth>`

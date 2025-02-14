@@ -6,7 +6,7 @@ Flask
 
 :edb-alt-title: Building a REST API with Gel and Flask
 
-The EdgeDB Python client makes it easy to integrate EdgeDB into your preferred
+The Gel Python client makes it easy to integrate Gel into your preferred
 web development stack. In this tutorial, we'll see how you can quickly start
 building RESTful APIs with `Flask <https://flask.palletsprojects.com>`_ and
 EdgeDB.
@@ -50,22 +50,22 @@ dependencies with this command:
 Initialize the database
 ^^^^^^^^^^^^^^^^^^^^^^^
 
-Now, let's initialize an EdgeDB project. From the project's root directory:
+Now, let's initialize an Gel project. From the project's root directory:
 
 .. code-block:: bash
 
     $ edgedb project init
     Initializing project...
 
-    Specify the name of EdgeDB instance to use with this project
+    Specify the name of Gel instance to use with this project
     [default: flask_crud]:
     > flask_crud
 
     Do you want to start instance automatically on login? [y/n]
     > y
-    Checking EdgeDB versions...
+    Checking Gel versions...
 
-Once you've answered the prompts, a new EdgeDB instance called ``flask_crud``
+Once you've answered the prompts, a new Gel instance called ``flask_crud``
 will be created and started.
 
 
@@ -83,7 +83,7 @@ similar to this:
 
 ::
 
-    EdgeDB 2.x (repl 2.x)
+    Gel x.x (repl x.x)
     Type \help for help, \quit to quit.
     edgedb>
 
@@ -142,7 +142,7 @@ This is how our datatypes look:
 
 
 Here, we've defined an ``abstract`` type called ``Auditable`` to take advantage
-of EdgeDB's schema mixin system. This allows us to add a ``created_at``
+of Gel's schema mixin system. This allows us to add a ``created_at``
 property to multiple types without repeating ourselves.
 
 The ``Actor`` type extends ``Auditable`` and inherits the ``created_at``
@@ -231,7 +231,7 @@ objects saved in the database. You can create the API in Flask like this:
 
 
 The ``Blueprint`` instance does the actual work of exposing the API. We also
-create a blocking EdgeDB client instance to communicate with the database. By
+create a blocking Gel client instance to communicate with the database. By
 default, this API will return a list of actors, but you can also filter the
 objects by name.
 
@@ -796,7 +796,7 @@ That'll return:
 Conclusion
 ==========
 
-While building REST APIs, the EdgeDB client allows you to leverage EdgeDB with
+While building REST APIs, the Gel client allows you to leverage Gel with
 any microframework of your choice. Whether it's
 `FastAPI <https://fastapi.tiangolo.com>`_,
 `Flask <https://flask.palletsprojects.com>`_,

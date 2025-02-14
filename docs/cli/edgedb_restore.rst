@@ -1,21 +1,21 @@
 .. _ref_cli_edgedb_restore:
 
 
-==============
-edgedb restore
-==============
+===========
+gel restore
+===========
 
-Restore an EdgeDB branch (or database pre-v5) from a backup file.
+Restore a |Gel| branch from a backup file.
 
 .. cli:synopsis::
 
-    edgedb restore [<options>] <path>
+    gel restore [<options>] <path>
 
 
 Description
 ===========
 
-``edgedb restore`` is a terminal command used to restore an EdgeDB database
+``gel restore`` is a terminal command used to restore an Gel database
 branch (or database pre-v5) from a backup file. The backup is restored to the
 currently active branch (or to the currently connected database pre-v5).
 
@@ -26,8 +26,8 @@ currently active branch (or to the currently connected database pre-v5).
 
     - a new empty branch which can be created using
       :ref:`ref_cli_edgedb_branch_create` with the ``--empty`` option
-    - a new empty database if your instance is running EdgeDB versions prior to
-      5
+    - a new empty database if your instance is running |EdgeDB| versions
+      prior to 5
     - an existing branch or database that has been wiped with the appropriate
       ``wipe`` command (either :ref:`ref_cli_edgedb_branch_wipe` or
       :ref:`ref_cli_edgedb_database_wipe`; note that this will destroy all data

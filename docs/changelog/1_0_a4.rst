@@ -40,7 +40,7 @@ CLI
 ===
 
 * We have a new ``edgedb server`` group of commands that ships with
-  the default EdgeDB CLI. Check out the details in this `RFC 1001
+  the default |EdgeDB| CLI. Check out the details in this `RFC 1001
   <edbserver_>`_.
 * The ``edgedb`` REPL prompt now has a transaction indicator:
 

@@ -1,25 +1,21 @@
 .. _ref_cli_edgedb_cloud_logout:
 
 
-===================
-edgedb cloud logout
-===================
-
-.. note::
-
-    This CLI command requires CLI version 3.0 or later.
+================
+gel cloud logout
+================
 
 Forget the stored access token
 
 .. cli:synopsis::
 
-    edgedb cloud logout [<options>]
+    gel cloud logout [<options>]
 
 .. warning:: CI users and scripters
 
     This command is not intended for use in scripting and CI. Instead, to
-    authenticate to your EdgeDB Cloud account, you should generate a secret key
-    in the EdgeDB Cloud UI or by running
+    authenticate to your |Gel| Cloud account, you should generate a secret key
+    in the Gel Cloud UI or by running
     :ref:`ref_cli_edgedb_cloud_secretkey_create` and set the
     ``EDGEDB_SECRET_KEY`` environment variable to your secret key. Logging out
     is not necessary.

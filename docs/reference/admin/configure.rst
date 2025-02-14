@@ -44,16 +44,16 @@ current session. Some configuration parameters cannot be modified by
 .. versionchanged:: _default
 
     :eql:synopsis:`configure current database` is used to configure an
-    individual EdgeDB database within a server instance with the
+    individual Gel database within a server instance with the
     changes persisted across server restarts.
 
 .. versionchanged:: 5.0
 
     :eql:synopsis:`configure current branch` is used to configure an
-    individual EdgeDB branch within a server instance with the
+    individual Gel branch within a server instance with the
     changes persisted across server restarts.
 
-:eql:synopsis:`configure instance` is used to configure the entire EdgeDB
+:eql:synopsis:`configure instance` is used to configure the entire Gel
 instance with the changes persisted across server restarts.  This variant
 acts directly on the file system and cannot be rolled back, so it cannot
 be used in a transaction block.

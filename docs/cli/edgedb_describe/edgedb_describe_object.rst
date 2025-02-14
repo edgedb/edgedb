@@ -1,21 +1,21 @@
 .. _ref_cli_edgedb_describe_object:
 
 
-======================
-edgedb describe object
-======================
+===================
+gel describe object
+===================
 
 Describe a named schema object.
 
 .. cli:synopsis::
 
-    edgedb describe object [<options>] <name>
+    gel describe object [<options>] <name>
 
 
 Description
 ===========
 
-``edgedb describe`` is a terminal command equivalent to
+``gel describe`` is a terminal command equivalent to
 :eql:stmt:`describe object <describe>` introspection command.
 
 

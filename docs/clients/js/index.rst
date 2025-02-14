@@ -1,8 +1,8 @@
 .. _edgedb-js-intro:
 
-===========================
-EdgeDB TypeScript/JS Client
-===========================
+========================
+Gel TypeScript/JS Client
+========================
 
 .. toctree::
    :maxdepth: 3
@@ -27,10 +27,6 @@ EdgeDB TypeScript/JS Client
    group
    reference
 
-This is the official EdgeDB client library for JavaScript and TypeScript. It's
-the easiest way to connect to your database and execute queries from a Node.js
-or Deno backend.
-
 .. _edgedb-js-installation:
 
 
@@ -45,31 +41,31 @@ generators from npm using your package manager of choice.
     .. code-tab:: bash
       :caption: npm
 
-      $ npm install --save-prod edgedb          # database driver
-      $ npm install --save-dev @edgedb/generate # generators
+      $ npm install --save-prod gel          # database driver
+      $ npm install --save-dev @gel/generate # generators
 
     .. code-tab:: bash
       :caption: yarn
 
-      $ yarn add edgedb                 # database driver
-      $ yarn add --dev @edgedb/generate # generators
+      $ yarn add gel                 # database driver
+      $ yarn add --dev @gel/generate # generators
 
     .. code-tab:: bash
       :caption: pnpm
 
-      $ pnpm add --save-prod edgedb          # database driver
-      $ pnpm add --save-dev @edgedb/generate # generators
+      $ pnpm add --save-prod gel          # database driver
+      $ pnpm add --save-dev @gel/generate # generators
 
     .. code-tab:: typescript
       :caption: deno
 
-      import * as edgedb from "http://deno.land/x/edgedb/mod.ts";
+      import * as gel from "http://deno.land/x/gel/mod.ts";
 
     .. code-tab:: bash
       :caption: bun
 
-      $ bun add edgedb                 # database driver
-      $ bun add --dev @edgedb/generate # generators
+      $ bun add gel                 # database driver
+      $ bun add --dev @gel/generate # generators
 
 .. note:: Deno users
 
@@ -80,8 +76,8 @@ generators from npm using your package manager of choice.
 
         {
           "imports": {
-            "edgedb": "https://deno.land/x/edgedb/mod.ts",
-            "edgedb/": "https://deno.land/x/edgedb/"
+            "gel": "https://deno.land/x/gel/mod.ts",
+            "gel/": "https://deno.land/x/gel/"
           }
         }
 
@@ -103,7 +99,7 @@ Setup
 
 This section assumes you have gone through the :ref:`Quickstart Guide
 <ref_quickstart>` and understand how to update schemas, run migrations, and have
-a working EdgeDB project. Let's update the schema to make the ``title`` property
+a working |Gel| project. Let's update the schema to make the ``title`` property
 of the ``Movie`` type exclusive. This will help with filtering by
 ``Movie.title`` in our queries.
 
@@ -128,8 +124,8 @@ Generate the new migration and apply them:
 
 .. code-block:: bash
 
-  $ edgedb migration create
-  $ edgedb migrate
+  $ gel migration create
+  $ gel migrate
 
 We'll be using TypeScript and Node for this example, so let's setup a simple
 app:
@@ -137,8 +133,8 @@ app:
 .. code-block:: bash
 
   $ npm init -y # initialize a new npm project
-  $ npm i edgedb
-  $ npm i -D typescript @types/node @edgedb/generate tsx
+  $ npm i gel
+  $ npm i -D typescript @types/node @gel/generate tsx
   $ npx tsc --init # initialize a basic TypeScript project
 
 Client
@@ -154,9 +150,9 @@ insert query directly with the driver:
 .. code-block:: typescript
   :caption: seed.ts
 
-  import * as edgedb from "edgedb";
+  import * as gel from "gel";
 
-  const client = edgedb.createClient();
+  const client = gel.createClient();
 
   async function main() {
     await client.execute(`
@@ -182,7 +178,7 @@ We can now seed the database by running this script with ``tsx``
 
   $ npx tsx seed.ts
 
-Feel free to explore the database in the :ref:`EdgeDB UI <ref_cli_edgedb_ui>`,
+Feel free to explore the database in the :ref:`Gel UI <ref_cli_edgedb_ui>`,
 where you will find the new data you inserted through this script, as well as
 any data you inserted when running the Quickstart.
 
@@ -203,9 +199,9 @@ Iron Man 2:
 .. code-block:: typescript
   :caption: query.ts
 
-  import * as edgedb from "edgedb";
+  import * as gel from "gel";
 
-  const client = edgedb.createClient();
+  const client = gel.createClient();
 
   async function main() {
     const result = await client.querySingle(`
@@ -236,7 +232,7 @@ First we run the generator:
 
 .. code-block:: bash
 
-  $ npx @edgedb/generate interfaces
+  $ npx @gel/generate interfaces
 
 This generator introspects your database schema and generates a set of
 equivalent TypeScript interfaces.
@@ -246,10 +242,10 @@ Now we can annotate our query since we are selecting the whole ``Movie`` type:
 .. code-block:: typescript-diff
   :caption: query.ts
 
-    import * as edgedb from "edgedb";
+    import * as gel from "gel";
     import { Movie } from "./dbschema/interfaces"
 
-    const client = edgedb.createClient();
+    const client = gel.createClient();
 
     async function main() {
       // result will be inferred as Movie | null
@@ -304,7 +300,7 @@ which will compile all the queries it finds into a single TypeScript module:
 
 .. code-block:: bash
 
-  $ npx @edgedb/generate queries --file
+  $ npx @gel/generate queries --file
 
 Now, let's update our query script to call the generated function, which will
 provide us with type-safe querying.
@@ -312,11 +308,11 @@ provide us with type-safe querying.
 .. code-block:: typescript-diff
   :caption: query.ts
 
-    import * as edgedb from "edgedb";
+    import * as gel from "gel";
   - import { Movie } from "./dbschema/interfaces"
   + import { getMovie } from "./dbschema/queries"
 
-    const client = edgedb.createClient();
+    const client = gel.createClient();
 
     async function main() {
       // result will be inferred as Movie | null
@@ -344,8 +340,8 @@ change. It'll be completely type safe!
 Query builder
 ^^^^^^^^^^^^^
 
-At last we've arrived at the most powerful API for querying your EdgeDB
-instance: the query builder. The EdgeDB query builder provides a **code-first**
+At last we've arrived at the most powerful API for querying your |Gel|
+instance: the query builder. The Gel query builder provides a **code-first**
 way to write **fully-typed** EdgeQL queries with TypeScript. We recommend it for
 TypeScript users, or anyone who prefers writing queries with code.
 
@@ -353,7 +349,7 @@ First, we'll run the query builder generator:
 
 .. code-block:: bash
 
-  $ npx @edgedb/generate edgeql-js
+  $ npx @gel/generate edgeql-js
 
 .. note:: Version control
 
@@ -373,11 +369,11 @@ in TypeScript, getting editor completion, type checking, and type inferrence:
 .. code-block:: typescript-diff
   :caption: query.ts
 
-    import * as edgedb from "edgedb";
+    import * as gel from "gel";
   - import { getMovie } from "./dbschema/queries";
   + import e from "./dbschema/edgeql-js";
 
-    const client = edgedb.createClient();
+    const client = gel.createClient();
 
     async function main() {
   -   // result will be inferred as Movie | null
@@ -404,4 +400,4 @@ We recommend reading the :ref:`client docs <edgedb-js-driver>` first and getting
 familiar with configuring the client. You'll find important APIs like
 ``withGlobals`` and connection details there. After that, depending on your
 preferences, look through the :ref:`query builder <edgedb-js-qb>` documentation
-and use the other pages as a reference for writing code-first EdgeDB queries.
+and use the other pages as a reference for writing code-first Gel queries.

@@ -15,12 +15,12 @@ The type descriptor is essentially a list of type information *blocks*:
 * *blocks* can reference other *blocks*.
 
 While parsing the *blocks*, a database driver can assemble an
-*encoder* or a *decoder* of the EdgeDB binary data.
+*encoder* or a *decoder* of the Gel binary data.
 
 An *encoder* is used to encode objects, native to the driver's runtime,
-to binary data that EdgeDB can decode and work with.
+to binary data that Gel can decode and work with.
 
-A *decoder* is used to decode data from EdgeDB native format to
+A *decoder* is used to decode data from Gel native format to
 data types native to the driver.
 
 .. versionchanged:: _default
@@ -106,7 +106,7 @@ Scalar Type Descriptor
     };
 
 The descriptor IDs for fundamental scalar types are constant.
-The following table lists all EdgeDB fundamental type descriptor IDs:
+The following table lists all Gel fundamental type descriptor IDs:
 
 .. list-table::
    :header-rows: 1

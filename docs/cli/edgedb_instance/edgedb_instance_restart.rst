@@ -1,26 +1,26 @@
 .. _ref_cli_edgedb_instance_restart:
 
 
-=======================
-edgedb instance restart
-=======================
+====================
+gel instance restart
+====================
 
-Restart an EdgeDB instance.
+Restart an |Gel| instance.
 
 .. cli:synopsis::
 
-     edgedb instance restart <name>
+     gel instance restart <name>
 
 
 Description
 ===========
 
-``edgedb instance restart`` is a terminal command for restarting an
-EdgeDB instance.
+``gel instance restart`` is a terminal command for restarting an
+|Gel| instance.
 
 .. note::
 
-    The ``edgedb instance restart`` command is not intended for use with
+    The ``gel instance restart`` command is not intended for use with
     self-hosted instances.
 
 
@@ -28,4 +28,4 @@ Options
 =======
 
 :cli:synopsis:`<name>`
-    The EdgeDB instance name.
+    The |Gel| instance name.

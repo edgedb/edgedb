@@ -3,7 +3,7 @@
 Environment Variables
 =====================
 
-The behavior of EdgeDB can be configured with environment variables. The
+The behavior of Gel can be configured with environment variables. The
 variables documented on this page are supported when using the
 ``edgedb-server`` tool and the official :ref:`Docker image
 <ref_guide_deployment_docker>`.
@@ -79,7 +79,7 @@ if this is set.
 EDGEDB_SERVER_BINARY
 ....................
 
-Sets the EdgeDB server binary to run. Default is ``edgedb-server``.
+Sets the Gel server binary to run. Default is ``edgedb-server``.
 
 
 EDGEDB_SERVER_BOOTSTRAP_COMMAND_FILE
@@ -132,7 +132,7 @@ assumed.
 EDGEDB_SERVER_EXTRA_ARGS
 ........................
 
-Additional arguments to pass when starting the EdgeDB server.
+Additional arguments to pass when starting the Gel server.
 
 
 EDGEDB_SERVER_GENERATE_SELF_SIGNED_CERT
@@ -182,7 +182,7 @@ default.
 EDGEDB_SERVER_TENANT_ID
 .......................
 
-Specifies the tenant ID of this server when hosting multiple EdgeDB instances
+Specifies the tenant ID of this server when hosting multiple Gel instances
 on one Postgres cluster. Must be an alphanumeric ASCII string, maximum 10
 characters long.
 
@@ -206,17 +206,17 @@ password set in ``EDGEDB_SERVER_PASSWORD`` or the hash set in
 Server variables
 ----------------
 
-These variables will work whether you are running EdgeDB inside Docker or not.
+These variables will work whether you are running Gel inside Docker or not.
 
 
 EDGEDB_DEBUG_HTTP_INJECT_CORS
 .............................
 
-Set to ``1`` to have EdgeDB send appropriate CORS headers with HTTP responses.
+Set to ``1`` to have Gel send appropriate CORS headers with HTTP responses.
 
 .. note::
 
-    This is set to ``1`` by default for EdgeDB Cloud instances.
+    This is set to ``1`` by default for Gel Cloud instances.
 
 
 .. _ref_reference_envvar_admin_ui:
@@ -277,8 +277,8 @@ and ``*_ENV`` variants are also supported.
 EDGEDB_SERVER_MAX_BACKEND_CONNECTIONS
 .....................................
 
-The maximum NUM of connections this EdgeDB instance could make to the backend
-PostgreSQL cluster. If not set, EdgeDB will detect and calculate the NUM:
+The maximum NUM of connections this Gel instance could make to the backend
+PostgreSQL cluster. If not set, Gel will detect and calculate the NUM:
 RAM/100MiB for local Postgres, or pg_settings.max_connections for remote
 Postgres minus the NUM of ``--reserved-pg-connections``.
 
@@ -296,7 +296,7 @@ Specifies the security mode of the server's binary endpoint. When set to
 EDGEDB_SERVER_BIND_ADDRESS
 ..........................
 
-Specifies the network interface on which EdgeDB will listen.
+Specifies the network interface on which Gel will listen.
 
 Maps directly to the ``edgedb-server`` flag ``--bind-address``. The ``*_FILE``
 and ``*_ENV`` variants are also supported.
@@ -417,7 +417,7 @@ Set the logging level. Default is ``info``. Other possible values are
 EDGEDB_SERVER_PORT
 ..................
 
-Specifies the network port on which EdgeDB will listen. Default is ``5656``.
+Specifies the network port on which Gel will listen. Default is ``5656``.
 
 Maps directly to the ``edgedb-server`` flag ``--port``. The ``*_FILE`` and
 ``*_ENV`` variants are also supported.
@@ -444,7 +444,7 @@ and ``*_ENV`` variants are also supported.
 EDGEDB_SERVER_RUNSTATE_DIR
 ..........................
 
-Specifies a path where EdgeDB will place its Unix socket and other transient
+Specifies a path where Gel will place its Unix socket and other transient
 files.
 
 Maps directly to the ``edgedb-server`` flag ``--runstate-dir``.

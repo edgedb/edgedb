@@ -215,7 +215,7 @@ We need to separate this movie insert query so that we can use ``distinct`` on
 it. We could just nest an insert inside our character insert if movies weren't
 duplicated across characters (e.g., two characters have "The Avengers" in
 ``movies``). Even though the query is separated from the character inserts
-here, it will still be built as part of a single EdgeDB query using ``with``
+here, it will still be built as part of a single |Gel| query using ``with``
 which we'll get to a bit later.
 
 The ``distinct`` operator can only operate on sets. We use ``array_unpack`` to

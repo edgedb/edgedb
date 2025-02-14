@@ -1,15 +1,15 @@
 .. _ref_cli_edgedb_migration_edit:
 
 
-=======================
-edgedb migration edit
-=======================
+==================
+gel migration edit
+==================
 
 Edit migration file.
 
 .. cli:synopsis::
 
-    edgedb migration edit [<options>]
+    gel migration edit [<options>]
 
 Invokes ``$EDITOR`` on the last migration file, and then fixes migration id
 after editor exits. Usually should be used for migrations that haven't been

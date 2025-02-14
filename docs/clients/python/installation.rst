@@ -4,11 +4,11 @@
 Installation
 ============
 
-The recommended way to install the EdgeDB driver is to use **pip**:
+The recommended way to install the |Gel| driver is to use **pip**:
 
 .. code-block:: bash
 
-    $ pip install edgedb
+    $ pip install gel
 
 
 .. note::
@@ -22,7 +22,7 @@ The recommended way to install the EdgeDB driver is to use **pip**:
 Building from source
 --------------------
 
-If you want to build the EdgeDB driver from a Git checkout you will need:
+If you want to build the |Gel| driver from a Git checkout you will need:
 
 * A working C compiler.
 * CPython header files.  These can usually be obtained by installing
@@ -48,7 +48,7 @@ building:
 Running tests
 -------------
 
-The testsuite requires a working local installation of the EdgeDB server.
+The testsuite requires a working local installation of the Gel server.
 To execute the testsuite run:
 
 .. code-block:: bash

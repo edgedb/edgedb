@@ -7,7 +7,7 @@ Full-text Search
 ================
 
 The ``fts`` built-in module contains various tools that enable full-text
-search functionality in EdgeDB.
+search functionality in Gel.
 
 .. note::
 
@@ -290,11 +290,6 @@ the matching object *must not* contain:
         score: 0,
       },
     }
-
-.. note::
-
-    EdgeDB 4.0 only supports Postgres full-text search backend. Support for
-    other backends is still in development.
 
 ----------
 

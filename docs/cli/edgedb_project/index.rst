@@ -1,12 +1,12 @@
 .. _ref_cli_edgedb_project:
 
 
-==============
-edgedb project
-==============
+===========
+gel project
+===========
 
-EdgeDB provides a way to quickly setup a project. This way the project
-directory gets associated with a specific EdgeDB instance and thus
+|Gel| provides a way to quickly setup a project. This way the project
+directory gets associated with a specific Gel instance and thus
 makes it the default instance to connect to. This is done by creating
 an :ref:`ref_reference_edgedb_toml` file in the project directory.
 
@@ -29,4 +29,4 @@ an :ref:`ref_reference_edgedb_toml` file in the project directory.
     * - :ref:`ref_cli_edgedb_project_unlink`
       - Remove project association with an instance
     * - :ref:`ref_cli_edgedb_project_upgrade`
-      - Upgrade EdgeDB instance used for the current project
+      - Upgrade |Gel| instance used for the current project

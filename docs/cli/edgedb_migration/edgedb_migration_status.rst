@@ -1,17 +1,17 @@
 .. _ref_cli_edgedb_migration_status:
 
 
-=======================
-edgedb migration status
-=======================
+====================
+gel migration status
+====================
 
 Show current migration state.
 
 .. cli:synopsis::
 
-    edgedb migration status [<options>]
+    gel migration status [<options>]
 
-The tool will show how the state of the schema in the EdgeDB instance
+The tool will show how the state of the schema in the |Gel| instance
 compares to the migrations stored in the schema directory.
 
 Options

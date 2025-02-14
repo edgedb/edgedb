@@ -3,7 +3,7 @@
 HTTP API
 ========
 
-Using HTTP, you may check the health of your EdgeDB instance, check metrics on
+Using HTTP, you may check the health of your Gel instance, check metrics on
 your instance, and make queries.
 
 
@@ -19,15 +19,15 @@ your instance, and make queries.
 
 .. note::
 
-    Here's how to determine your local EdgeDB instance's HTTP server URL:
+    Here's how to determine your local Gel instance's HTTP server URL:
 
 .. versionchanged:: _default
 
     - The ``hostname`` will be ``localhost``
     - Find the ``port`` by running ``edgedb instance list``. This will print a
-      table of all EdgeDB instances on your machine, including their associated
+      table of all Gel instances on your machine, including their associated
       port number.
-    - In most cases, ``database-name`` will be ``edgedb``. An EdgeDB *instance*
+    - In most cases, ``database-name`` will be ``edgedb``. An Gel *instance*
       can contain multiple databases. On initialization, a default database
       called ``edgedb`` is created; all queries are executed against this
       database unless otherwise specified.
@@ -36,9 +36,9 @@ your instance, and make queries.
 
     - The ``hostname`` will be ``localhost``
     - Find the ``port`` by running ``edgedb instance list``. This will print a
-      table of all EdgeDB instances on your machine, including their associated
+      table of all Gel instances on your machine, including their associated
       port number.
-    - The default branch in your EdgeDB database is ``main``. Use this for
+    - The default branch in your Gel database is ``main``. Use this for
       ``<branch-name>`` unless you want to query a different branch.
 
     To determine the URL of a remote instance you have linked with the CLI, you
@@ -93,7 +93,7 @@ Retrieve instance metrics.
 
     http://<hostname>:<port>/metrics
 
-All EdgeDB instances expose a Prometheus-compatible endpoint available via GET
+All Gel instances expose a Prometheus-compatible endpoint available via GET
 request. The following metrics are made available.
 
 System
@@ -235,7 +235,7 @@ Your instance is now able to receive EdgeQL queries over HTTP.
 Making a query request
 ^^^^^^^^^^^^^^^^^^^^^^
 
-Make a query to your EdgeDB database using this URL:
+Make a query to your Gel database using this URL:
 
 .. versionchanged:: _default
 
@@ -263,7 +263,7 @@ submit a JSON payload with ``query`` and ``variables`` as top-level keys in
 that payload as in this example:
 
 Here's an example query you might want to run to insert a new person in your
-database, as executed from the EdgeDB REPL:
+database, as executed from the Gel REPL:
 
 .. code-block:: edgeql-repl
 

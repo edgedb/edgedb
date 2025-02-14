@@ -1,9 +1,9 @@
 .. _index_toplevel:
 
 
-====================
+=================
 Gel documentation
-====================
+=================
 
 Welcome to the |Gel| |version| documentation.
 

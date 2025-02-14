@@ -10,7 +10,7 @@ WebAuthn, short for Web Authentication, is a web standard published by the
 World Wide Web Consortium (W3C) for secure and passwordless authentication on
 the web. It allows users to log in using biometrics, mobile devices, or FIDO2
 security keys instead of traditional passwords. This guide will walk you
-through integrating WebAuthn authentication with your application using EdgeDB
+through integrating WebAuthn authentication with your application using Gel
 Auth.
 
 Why choose WebAuthn?
@@ -33,14 +33,14 @@ and aim to simplify the user experience further by leveraging cloud
 synchronization of credentials.
 
 Many operating systems and password managers have added support for Passkeys,
-making it easier for users to manage their credentials across devices. EdgeDB
+making it easier for users to manage their credentials across devices. Gel
 Auth's WebAuthn provider supports Passkeys, allowing users to log in to your
 application using their Passkeys.
 
 Security considerations
 =======================
 
-For maximum flexibility, EdgeDB Auth's WebAuthn provider allows multiple
+For maximum flexibility, Gel Auth's WebAuthn provider allows multiple
 WebAuthn credentials per email. This means that it's very important to verify
 the email before trusting a WebAuthn credential. This can be done by setting
 the ``require_verification`` option to ``true`` (which is the default) in your
@@ -191,7 +191,7 @@ Handle register and authenticate options
 The first step in the WebAuthn flow is to get the options for registering a new
 credential or authenticating an existing credential. The server generates a
 JSON object that is used to configure the WebAuthn registration or
-authentication ceremony. The EdgeDB Auth extension provides these endpoints
+authentication ceremony. The Gel Auth extension provides these endpoints
 directly, so you can either proxy the request to the Auth extension or redirect
 the user to the Auth extension's URL. We'll show the proxy option here.
 
@@ -274,7 +274,7 @@ Register a new credential
 
 The client script will call the Web Authentication API to create a new
 credential payload and send it to this endpoint. This endpoints job will be to
-forward the serialized credential payload to the EdgeDB Auth extension for
+forward the serialized credential payload to the Gel Auth extension for
 verification, and then associate the credential with the user's email address.
 
 .. lint-off
@@ -358,7 +358,7 @@ Authenticate with an existing credential
 
 The client script will call the Web Authentication API to authenticate with an
 existing credential and send the assertion to this endpoint. This endpoint's
-job will be to forward the serialized assertion to the EdgeDB Auth extension
+job will be to forward the serialized assertion to the Gel Auth extension
 for verification.
 
 .. lint-off
@@ -529,7 +529,7 @@ Client-side script
 ------------------
 
 On the client-side, you will need to write a script that retrieves the options
-from the EdgeDB Auth extension, calls the Web Authentication API, and sends the
+from the Gel Auth extension, calls the Web Authentication API, and sends the
 resulting credential or assertion to the server. Writing out the low-level
 handling of serialization and deserialization of the WebAuthn data is beyond the
 scope of this guide, but we publish a WebAuthn client library that you can use

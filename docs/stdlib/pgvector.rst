@@ -9,8 +9,8 @@ ext::pgvector
 This can be used to store and efficiently retrieve text embeddings,
 such as those produced by OpenAI.
 
-The Postgres that comes packaged with the EdgeDB 3.0+ server includes
-``pgvector``, as does EdgeDB Cloud. It you are using a separate
+The Postgres that comes packaged with the Gel server includes
+``pgvector``, as does Gel Cloud. It you are using a separate
 Postgres backend, you will need to arrange for it to be installed.
 
 To activate this new functionality you can use the :ref:`extension

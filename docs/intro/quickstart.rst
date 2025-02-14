@@ -4,7 +4,7 @@
 Quickstart
 ==========
 
-Welcome to EdgeDB!
+Welcome to Gel!
 
 This quickstart will walk you through the entire process of creating a simple
 EdgeDB-powered application: installation, defining your schema, adding some
@@ -15,12 +15,12 @@ data, and writing your first query. Let's jump in!
 1. Installation
 ===============
 
-First let's install the EdgeDB CLI. Open a terminal and run the appropriate
+First let's install the Gel CLI. Open a terminal and run the appropriate
 command below.
 
 .. note:: Great news for Node users!
 
-    Skip installing and start using the EdgeDB CLI right away! Just prepend
+    Skip installing and start using the Gel CLI right away! Just prepend
     :ref:`any CLI command <ref_cli_overview>` with ``npx`` or your package
     manager's equivalent. For example, to create a new project, you can use
     ``npx edgedb project init``.
@@ -38,27 +38,27 @@ Linux
     .. code-tab:: bash
         :caption: APT
 
-        $ # Import the EdgeDB packaging key
+        $ # Import the Gel packaging key
         $ sudo mkdir -p /usr/local/share/keyrings && \
           sudo curl --proto '=https' --tlsv1.2 -sSf \
             -o /usr/local/share/keyrings/edgedb-keyring.gpg \
             https://packages.edgedb.com/keys/edgedb-keyring.gpg && \
-        $ # Add the EdgeDB package repository
+        $ # Add the Gel package repository
         $ echo deb [signed-by=/usr/local/share/keyrings/edgedb-keyring.gpg]\
             https://packages.edgedb.com/apt \
             $(grep "VERSION_CODENAME=" /etc/os-release | cut -d= -f2) main \
             | sudo tee /etc/apt/sources.list.d/edgedb.list
-        $ # Install the EdgeDB package
+        $ # Install the Gel package
         $ sudo apt-get update && sudo apt-get install edgedb-5
 
     .. code-tab:: bash
         :caption: YUM
 
-        $ # Add the EdgeDB package repository
+        $ # Add the Gel package repository
         $ sudo curl --proto '=https' --tlsv1.2 -sSfL \
             https://packages.edgedb.com/rpm/edgedb-rhel.repo \
             > /etc/yum.repos.d/edgedb.repo
-        $ # Install the EdgeDB package
+        $ # Install the Gel package
         $ sudo yum install edgedb-5
 
 macOS
@@ -74,9 +74,9 @@ macOS
     .. code-tab:: bash
         :caption: Homebrew
 
-        $ # Add the EdgeDB tap to your Homebrew
+        $ # Add the Gel tap to your Homebrew
         $ brew tap edgedb/tap
-        $ # Install EdgeDB CLI
+        $ # Install Gel CLI
         $ brew install edgedb-cli
 
 Windows (Powershell)
@@ -84,9 +84,9 @@ Windows (Powershell)
 
 .. note::
 
-    EdgeDB on Windows requires WSL 2 to create local instances because the
-    EdgeDB server runs on Linux. It is *not* required if you will use the CLI
-    only to manage EdgeDB Cloud and/or other remote instances. This quickstart
+    Gel on Windows requires WSL 2 to create local instances because the
+    Gel server runs on Linux. It is *not* required if you will use the CLI
+    only to manage Gel Cloud and/or other remote instances. This quickstart
     *does* create local instances, so WSL 2 is required to complete the
     quickstart.
 
@@ -96,7 +96,7 @@ Windows (Powershell)
 
 .. note:: Command prompt installation
 
-    To install EdgeDB in the Windows Command prompt, follow these steps:
+    To install Gel in the Windows Command prompt, follow these steps:
 
     1. `Download the CLI <https://packages.edgedb.com/dist/x86_64-pc-windows-msvc/edgedb-cli.exe>`__
 
@@ -113,7 +113,7 @@ installs the ``edgedb`` CLI on your machine. You may be asked for your
 password. Once the installation completes, you may need to **restart your
 terminal** before you can use the ``edgedb`` command.
 
-Now let's set up your EdgeDB project.
+Now let's set up your Gel project.
 
 .. _ref_quickstart_createdb:
 
@@ -127,14 +127,14 @@ In a terminal, create a new directory and ``cd`` into it.
   $ mkdir quickstart
   $ cd quickstart
 
-Then initialize your EdgeDB project:
+Then initialize your Gel project:
 
 .. code-block:: bash
 
   $ edgedb project init
 
 This starts an interactive tool that walks you through the process of setting
-up your first EdgeDB instance. You should see something like this:
+up your first Gel instance. You should see something like this:
 
 .. code-block:: bash
 
@@ -142,12 +142,12 @@ up your first EdgeDB instance. You should see something like this:
   No `edgedb.toml` found in `/path/to/quickstart` or above
   Do you want to initialize a new project? [Y/n]
   > Y
-  Specify the name of EdgeDB instance to use with this project
+  Specify the name of Gel instance to use with this project
   [default: quickstart]:
   > quickstart
-  Checking EdgeDB versions...
-  Specify the version of EdgeDB to use with this project [default: 5.x]:
-  > 5.x
+  Checking Gel versions...
+  Specify the version of Gel to use with this project [default: x.x]:
+  > x.x
   Specify branch name: [default: main]:
   > main
   ┌─────────────────────┬───────────────────────────────────────────────┐
@@ -155,13 +155,13 @@ up your first EdgeDB instance. You should see something like this:
   │ Project config      │ ~/path/to/quickstart/edgedb.toml              │
   │ Schema dir (empty)  │ ~/path/to/quickstart/dbschema                 │
   │ Installation method │ portable package                              │
-  │ Version             │ 5.x+cc4f3b5                                   │
+  │ Version             │ x.x+cc4f3b5                                   │
   │ Instance name       │ quickstart                                    │
   └─────────────────────┴───────────────────────────────────────────────┘
   Downloading package...
   00:00:01 [====================] 41.40 MiB/41.40 MiB 32.89MiB/s | ETA: 0s
-  Successfully installed 5.x+cc4f3b5
-  Initializing EdgeDB instance...
+  Successfully installed x.x+cc4f3b5
+  Initializing Gel instance...
   Applying migrations...
   Everything is up to date. Revision initial
   Project initialized.
@@ -172,25 +172,25 @@ This did a couple things.
 
 1. First, it scaffolded your project by creating an
    :ref:`ref_reference_edgedb_toml` config file and a schema file
-   ``dbschema/default.esdl``. In the next section, you'll define a schema in
-   ``default.esdl``.
+   ``dbschema/default.gel``. In the next section, you'll define a schema in
+   ``default.gel``.
 
-2. Second, it spun up an EdgeDB instance called ``quickstart`` and "linked" it
+2. Second, it spun up an Gel instance called ``quickstart`` and "linked" it
    to the current directory. As long as you're inside the project
    directory, all CLI commands will be executed against this
-   instance. For more details on how EdgeDB projects work, check out the
+   instance. For more details on how Gel projects work, check out the
    :ref:`Managing instances <ref_intro_instances>` guide.
 
 .. note::
 
-  Quick note! You can have several **instances** of EdgeDB running on your
+  Quick note! You can have several **instances** of Gel running on your
   computer simultaneously. Each instance may be **branched** many times. Each
   branch may have an independent schema consisting of a number of **modules**
   (though commonly your schema will be entirely defined inside the ``default``
   module).
 
 Let's connect to our new instance! Run ``edgedb`` in your terminal to open an
-interactive REPL to your instance. You're now connected to a live EdgeDB
+interactive REPL to your instance. You're now connected to a live Gel
 instance running on your computer! Try executing a simple query (``select 1 + 1;``) after the
 REPL prompt (``quickstart:main>``):
 
@@ -219,22 +219,22 @@ see the following file structure.
   │   ├── migrations
 
 EdgeDB schemas are defined with a dedicated schema definition language called
-(predictably) EdgeDB SDL (or just **SDL** for short). It's an elegant,
+(predictably) Gel SDL (or just **SDL** for short). It's an elegant,
 declarative way to define your data model.
 
-SDL lives inside ``.esdl`` files. Commonly, your entire schema will be
-declared in a file called ``default.esdl`` but you can split your schema
-across several ``.esdl`` files if you prefer.
+SDL lives inside |.gel| files. Commonly, your entire schema will be
+declared in a file called ``default.gel`` but you can split your schema
+across several |.gel| files if you prefer.
 
 .. note::
 
-  Syntax-highlighter packages/extensions for ``.esdl`` files are available
+  Syntax-highlighter packages/extensions for |.gel| files are available
   for
   `Visual Studio Code <https://marketplace.visualstudio.com/
   itemdetails?itemName=magicstack.edgedb>`_,
   `Sublime Text <https://packagecontrol.io/packages/EdgeDB>`_,
   `Atom <https://atom.io/packages/edgedb>`_,
-  and `Vim <https://github.com/edgedb/edgedb-vim>`_.
+  and `Vim <https://github.com/geldata/edgedb-vim>`_.
 
 Let's build a simple movie database. We'll need to define two **object types**
 (equivalent to a *table* in SQL): Movie and Person. Open
@@ -270,10 +270,10 @@ Let's build a simple movie database. We'll need to define two **object types**
 
 A few things to note here.
 
-- Our types don't contain an ``id`` property; EdgeDB automatically
+- Our types don't contain an ``id`` property; Gel automatically
   creates this property and assigns a unique UUID to every object inserted
   into the database.
-- The ``Movie`` type includes a **link** named ``actors``. In EdgeDB, links are
+- The ``Movie`` type includes a **link** named ``actors``. In Gel, links are
   used to represent relationships between object types. They eliminate the need
   for foreign keys; later, you'll see just how easy it is to write "deep"
   queries without JOINs.
@@ -360,7 +360,7 @@ see something a little different than before.
   required? [y,n,l,c,b,s,q,?]
   >
 
-As before, EdgeDB parses the schema files and compared them against its
+As before, Gel parses the schema files and compared them against its
 current internal schema. It correctly detects the change we made, and prompts
 us to confirm it. This interactive process lets you sanity check every change
 and provide guidance when a migration is ambiguous (e.g. when a property is
@@ -379,7 +379,7 @@ Enter ``y`` to confirm the change.
   fill_expr> <std::str>{}
 
 Hm, now we're seeing another prompt. Because ``title`` is changing from
-*optional* to *required*, EdgeDB is asking us what to do for all the ``Movie``
+*optional* to *required*, Gel is asking us what to do for all the ``Movie``
 objects that don't currently have a value for ``title`` defined. We'll just
 specify a placeholder value of "Untitled". Replace the ``<std::str>{}`` value
 with ``"Untitled"`` and press Enter.
@@ -417,8 +417,8 @@ Let's wrap up by applying the new migration.
 5. Write some queries
 =====================
 
-Let's write some simple queries via *EdgeDB UI*, the admin dashboard baked
-into every EdgeDB instance (v2.0+ only). To open the dashboard:
+Let's write some simple queries via *Gel UI*, the admin dashboard baked
+into every Gel instance. To open the dashboard:
 
 .. code-block:: bash
 
@@ -505,7 +505,7 @@ will look something like this:
   ]
 
 EdgeDB UI is a useful development tool, but in practice your application will
-likely be using one of EdgeDB's *client libraries* to execute queries. EdgeDB
+likely be using one of Gel's *client libraries* to execute queries. Gel
 provides official libraries for many langauges:
 
 - :ref:`JavaScript/TypeScript <edgedb-js-intro>`
@@ -529,7 +529,7 @@ Check out the :ref:`Clients
 Onwards and upwards
 ===================
 
-You now know the basics of EdgeDB! You've installed the CLI and database, set
+You now know the basics of Gel! You've installed the CLI and database, set
 up a local project, run a couple migrations, inserted and queried some data,
 and used a client library.
 
@@ -545,9 +545,9 @@ and used a client library.
 - For a deep dive into the EdgeQL query language, check out the
   `Interactive Tutorial </tutorial>`_.
 
-- For an immersive, comprehensive walkthrough of EdgeDB concepts, check out
-  our illustrated e-book `Easy EdgeDB </easy-edgedb>`_; it's designed to walk a
-  total beginner through EdgeDB, from the basics all the way through advanced
+- For an immersive, comprehensive walkthrough of Gel concepts, check out
+  our illustrated e-book `Easy Gel </easy-edgedb>`_; it's designed to walk a
+  total beginner through Gel, from the basics all the way through advanced
   concepts.
 
 - To start building an application using the language of your choice, check out

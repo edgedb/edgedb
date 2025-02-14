@@ -43,7 +43,7 @@ General Guidelines
 Thank You!
 ==========
 
-Thank you for contributing to EdgeDB! We love our open source community and
+Thank you for contributing to Gel! We love our open source community and
 want to foster a healthy contributor ecosystem. We're happy to have you as a
 part of it.
 

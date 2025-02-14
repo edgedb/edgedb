@@ -2,12 +2,12 @@
 v2.0
 ====
 
-:edb-alt-title: Gel v2 (Sagittarius)
+:edb-alt-title: EdgeDB v2 (Sagittarius)
 
 .. image:: images/v2_sagittarius.jpg
     :width: 100%
 
-EdgeDB 2.0 was released on July 28th, 2022. Read the announcement
+|EdgeDB| 2.0 was released on July 28th, 2022. Read the announcement
 blog post `here <v2anno_>`_.
 
 We would like to thank our community for reporting issues and contributing

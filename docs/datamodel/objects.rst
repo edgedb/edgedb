@@ -6,7 +6,7 @@ Object Types
 
 .. index:: type, tables, models
 
-*Object types* are the primary components of an EdgeDB schema. They are
+*Object types* are the primary components of an Gel schema. They are
 analogous to SQL *tables* or ORM *models*, and consist of :ref:`properties
 <ref_datamodel_props>` and :ref:`links <ref_datamodel_links>`.
 

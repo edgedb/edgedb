@@ -1,13 +1,13 @@
 .. _ref_cli_edgedb_migration_extract:
 
 
-========================
-edgedb migration extract
-========================
+=====================
+gel migration extract
+=====================
 
 Extract migration history from the database and write it to
 ``/dbschema/migrations``. Useful when a direct DDL command has been used to
-change the schema and now ``edgedb migrate`` will not comply because the
+change the schema and now ``gel migrate`` will not comply because the
 database migration history is ahead of the migration history inside
 ``/dbschema/migrations``.
 

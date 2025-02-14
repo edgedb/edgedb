@@ -4,7 +4,7 @@
 Blocking API
 ============
 
-.. py:currentmodule:: edgedb
+.. py:currentmodule:: gel
 
 
 .. _edgedb-python-blocking-api-client:
@@ -34,12 +34,12 @@ Client
     Returns a new :py:class:`Client` object.
 
     :param dsn:
-        If this parameter does not start with ``edgedb://`` then this is
+        If this parameter does not start with ``gel://`` then this is
         interpreted as the :ref:`name of a local instance
         <ref_reference_connection_instance_name>`.
 
         Otherwise it specifies a single string in the following format:
-        ``edgedb://user:password@host:port/database?option=value``.
+        ``gel://user:password@host:port/database?option=value``.
         The following options are recognized: host, port,
         user, database, password. For a complete reference on DSN, see
         the :ref:`DSN Specification <ref_dsn>`.
@@ -114,14 +114,14 @@ Client
 
     .. code-block:: python
 
-        client = edgedb.create_client()
+        client = gel.create_client()
         client.query('SELECT {1, 2, 3}')
 
     The same for transactions:
 
     .. code-block:: python
 
-        client = edgedb.create_client()
+        client = gel.create_client()
         for tx in client.transaction():
             with tx:
                 tx.query('SELECT {1, 2, 3}')
@@ -138,7 +138,7 @@ Client
     .. py:method:: query(query, *args, **kwargs)
 
         Acquire a connection and use it to run a query and return the results
-        as an :py:class:`edgedb.Set` instance. The temporary
+        as an :py:class:`gel.Set` instance. The temporary
         connection is automatically returned back to the pool.
 
         :param str query: Query text.
@@ -146,7 +146,7 @@ Client
         :param kwargs: Named query arguments.
 
         :return:
-            An instance of :py:class:`edgedb.Set` containing
+            An instance of :py:class:`gel.Set` containing
             the query result.
 
         Note that positional and named query arguments cannot be mixed.
@@ -166,7 +166,7 @@ Client
             Query result.
 
         The *query* must return no more than one element.  If the query returns
-        more than one element, an ``edgedb.ResultCardinalityMismatchError``
+        more than one element, an ``gel.ResultCardinalityMismatchError``
         is raised, if it returns an empty set, ``None`` is returned.
 
         Note, that positional and named query arguments cannot be mixed.
@@ -186,8 +186,8 @@ Client
             Query result.
 
         The *query* must return exactly one element.  If the query returns
-        more than one element, an ``edgedb.ResultCardinalityMismatchError``
-        is raised, if it returns an empty set, an ``edgedb.NoDataError``
+        more than one element, an ``gel.ResultCardinalityMismatchError``
+        is raised, if it returns an empty set, an ``gel.NoDataError``
         is raised.
 
         Note, that positional and named query arguments cannot be mixed.
@@ -235,7 +235,7 @@ Client
             Query result encoded in JSON.
 
         The *query* must return no more than one element.  If the query returns
-        more than one element, an ``edgedb.ResultCardinalityMismatchError``
+        more than one element, an ``gel.ResultCardinalityMismatchError``
         is raised, if it returns an empty set, ``"null"`` is returned.
 
         Note, that positional and named query arguments cannot be mixed.
@@ -267,8 +267,8 @@ Client
             Query result encoded in JSON.
 
         The *query* must return exactly one element.  If the query returns
-        more than one element, an ``edgedb.ResultCardinalityMismatchError``
-        is raised, if it returns an empty set, an ``edgedb.NoDataError``
+        more than one element, an ``gel.ResultCardinalityMismatchError``
+        is raised, if it returns an empty set, an ``gel.NoDataError``
         is raised.
 
         Note, that positional and named query arguments cannot be mixed.
@@ -354,7 +354,7 @@ Client
         Wait until all pool connections are released, close them and
         shut down the pool.  If any error (including timeout) occurs
         in ``close()`` the pool will terminate by calling
-        :py:meth:`~edgedb.Client.terminate`.
+        :py:meth:`~gel.Client.terminate`.
 
         :param float timeout: Seconds to wait, ``None`` for wait forever.
 
@@ -593,12 +593,12 @@ See also:
 
         Acquire a connection if the current transaction doesn't have one yet,
         and use it to run a query and return the results
-        as an :py:class:`edgedb.Set` instance. The temporary
+        as an :py:class:`gel.Set` instance. The temporary
         connection is automatically returned back to the pool when exiting the
         transaction block.
 
         See :py:meth:`Client.query()
-        <edgedb.Client.query>` for details.
+        <gel.Client.query>` for details.
 
     .. py:method:: query_single(query, *args, **kwargs)
 
@@ -608,7 +608,7 @@ See also:
         returned back to the pool when exiting the transaction block.
 
         See :py:meth:`Client.query_single()
-        <edgedb.Client.query_single>` for details.
+        <gel.Client.query_single>` for details.
 
     .. py:method:: query_required_single(query, *args, **kwargs)
 
@@ -618,7 +618,7 @@ See also:
         returned back to the pool when exiting the transaction block.
 
         See :py:meth:`Client.query_required_single()
-        <edgedb.Client.query_required_single>` for details.
+        <gel.Client.query_required_single>` for details.
 
     .. py:method:: query_json(query, *args, **kwargs)
 
@@ -628,7 +628,7 @@ See also:
         returned back to the pool when exiting the transaction block.
 
         See :py:meth:`Client.query_json()
-        <edgedb.Client.query_json>` for details.
+        <gel.Client.query_json>` for details.
 
     .. py:method:: query_single_json(query, *args, **kwargs)
 
@@ -639,7 +639,7 @@ See also:
         block.
 
         See :py:meth:`Client.query_single_json()
-        <edgedb.Client.query_single_json>` for details.
+        <gel.Client.query_single_json>` for details.
 
     .. py:method:: query_required_single_json(query, *args, **kwargs)
 
@@ -650,7 +650,7 @@ See also:
         block.
 
         See :py:meth:`Client.query_requried_single_json()
-        <edgedb.Client.query_required_single_json>` for details.
+        <gel.Client.query_required_single_json>` for details.
 
     .. py:method:: execute(query)
 
@@ -660,7 +660,7 @@ See also:
         returned back to the pool when exiting the transaction block.
 
         See :py:meth:`Client.execute()
-        <edgedb.Client.execute>` for details.
+        <gel.Client.execute>` for details.
 
 .. py:class:: Retry
 
@@ -676,4 +676,4 @@ See also:
         be repeated.
 
 
-.. _RFC1004: https://github.com/edgedb/rfcs/blob/master/text/1004-transactions-api.rst
+.. _RFC1004: https://github.com/gel/rfcs/blob/master/text/1004-transactions-api.rst

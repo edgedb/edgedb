@@ -5,16 +5,16 @@ Query Builder Generator
 =======================
 :index: querybuilder generator typescript
 
-The EdgeDB query builder provides a **code-first** way to write
+The |Gel| query builder provides a **code-first** way to write
 **fully-typed** EdgeQL queries with TypeScript. We recommend it for TypeScript
 users, or anyone who prefers writing queries with code.
 
 .. code-block:: typescript
 
-  import * as edgedb from "edgedb";
+  import * as gel from "gel";
   import e from "./dbschema/edgeql-js";
 
-  const client = edgedb.createClient();
+  const client = gel.createClient();
 
   async function run() {
     const query = e.select(e.Movie, ()=>({
@@ -39,9 +39,9 @@ users, or anyone who prefers writing queries with code.
 
   No—it's better! Like any modern TypeScript ORM, the query builder gives you
   full typesafety and autocompletion, but without the power and `performance
-  <https://github.com/edgedb/imdbench>`_
+  <https://github.com/geldata/imdbench>`_
   tradeoffs. You have access to the **full power** of EdgeQL and can write
-  EdgeQL queries of arbitrary complexity. And since EdgeDB compiles each
+  EdgeQL queries of arbitrary complexity. And since |Gel| compiles each
   EdgeQL query into a single, highly-optimized SQL query, your queries stay
   fast, even when they're complex.
 
@@ -71,21 +71,21 @@ To get started, install the following packages.
 
   If you're using Deno, you can skip this step.
 
-Install the ``edgedb`` package.
+Install the ``gel`` package.
 
 .. code-block:: bash
 
-  $ npm install edgedb       # npm users
-  $ yarn add edgedb          # yarn users
-  $ bun add edgedb           # bun users
+  $ npm install gel       # npm users
+  $ yarn add gel          # yarn users
+  $ bun add gel           # bun users
 
-Then install ``@edgedb/generate`` as a dev dependency.
+Then install ``@gel/generate`` as a dev dependency.
 
 .. code-block:: bash
 
-  $ npm install @edgedb/generate --save-dev      # npm users
-  $ yarn add @edgedb/generate --dev              # yarn users
-  $ bun add --dev @edgedb/generate               # bun users
+  $ npm install @gel/generate --save-dev      # npm users
+  $ yarn add @gel/generate --dev              # yarn users
+  $ bun add --dev @gel/generate               # bun users
 
 
 Generation
@@ -98,17 +98,17 @@ The following command will run the ``edgeql-js`` query builder generator.
   .. code-tab:: bash
     :caption: Node.js
 
-    $ npx @edgedb/generate edgeql-js
+    $ npx @gel/generate edgeql-js
 
   .. code-tab:: bash
     :caption: Deno
 
-    $ deno run --allow-all --unstable https://deno.land/x/edgedb/generate.ts edgeql-js
+    $ deno run --allow-all --unstable https://deno.land/x/gel/generate.ts edgeql-js
 
   .. code-tab:: bash
     :caption: Bun
 
-    $ bunx @edgedb/generate edgeql-js
+    $ bunx @gel/generate edgeql-js
 
 .. note:: Deno users
 
@@ -119,8 +119,8 @@ The following command will run the ``edgeql-js`` query builder generator.
 
         {
           "imports": {
-            "edgedb": "https://deno.land/x/edgedb/mod.ts",
-            "edgedb/": "https://deno.land/x/edgedb/"
+            "gel": "https://deno.land/x/gel/mod.ts",
+            "gel/": "https://deno.land/x/gel/"
           }
         }
 
@@ -145,7 +145,7 @@ The generation command is configurable in a number of ways.
   ``--force-overwrite``.
 
 The generator also supports all the :ref:`connection flags
-<ref_cli_edgedb_connopts>` supported by the EdgeDB CLI. These aren't
+<ref_cli_edgedb_connopts>` supported by the |Gel| CLI. These aren't
 necessary when using a project or environment variables to configure a
 connection.
 

@@ -209,7 +209,7 @@ the ``name`` property inside ``__type__``:
 
     Type cast is a run-time operation.  The cast will succeed only if a
     type conversion was defined for the type pair, and if the source value
-    satisfies the requirements of a target type. EdgeDB allows casting any
+    satisfies the requirements of a target type. Gel allows casting any
     scalar.
 
     It is illegal to cast one :eql:type:`Object` into another. The

@@ -1,21 +1,20 @@
 .. _ref_cli_edgedb_branch_switch:
 
 
-====================
-edgedb branch switch
-====================
+=================
+gel branch switch
+=================
 
 Change the currently active :ref:`branch <ref_datamodel_branches>`
 
 .. cli:synopsis::
 
-    edgedb branch switch [<options>] <name>
+    gel branch switch [<options>] <name>
 
 .. note::
 
-    This CLI command requires CLI version 4.0 or later and EdgeDB version 5.0
-    or later. Earlier versions did not feature branches and instead featured
-    databases.
+    This CLI command requires |Gel| version 5.0 or later. Earlier versions did
+    not feature branches and instead featured databases.
 
     Databases offered no direct analog to switching.
 
@@ -38,7 +37,7 @@ Change the currently active :ref:`branch <ref_datamodel_branches>`
 Options
 =======
 
-The ``branch switch`` command runs in the EdgeDB instance it is
+The ``branch switch`` command runs in the |Gel| instance it is
 connected to. For specifying the connection target see
 :ref:`connection options <ref_cli_edgedb_connopts>`.
 

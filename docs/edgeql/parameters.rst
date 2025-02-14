@@ -17,7 +17,7 @@ parameters are supplied externally.
   select BlogPost filter .id = <uuid>$blog_id;
 
 Note that we provided an explicit type cast before the parameter. This is
-required, as it enables EdgeDB to enforce the provided types at runtime.
+required, as it enables Gel to enforce the provided types at runtime.
 
 .. versionadded:: 3.0
 
@@ -36,14 +36,14 @@ Usage with clients
 REPL
 ^^^^
 
-When you include a parameter reference in an EdgeDB REPL, you'll be prompted
+When you include a parameter reference in an Gel REPL, you'll be prompted
 interactively to provide a value or values.
 
 .. code-block:: edgeql-repl
 
   db> select 'I ❤️ ' ++ <str>$var ++ '!';
-  Parameter <str>$var: EdgeDB
-  {'I ❤️ EdgeDB!'}
+  Parameter <str>$var: Gel
+  {'I ❤️ Gel!'}
 
 
 Python
@@ -89,7 +89,7 @@ Go
 
 
 Refer to the Datatypes page of your preferred :ref:`client library
-<ref_clients_index>` to learn more about mapping between EdgeDB types and
+<ref_clients_index>` to learn more about mapping between Gel types and
 language-native types.
 
 
@@ -100,10 +100,8 @@ Parameter types and JSON
 
 .. index:: complex parameters
 
-Prior to EdgeDB 3.0, parameters can be only :ref:`scalars
-<ref_datamodel_scalar_types>` or arrays of scalars. In EdgeDB 3.0, parameters
-can also be tuples. If you need to pass complex structures as parameters, use
-EdgeDB's built-in :ref:`JSON <ref_std_json>` functionality.
+In Gel, parameters can also be tuples. If you need to pass complex structures
+as parameters, use Gel's built-in :ref:`JSON <ref_std_json>` functionality.
 
 .. code-block:: edgeql-repl
 
@@ -165,8 +163,8 @@ in case the parameter is not passed. You can do this by using the
 .. code-block:: edgeql-repl
 
   db> select 'Hello ' ++ <optional str>$name ?? 'there';
-  Parameter <str>$name (Ctrl+D for empty set `{}`): EdgeDB
-  {'Hello EdgeDB'}
+  Parameter <str>$name (Ctrl+D for empty set `{}`): Gel
+  {'Hello Gel'}
   db> select 'Hello ' ++ <optional str>$name ?? 'there';
   Parameter <str>$name (Ctrl+D for empty set `{}`):
   {'Hello there'}
@@ -179,7 +177,7 @@ What can be parameterized?
 
 Any data manipulation language (DML) statement can be
 parameterized: ``select``, ``insert``, ``update``, and ``delete``. Since
-parameters can only be scalars, arrays of scalars, and, as of EdgeDB 3.0,
+parameters can only be scalars, arrays of scalars, and
 tuples of scalars, only parts of the query that would be one of those types can
 be parameterized. This excludes parts of the query like the type being queried
 and the property to order by.

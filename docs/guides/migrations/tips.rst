@@ -291,7 +291,7 @@ different from specifying a ``default`` value since it will be applied
 to *existing* objects, whereas the ``default`` applies to *new ones*.
 
 Unseen to us (unless we take a look at the automatically generated
-``.edgeql`` files inside our ``/dbschema`` folder), EdgeDB has created
+``.edgeql`` files inside our ``/dbschema`` folder), Gel has created
 a migration script that includes the following command to make our
 schema change happen.
 
@@ -404,7 +404,7 @@ Since we've done this on purpose, we can update the file and run
 
 Finally, we evolved our schema all the way from having an optional
 property ``name`` all the way to making it both *required* and
-*exclusive*. We've worked with the EdgeDB :ref:`migration tools
+*exclusive*. We've worked with the Gel :ref:`migration tools
 <ref_cli_edgedb_migration>` to iron out the kinks throughout the
 migration process. At this point we take a quick look at the way
 duplicate ``User`` objects were resolved to decide whether we need to

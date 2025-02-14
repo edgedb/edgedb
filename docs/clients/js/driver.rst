@@ -25,9 +25,9 @@ To create a client:
 
 .. code-block:: javascript
 
-    const edgedb = require("edgedb");
+    const gel = require("gel");
 
-    const client = edgedb.createClient();
+    const client = gel.createClient();
 
 
 If you're using TypeScript or have ES modules enabled, you can use
@@ -35,9 +35,9 @@ If you're using TypeScript or have ES modules enabled, you can use
 
 .. code-block:: javascript
 
-    import * as edgedb from "edgedb";
+    import * as gel from "gel";
 
-    const client = edgedb.createClient();
+    const client = gel.createClient();
 
 
 Connections
@@ -45,7 +45,7 @@ Connections
 
 Notice we didn't pass any arguments into ``createClient``. That's intentional.
 
-**In development**, we recommend using ``edgedb project init`` to create an
+**In development**, we recommend using ``gel project init`` to create an
 instance and link it to your project directory. As long as you're inside this
 directory, ``createClient()`` with auto-detect the project and connect to the
 associated instance automatically.
@@ -71,7 +71,7 @@ value specified below is the *default value* for that setting.
 
 .. code-block:: typescript
 
-  import {createClient, Duration, IsolationLevel} from "edgedb";
+  import {createClient, Duration, IsolationLevel} from "gel";
 
   const baseClient = createClient();
   const client = baseClient
@@ -104,9 +104,9 @@ To execute a basic query:
 
 .. code-block:: javascript
 
-  const edgedb = require("edgedb");
+  const gel = require("gel");
 
-  const client = edgedb.createClient();
+  const client = gel.createClient();
 
   async function main() {
     const result = await client.query(`select 2 + 2;`);
@@ -139,7 +139,7 @@ constraints on cardinality.
 ``.querySingle`` method
 ^^^^^^^^^^^^^^^^^^^^^^^
 
-If you know your query will only return a single element, you can tell EdgeDB
+If you know your query will only return a single element, you can tell |Gel|
 to expect a *singleton result* by using the ``.querySingle`` method. This is
 intended for queries that return *zero or one* elements. If the query returns
 a set with more than one elements, the ``Client`` will throw a runtime error.
@@ -190,14 +190,14 @@ The TypeScript signatures of these methods reflects their behavior.
 Type conversion
 ---------------
 
-The client converts EdgeDB types into a corresponding JavaScript data
-structure. Some EdgeDB types like ``duration`` don't have a corresponding type
+The client converts |Gel| types into a corresponding JavaScript data
+structure. Some Gel types like ``duration`` don't have a corresponding type
 in the JavaScript type system, so we've implemented classes like
 :js:class:`Duration` to represent them.
 
 .. list-table::
 
-  * - **EdgeDB type**
+  * - **Gel type**
     - **JavaScript type**
   * - Sets
     - ``Array``
@@ -260,13 +260,6 @@ documentation.
 - :js:class:`Range`
 
 
-.. .. note::
-
-..   **A message for query builder users**
-
-..   Everything below this point isn't necessary/applicable for query builder users. Continue to the :ref:`Query Builder <edgedb-js-qb>` docs.
-
-
 JSON results
 ------------
 
@@ -298,7 +291,7 @@ query to return a value.
     title := "Avengers: Endgame"
   };`);
 
-With EdgeDB 2.0 or later, you can execute a "script" consisting of multiple
+You can also execute a "script" consisting of multiple
 semicolon-separated statements in a single ``.execute`` call.
 
 .. code-block:: javascript
@@ -376,9 +369,9 @@ a query, use the ``.ensureConnected()`` method.
 
 .. code-block:: javascript
 
-  const edgedb = require("edgedb");
+  const gel = require("gel");
 
-  const client = edgedb.createClient();
+  const client = gel.createClient();
 
   async function main() {
     await client.ensureConnected();
@@ -421,7 +414,7 @@ JavaScript code. Here is an example:
 
 .. code-block:: javascript
 
-    const email = "timmy@edgedb.com"
+    const email = "timmy@geldata.com"
 
     await client.transaction(async tx => {
       await tx.execute(
@@ -455,7 +448,7 @@ shouldn't have side effects or run for a significant amount of time.
   * RFC1004_
   * :js:meth:`Client.transaction\<T\>`
 
-  .. _RFC1004: https://github.com/edgedb/rfcs/blob/master/text/1004-transactions-api.rst
+  .. _RFC1004: https://github.com/geldata/rfcs/blob/master/text/1004-transactions-api.rst
 
 
 Next up

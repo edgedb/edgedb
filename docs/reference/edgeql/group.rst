@@ -10,10 +10,6 @@ Group
 
 :index: group using by
 
-.. note::
-
-  The ``group`` statement is only available in EdgeDB 2.0 or later.
-
 ``group``--partition a set into subsets based on one or more keys
 
 .. eql:synopsis::

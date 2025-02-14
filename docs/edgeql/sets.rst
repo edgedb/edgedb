@@ -53,7 +53,7 @@ A consequence of this is that nested sets are *flattened*.
   db> select 1 union (2 union (3 union 4));
   {1, 2, 3, 4}
 
-All values in a set must have the same type. For convenience, EdgeDB will
+All values in a set must have the same type. For convenience, Gel will
 *implicitly cast* values to other types, as long as there is no loss of
 information (e.g. converting a ``int16`` to an ``int64``). For a full
 reference, see the casting table in :ref:`Standard Library > Casts
@@ -129,7 +129,7 @@ Empty sets
 
 The reason EdgeQL introduced the concept of *sets* is to eliminate the concept
 of ``null``. In SQL databases ``null`` is a special value denoting the absence
-of data; in EdgeDB the absence of data is just an empty set.
+of data; in Gel the absence of data is just an empty set.
 
 .. note::
 
@@ -138,7 +138,7 @@ of data; in EdgeDB the absence of data is just an empty set.
   circumstances. A number of specific inconsistencies are documented in detail
   in the `We Can Do Better Than SQL
   <https://www.edgedb.com/blog/we-can-do-better-than-sql#null-a-bag-of-surprises>`_
-  post on the EdgeDB blog. For broader context, see Tony Hoare's talk
+  post on the Gel blog. For broader context, see Tony Hoare's talk
   `"The Billion Dollar Mistake" <https://bit.ly/3H238oG>`_.
 
 
@@ -217,7 +217,7 @@ Multisets
 
 .. index:: multisets, distinct, duplicates
 
-Technically sets in EdgeDB are actually *multisets*, because they can contain
+Technically sets in Gel are actually *multisets*, because they can contain
 duplicates of the same element. To eliminate duplicates, use the
 :eql:op:`distinct` set operator.
 
@@ -441,7 +441,7 @@ handling data structures. It's useful to consider functions/operators as either
 .. note::
 
   This is an over-simplification, but it's a useful mental model when just
-  starting out with EdgeDB. For a more complete guide, see :ref:`Reference >
+  starting out with Gel. For a more complete guide, see :ref:`Reference >
   Cardinality <ref_reference_cardinality>`.
 
 *Aggregate* operations are applied to the set *as a whole*; they

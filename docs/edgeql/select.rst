@@ -648,8 +648,8 @@ links to a second object without a link back to the first.
 
 Spider-Man's villains always have a grudging respect for him, and their names
 can be displayed to reflect that if we know the ID of a movie that they
-starred in. (Note the ability to :ref:`cast from a uuid <ref_uuid_casting>`
-to an object type, which was added in EdgeDB 3.0!)
+starred in. Note the ability to :ref:`cast from a uuid <ref_uuid_casting>`
+to an object type.
 
 .. code-block:: edgeql-repl
 
@@ -706,7 +706,7 @@ expression, primitive or otherwise.
 
 .. note::
 
-  In EdgeDB all values are orderable. Objects are compared using their ``id``;
+  In Gel all values are orderable. Objects are compared using their ``id``;
   tuples and arrays are compared element-by-element from left to right. By
   extension, the generic comparison operators :eql:op:`= <eq>`,
   :eql:op:`\< <lt>`, :eql:op:`\> <gt>`, etc. can be used with any two
@@ -928,7 +928,7 @@ common to add them directly into your schema as computed links.
 .. note::
 
   In the example above, the ``Person.movies`` is a ``multi`` link. Including
-  these keywords is optional, since EdgeDB can infer this from the assigned
+  these keywords is optional, since Gel can infer this from the assigned
   expression ``.<characters[is Movie]``. However, it's a good practice to
   include the explicit keywords to make the schema more readable and "sanity
   check" the cardinality.
@@ -1188,7 +1188,7 @@ know about the type of the current object. The splat operator can be used to
 see this object's makeup, while the double splat operator produces too much
 output to show on this page. Playing around with the splat and double splat
 operator inside ``__type__`` is a quick way to get some insight into the
-internals of EdgeDB.
+internals of Gel.
 
 .. code-block:: edgeql-repl
 

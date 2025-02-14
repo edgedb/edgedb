@@ -10,7 +10,7 @@ automatically suggested:
 
 .. code-block:: bash
 
-  $ edgedb project init --server-version 6.0-beta.1
+  $ gel project init --server-version 6.0-beta.1
 
 
 Upgrading
@@ -21,20 +21,20 @@ Upgrading
 **Local instances**
 
 To upgrade a local project, first ensure that your CLI is up to date with
-``edgedb cli upgrade``. Then run the following command inside the project
+``gel cli upgrade``. Then run the following command inside the project
 directory.
 
 .. code-block:: bash
 
-  $ edgedb project upgrade --to-testing
+  $ gel project upgrade --to-testing
 
 Alternatively, specify an instance name if you aren't using a project:
 
 .. code-block:: bash
 
-  $ edgedb instance upgrade -I my_instance
+  $ gel instance upgrade -I my_instance
 
-The CLI will check if your schema can migrate cleanly to EdgeDB 6.0. If any
+The CLI will check if your schema can migrate cleanly to Gel 6.0. If any
 issues are found, they will be reported.
 
 **Hosted instances**
@@ -42,32 +42,32 @@ issues are found, they will be reported.
 To upgrade a remote instance, we recommend the following dump-and-restore
 process:
 
-1. EdgeDB v6.0 supports PostgreSQL 14 or above. Verify your PostgreSQL version
-   before upgrading EdgeDB. If you're using Postgres 13 or below, upgrade
+1. Gel v6.0 supports PostgreSQL 14 or above. Verify your PostgreSQL version
+   before upgrading Gel. If you're using Postgres 13 or below, upgrade
    Postgres first.
 
 2. Spin up an empty 6.0 instance. You can use one of our :ref:`deployment
    guides <ref_guide_deployment>`.
 
-   For Debian/Ubuntu, when adding the EdgeDB package repository, use this
+   For Debian/Ubuntu, when adding the Gel package repository, use this
    command:
 
    .. code-block:: bash
 
-       $ echo deb [signed-by=/usr/local/share/keyrings/edgedb-keyring.gpg] \
-           https://packages.edgedb.com/apt \
+       $ echo deb [signed-by=/usr/local/share/keyrings/gel-keyring.gpg] \
+           https://packages.geldata.com/apt \
            $(grep "VERSION_CODENAME=" /etc/os-release | cut -d= -f2) main \
-           | sudo tee /etc/apt/sources.list.d/edgedb.list
-       $ sudo apt-get update && sudo apt-get install edgedb-6
+           | sudo tee /etc/apt/sources.list.d/gel.list
+       $ sudo apt-get update && sudo apt-get install gel-6
 
    For CentOS/RHEL, use this installation command:
 
    .. code-block:: bash
 
-       $ sudo yum install edgedb-6
+       $ sudo yum install gel-6
 
-   In any required ``systemctl`` commands, replace ``edgedb-server-6`` with
-   ``edgedb-server-6``.
+   In any required ``systemctl`` commands, replace ``edgedb-server-5`` with
+   ``gel-server-6``.
 
    For Docker setups, use the ``6.0`` tag.
 
@@ -75,7 +75,7 @@ process:
 
    .. code-block:: bash
 
-       $ edgedb dump --dsn <old dsn> --all --format dir my_database.dump/
+       $ gel dump --dsn <old dsn> --all --format dir my_database.dump/
 
    This will dump the schema and contents of your current database to a
    directory on your local disk called ``my_database.dump``. The directory name
@@ -85,7 +85,7 @@ process:
 
    .. code-block:: bash
 
-       $ edgedb restore --all my_database.dump/ --dsn <new dsn>
+       $ gel restore --all my_database.dump/ --dsn <new dsn>
 
    Once the restore is complete, update your application to connect to the new
    instance.
@@ -100,15 +100,15 @@ SQL write support
 -----------------
 
 You can now use SQL DML (``insert``, ``update``, ``delete``) when connecting to
-your EdgeDB instance via the PostgreSQL protocol. Our aim is to support most
+your |Gel| instance via the PostgreSQL protocol. Our aim is to support most
 typical use cases from tools like SQL ORMs and SQL clients.
 
-This allows more developers to use EdgeDB, leveraging our advanced data model,
+This allows more developers to use Gel, leveraging our advanced data model,
 tooling, and high-performance connection management. Teams can migrate their
-existing SQL codebases to EdgeDB without rewriting their queries. Once adopted,
+existing SQL codebases to Gel without rewriting their queries. Once adopted,
 you can gradually take advantage of EdgeQL's powerful query capabilities.
 
-Existing EdgeDB users who already use EdgeQL can benefit too. While some SQL
+Existing Gel users who already use EdgeQL can benefit too. While some SQL
 features like window functions, recursive queries, and explicit locking are not
 yet supported, you can use these features in SQL today. We will continue to add
 support for more features in the future.
@@ -213,7 +213,7 @@ Simpler scoping rules
 ---------------------
 
 We've simplified the scoping rules for queries. See `our RFC 1027 outlining the
-changes <https://github.com/edgedb/rfcs/blob/master/text/1027-no-factoring.rst>`_.
+changes <https://github.com/geldata/rfcs/blob/master/text/1027-no-factoring.rst>`_.
 
 The RFC highlights two main reasons for removing path factoring: the need to
 simplify and enhance the language, and concerns about implementation. Path

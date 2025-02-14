@@ -7,14 +7,14 @@ Errors
 Errors inheritance
 ==================
 
-Each error in EdgeDB consists of a code, a name, and optionally tags. Errors
-in EdgeDB can inherit from other errors. This is denoted by matching code
+Each error in Gel consists of a code, a name, and optionally tags. Errors
+in Gel can inherit from other errors. This is denoted by matching code
 prefixes. For example, ``TransactionConflictError`` (``0x_05_03_01_00``) is
 the parent error for ``TransactionSerializationError`` (``0x_05_03_01_01``)
 and ``TransactionDeadlockError`` (``0x_05_03_01_02``). The matching prefix
 here is ``0x_05_03_01``.
 
-When the EdgeDB client expects a more general error and EdgeDB returns a more
+When the Gel client expects a more general error and Gel returns a more
 specific error that inherits from the general error, the check in the client
 must take this into account. This can be expressed by the ``binary and``
 operation or ``&`` opeator in most programming languages:

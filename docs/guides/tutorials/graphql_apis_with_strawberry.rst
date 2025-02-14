@@ -11,8 +11,8 @@ creating backend-less applications where the users will directly communicate
 with the database. You can learn more about that in the
 :ref:`GraphQL <ref_graphql_index>` section of the docs.
 
-However, as of now, EdgeDB is not ready to be used as a standalone backend. You
-shouldn't expose your EdgeDB instance directly to the application's frontend;
+However, as of now, Gel is not ready to be used as a standalone backend. You
+shouldn't expose your Gel instance directly to the application's frontend;
 this is insecure and will give all users full read/write access to your
 database. So, in this tutorial, we'll see how you can quickly create a simple
 GraphQL API without using the built-in extension, which will give the users
@@ -28,9 +28,9 @@ and expose the objects and relationships as a GraphQL API. Using the GraphQL
 interface, you'll be able to fetch, create, update, and delete movie and actor
 objects in the database. `Strawberry <https://strawberry.rocks/>`_ is a Python
 library that takes a code-first approach where you'll write your object schema
-as Python classes. This allows us to focus more on how you can integrate EdgeDB
+as Python classes. This allows us to focus more on how you can integrate Gel
 into your workflow and less on the idiosyncrasies of GraphQL itself. We'll also
-use the EdgeDB client to communicate with the database,
+use the Gel client to communicate with the database,
 `FastAPI <https://fastapi.tiangolo.com/>`_ to build the authentication layer,
 and Uvicorn as the webserver.
 
@@ -69,22 +69,22 @@ dependencies with this command:
 Initialize the database
 ^^^^^^^^^^^^^^^^^^^^^^^
 
-Now, let's initialize an EdgeDB project. From the project's root directory:
+Now, let's initialize an Gel project. From the project's root directory:
 
 .. code-block:: bash
 
     $ edgedb project init
     Initializing project...
 
-    Specify the name of EdgeDB instance to use with this project
+    Specify the name of Gel instance to use with this project
     [default: strawberry_crud]:
     > strawberry_crud
 
     Do you want to start instance automatically on login? [y/n]
     > y
-    Checking EdgeDB versions...
+    Checking Gel versions...
 
-Once you've answered the prompts, a new EdgeDB instance called
+Once you've answered the prompts, a new Gel instance called
 ``strawberry_crud`` will be created and started.
 
 
@@ -102,7 +102,7 @@ similar to this:
 
 ::
 
-    EdgeDB 2.x (repl 2.x)
+    Gel x.x (repl x.x)
     Type \help for help, \quit to quit.
     edgedb>
 
@@ -161,7 +161,7 @@ This is how our datatypes look:
 
 
 Here, we've defined an ``abstract`` type called ``Auditable`` to take advantage
-of EdgeDB's schema mixin system. This allows us to add a ``created_at``
+of Gel's schema mixin system. This allows us to add a ``created_at``
 property to multiple types without repeating ourselves.
 
 The ``Actor`` type extends ``Auditable`` and inherits the ``created_at``
@@ -200,7 +200,7 @@ layer, and exposes the API to the webserver.
 Write the GraphQL schema
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Along with the database schema, to expose EdgeDB's object relational model as a
+Along with the database schema, to expose Gel's object relational model as a
 GraphQL API, you'll also have to define a GraphQL schema that mirrors the
 object structure in the database. Strawberry allows us to express this schema
 via type annotated Python classes. We define the Strawberry schema in the
@@ -233,7 +233,7 @@ via type annotated Python classes. We define the Strawberry schema in the
         actors: list[Actor] | None = None
 
 Here, the GraphQL schema mimics our database schema. Similar to the ``Actor``
-and ``Movie`` types in the EdgeDB schema, here, both the ``Actor`` and
+and ``Movie`` types in the Gel schema, here, both the ``Actor`` and
 ``Movie`` models have three attributes. Likewise, the ``actors`` attribute in
 the ``Movie`` model represents the link between movies and actors.
 
@@ -290,7 +290,7 @@ is built in the ``schema.py`` file as follows:
 Here, the ``get_actors`` resolver method accepts an optional ``filter_name``
 parameter and returns a list of ``Actor`` type objects. The optional
 ``filter_name`` parameter allows us to build the capability of filtering the
-actor objects by name. Inside the method, we use the EdgeDB client to
+actor objects by name. Inside the method, we use the Gel client to
 asynchronously query the data. The ``client.query_json`` method returns JSON
 serialized data which we use to create the ``Actor`` instances. Finally, we
 return the list of actor instances and the rest of the work is done by
@@ -738,7 +738,7 @@ more insights into the implementation details of those mutations.
 Conclusion
 ==========
 
-In this tutorial, you've seen how can use Strawberry and EdgeDB together to
+In this tutorial, you've seen how can use Strawberry and Gel together to
 quickly build a fully-featured GraphQL API. Also, you have seen how FastAPI
 allows you add an authentication layer and serve the API in a secure manner.
 One thing to keep in mind here is, ideally, you'd only use GraphQL if you're

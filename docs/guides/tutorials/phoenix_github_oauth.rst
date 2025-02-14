@@ -9,15 +9,15 @@ Phoenix
 
 In this tutorial, we'll look at
 how you can create an application with authorization through GitHub using
-`Phoenix <https://phoenixframework.org/>`_ and `the official EdgeDB Elixir
+`Phoenix <https://phoenixframework.org/>`_ and `the official Gel Elixir
 driver <https://hexdocs.pm/edgedb/main.html>`_.
 
 This tutorial is a simplified version of the `LiveBeats
 <https://github.com/fly-apps/live_beats>`_ application from
-`fly.io <https://fly.io>`_ with EdgeDB instead of PostgreSQL, which focuses on
+`fly.io <https://fly.io>`_ with Gel instead of PostgreSQL, which focuses on
 implementing authorization via GitHub. The completed implementation of this
 example can be found `on GitHub <repository_>`_. The full version
-of LiveBeats version on EdgeDB can also be found `on GitHub
+of LiveBeats version on Gel can also be found `on GitHub
 <https://github.com/nsidnev/edgedb-phoenix-example>`_
 
 .. _repository:
@@ -30,7 +30,7 @@ Prerequisites
 
 For this tutorial we will need:
 
-* EdgeDB CLI.
+* Gel CLI.
 * Elixir version 1.13 or higher.
 * Phoenix framework version 1.6 or higher.
 * `GitHub OAuth application <gh-oauth-guide_>`_.
@@ -41,7 +41,7 @@ For this tutorial we will need:
 
 Before discussing the project database schema, let's generate a skeleton for
 our application. We will make sure that it will use binary IDs for the Ecto
-schemas because EdgeDB uses UUIDs as primary IDs, which in Elixir are
+schemas because Gel uses UUIDs as primary IDs, which in Elixir are
 represented as strings, and since it is basically a plain JSON API application,
 we will disable all the built-in Phoenix integrations.
 
@@ -60,7 +60,7 @@ won't be used by us.
   $ # because they will not be used
   $ rm -r lib/github_oauth/repo.ex priv/repo/
 
-And then add the EdgeDB driver, the ``Ecto`` helper for it and the ``Mint``
+And then add the Gel driver, the ``Ecto`` helper for it and the ``Mint``
 HTTP client for GitHub OAuth client as project dependencies to ``mix.exs``.
 
 .. code-block:: elixir
@@ -93,14 +93,14 @@ Now we need to download new dependencies.
   $ mix deps.get
 
 Next, we will create a module in ``lib/github_oauth/edgedb.ex`` which will
-define a child specification for the EdgeDB driver and use the ``EdgeDBEcto``
+define a child specification for the Gel driver and use the ``GelEcto``
 helper, which will inspect the queries that will be stored in the
 ``priv/edgeql/`` directory and generate Elixir code for them.
 
 .. code-block:: elixir
 
-  defmodule GitHubOAuth.EdgeDB do
-    use EdgeDBEcto,
+  defmodule GitHubOAuth.Gel do
+    use GelEcto,
       name: __MODULE__,
       queries: true,
       otp_app: :github_oauth
@@ -108,12 +108,12 @@ helper, which will inspect the queries that will be stored in the
     def child_spec(_opts \\ []) do
       %{
         id: __MODULE__,
-        start: {EdgeDB, :start_link, [[name: __MODULE__]]}
+        start: {Gel, :start_link, [[name: __MODULE__]]}
       }
     end
   end
 
-Now we need to add ``GitHubOAuth.EdgeDB`` as a child for our application in
+Now we need to add ``GitHubOAuth.Gel`` as a child for our application in
 ``lib/github_oauth/application.ex`` (at the same time removing the child
 definition for ``Ecto.Repo`` from there).
 
@@ -125,8 +125,8 @@ definition for ``Ecto.Repo`` from there).
     @impl true
     def start(_type, _args) do
       children = [
-        # Start the EdgeDB driver
-        GitHubOAuth.EdgeDB,
+        # Start the Gel driver
+        GitHubOAuth.Gel,
         # Start the Telemetry supervisor
         GitHubOAuthWeb.Telemetry,
         # Start the PubSub system
@@ -144,7 +144,7 @@ definition for ``Ecto.Repo`` from there).
   end
 
 
-Now we are ready to start working with EdgeDB! First, let's initialize a new
+Now we are ready to start working with Gel! First, let's initialize a new
 project for this application.
 
 .. code-block:: bash
@@ -155,13 +155,13 @@ project for this application.
   Do you want to initialize a new project? [Y/n]
   > Y
 
-  Specify the name of EdgeDB instance to use with this project
+  Specify the name of Gel instance to use with this project
   [default: phoenix_github_oauth]:
   > github_oauth
 
-  Checking EdgeDB versions...
-  Specify the version of EdgeDB to use with this project [default: 2.x]:
-  > 2.x
+  Checking Gel versions...
+  Specify the version of Gel to use with this project [default: x.x]:
+  > x.x
 
   Do you want to start instance automatically on login? [y/n]
   > y
@@ -176,7 +176,7 @@ This application will have 2 types: ``User`` and ``Identity``. The
 represents the way the user logs in to the application (in this example via
 GitHub OAuth).
 
-This schema will be stored in a single EdgeDB module inside the
+This schema will be stored in a single Gel module inside the
 ``dbschema/default.esdl`` file.
 
 .. code-block:: sdl
@@ -262,7 +262,7 @@ Here is the definition for the user in the ``lib/accounts/user.ex`` file.
 
   defmodule GitHubOAuth.Accounts.User do
     use Ecto.Schema
-    use EdgeDBEcto.Mapper
+    use GelEcto.Mapper
 
     alias GitHubOAuth.Accounts.Identity
 
@@ -287,7 +287,7 @@ And here for identity in ``lib/accounts/identity.ex``.
 
   defmodule GitHubOAuth.Accounts.Identity do
     use Ecto.Schema
-    use EdgeDBEcto.Mapper
+    use GelEcto.Mapper
 
     alias GitHubOAuth.Accounts.User
 
@@ -312,12 +312,12 @@ User authentication via GitHub
 ==================================
 
 This part will be pretty big, as we'll talk about using ``Ecto.Changeset``
-with the EdgeDB driver, as well as modules and queries related to user
+with the Gel driver, as well as modules and queries related to user
 registration via GitHub OAuth.
 
 ``Ecto`` provides "changesets" (via ``Ecto.Changeset``), which are convenient
 to use when working with ``Ecto.Schema`` to validate external parameters. We
-could use them via ``EdgeDBEcto`` instead, though not quite as fully as we can
+could use them via ``GelEcto`` instead, though not quite as fully as we can
 with the full-featured adapters for ``Ecto``.
 
 First, we will update the ``GitHubOAuth.Accounts.Identity`` module so that it
@@ -466,7 +466,7 @@ itself will be used by Phoenix controllers.
     alias GitHubOAuth.Accounts.{User, Identity}
 
     def get_user(id) do
-      GitHubOAuth.EdgeDB.Accounts.get_user_by_id(id: id)
+      GitHubOAuth.Gel.Accounts.get_user_by_id(id: id)
     end
 
     def register_github_user(primary_email, info, emails, token) do
@@ -475,15 +475,15 @@ itself will be used by Phoenix controllers.
       else
         info
         |> User.github_registration_changeset(primary_email, emails, token)
-        |> EdgeDBEcto.insert(
-          &GitHubOAuth.EdgeDB.Accounts.register_github_user/1,
+        |> GelEcto.insert(
+          &GitHubOAuth.Gel.Accounts.register_github_user/1,
           nested: true
         )
       end
     end
 
     def get_user_by_provider(provider, email) when provider in [:github] do
-      GitHubOAuth.EdgeDB.Accounts.get_user_by_provider(
+      GitHubOAuth.Gel.Accounts.get_user_by_provider(
         provider: to_string(provider),
         email: String.downcase(email)
       )
@@ -491,7 +491,7 @@ itself will be used by Phoenix controllers.
 
     defp update_github_token(%User{} = user, new_token) do
       identity =
-        GitHubOAuth.EdgeDB.Accounts.get_identity_for_user(
+        GitHubOAuth.Gel.Accounts.get_identity_for_user(
           user_id: user.id,
           provider: "github"
         )
@@ -500,8 +500,8 @@ itself will be used by Phoenix controllers.
         identity
         |> change()
         |> put_change(:provider_token, new_token)
-        |> EdgeDBEcto.update(
-          &GitHubOAuth.EdgeDB.Accounts.update_identity_token/1
+        |> GelEcto.update(
+          &GitHubOAuth.Gel.Accounts.update_identity_token/1
         )
 
       identity = %Identity{identity | provider_token: new_token}
@@ -542,13 +542,13 @@ which defines a query to find an user with a specified email provider.
 
 It is worth noting the ``# edgedb = :query_single!`` and
 ``# mapper = GitHubOAuth.Accounts.User`` comments. Both are special comments
-that will be used by ``EdgeDBEcto`` when generating query functions. The
+that will be used by ``GelEcto`` when generating query functions. The
 ``edgedb`` comment defines the driver function for requesting data.
 Information on all supported features can be found in the driver
-`documentation <https://hexdocs.pm/edgedb/EdgeDB.html#functions>`_.
+`documentation <https://hexdocs.pm/edgedb/Gel.html#functions>`_.
 The ``mapper`` comment is used to define the module that will be used to map
-the result from EdgeDB to some other form. Our ``Ecto.Schema`` schemas support
-this with ``use EdgeDBEcto.Mapper`` expression at the top of the module
+the result from Gel to some other form. Our ``Ecto.Schema`` schemas support
+this with ``use GelEcto.Mapper`` expression at the top of the module
 definition.
 
 The queries for `getting the identity <get-identity-query_>`_ and
@@ -586,7 +586,7 @@ separate parameters such as ``$id`` and ``$provider_token``. This is because
 to update our identity we use the changeset in the module
 ``GitHubOAuth.Accounts``, which automatically monitors changes to the schema
 and will not give back the parameters, which will not affect the state of the
-schema in update. So ``EdgeDBEcto`` automatically converts data from
+schema in update. So ``GelEcto`` automatically converts data from
 changesets when it is an update or insert operation into a named ``$params``
 parameter of type JSON. It also helps to work with nested changesets, as we
 will see in the next query, which is defined in the

@@ -45,7 +45,7 @@ drop future
 :eql-statement:
 
 
-Stop importing future behavior prior to the EdgeDB version in which it appears.
+Stop importing future behavior prior to the Gel version in which it appears.
 
 .. eql:synopsis::
 
@@ -57,9 +57,9 @@ Description
 
 The command ``drop future`` disables a currently active future behavior for the
 current :versionreplace:`database;5.0:branch`. However, this is only possible
-for versions of EdgeDB when the behavior in question is not officially
+for versions of Gel when the behavior in question is not officially
 introduced. Once a particular behavior is introduced as the standard behavior
-in an EdgeDB release, it cannot be disabled. Running this command will simply
+in an Gel release, it cannot be disabled. Running this command will simply
 denote that no special action is needed to enable it in this case.
 
 
@@ -76,6 +76,6 @@ defining other access policies:
     drop future nonrecursive_access_policies;
 
 
-Once EdgeDB 3.0 is released there is no more need for enabling non-recursive
+Since |EdgeDB| 3.0 was released there is no more need for enabling non-recursive
 access policy behavior anymore. So the above command will simply indicate that
 the database no longer does anything non-standard.

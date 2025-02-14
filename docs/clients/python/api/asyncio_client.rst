@@ -4,7 +4,7 @@
 AsyncIO API
 ===========
 
-.. py:currentmodule:: edgedb
+.. py:currentmodule:: gel
 
 
 .. _edgedb-python-async-api-client:
@@ -34,12 +34,12 @@ Client
     Returns a new :py:class:`AsyncIOClient` object.
 
     :param str dsn:
-        If this parameter does not start with ``edgedb://`` then this is
+        If this parameter does not start with ``gel://`` then this is
         interpreted as the :ref:`name of a local instance
         <ref_reference_connection_instance_name>`.
 
         Otherwise it specifies a single string in the following format:
-        ``edgedb://user:password@host:port/database?option=value``.
+        ``gel://user:password@host:port/database?option=value``.
         The following options are recognized: host, port,
         user, database, password. For a complete reference on DSN, see
         the :ref:`DSN Specification <ref_dsn>`.
@@ -118,14 +118,14 @@ Client
 
     .. code-block:: python
 
-        client = edgedb.create_async_client()
+        client = gel.create_async_client()
         await client.query('SELECT {1, 2, 3}')
 
     The same for transactions:
 
     .. code-block:: python
 
-        client = edgedb.create_async_client()
+        client = gel.create_async_client()
         async for tx in client.transaction():
             async with tx:
                 await tx.query('SELECT {1, 2, 3}')
@@ -137,12 +137,12 @@ Client
     An asynchronous client with a connection pool, safe for concurrent use.
 
     Async clients are created by calling
-    :py:func:`~edgedb.create_async_client`.
+    :py:func:`~gel.create_async_client`.
 
     .. py:coroutinemethod:: query(query, *args, **kwargs)
 
         Acquire a connection and use it to run a query and return the results
-        as an :py:class:`edgedb.Set` instance. The temporary
+        as an :py:class:`gel.Set` instance. The temporary
         connection is automatically returned back to the pool.
 
         :param str query: Query text.
@@ -150,7 +150,7 @@ Client
         :param kwargs: Named query arguments.
 
         :return:
-            An instance of :py:class:`edgedb.Set` containing
+            An instance of :py:class:`gel.Set` containing
             the query result.
 
         Note that positional and named query arguments cannot be mixed.
@@ -170,7 +170,7 @@ Client
             Query result.
 
         The *query* must return no more than one element.  If the query returns
-        more than one element, an ``edgedb.ResultCardinalityMismatchError``
+        more than one element, an ``gel.ResultCardinalityMismatchError``
         is raised, if it returns an empty set, ``None`` is returned.
 
         Note, that positional and named query arguments cannot be mixed.
@@ -190,8 +190,8 @@ Client
             Query result.
 
         The *query* must return exactly one element.  If the query returns
-        more than one element, an ``edgedb.ResultCardinalityMismatchError``
-        is raised, if it returns an empty set, an ``edgedb.NoDataError``
+        more than one element, an ``gel.ResultCardinalityMismatchError``
+        is raised, if it returns an empty set, an ``gel.NoDataError``
         is raised.
 
         Note, that positional and named query arguments cannot be mixed.
@@ -239,7 +239,7 @@ Client
             Query result encoded in JSON.
 
         The *query* must return no more than one element.  If the query returns
-        more than one element, an ``edgedb.ResultCardinalityMismatchError``
+        more than one element, an ``gel.ResultCardinalityMismatchError``
         is raised, if it returns an empty set, ``"null"`` is returned.
 
         Note, that positional and named query arguments cannot be mixed.
@@ -271,8 +271,8 @@ Client
             Query result encoded in JSON.
 
         The *query* must return exactly one element.  If the query returns
-        more than one element, an ``edgedb.ResultCardinalityMismatchError``
-        is raised, if it returns an empty set, an ``edgedb.NoDataError``
+        more than one element, an ``gel.ResultCardinalityMismatchError``
+        is raised, if it returns an empty set, an ``gel.NoDataError``
         is raised.
 
         Note, that positional and named query arguments cannot be mixed.
@@ -358,7 +358,7 @@ Client
         Wait until all pool connections are released, close them and
         shut down the pool.  If any error (including cancellation) occurs
         in ``aclose()`` the pool will terminate by calling
-        :py:meth:`~edgedb.AsyncIOClient.terminate`.
+        :py:meth:`~gel.AsyncIOClient.terminate`.
 
         It is advisable to use :py:func:`python:asyncio.wait_for` to set
         a timeout.
@@ -611,12 +611,12 @@ See also:
 
         Acquire a connection if the current transaction doesn't have one yet,
         and use it to run a query and return the results
-        as an :py:class:`edgedb.Set` instance. The temporary
+        as an :py:class:`gel.Set` instance. The temporary
         connection is automatically returned back to the pool when exiting the
         transaction block.
 
         See :py:meth:`AsyncIOClient.query()
-        <edgedb.AsyncIOClient.query>` for details.
+        <gel.AsyncIOClient.query>` for details.
 
     .. py:coroutinemethod:: query_single(query, *args, **kwargs)
 
@@ -626,7 +626,7 @@ See also:
         returned back to the pool when exiting the transaction block.
 
         See :py:meth:`AsyncIOClient.query_single()
-        <edgedb.AsyncIOClient.query_single>` for details.
+        <gel.AsyncIOClient.query_single>` for details.
 
     .. py:coroutinemethod:: query_required_single(query, *args, **kwargs)
 
@@ -636,7 +636,7 @@ See also:
         returned back to the pool when exiting the transaction block.
 
         See :py:meth:`AsyncIOClient.query_required_single()
-        <edgedb.AsyncIOClient.query_required_single>` for details.
+        <gel.AsyncIOClient.query_required_single>` for details.
 
     .. py:coroutinemethod:: query_json(query, *args, **kwargs)
 
@@ -646,7 +646,7 @@ See also:
         returned back to the pool when exiting the transaction block.
 
         See :py:meth:`AsyncIOClient.query_json()
-        <edgedb.AsyncIOClient.query_json>` for details.
+        <gel.AsyncIOClient.query_json>` for details.
 
     .. py:coroutinemethod:: query_single_json(query, *args, **kwargs)
 
@@ -657,7 +657,7 @@ See also:
         block.
 
         See :py:meth:`AsyncIOClient.query_single_json()
-        <edgedb.AsyncIOClient.query_single_json>` for details.
+        <gel.AsyncIOClient.query_single_json>` for details.
 
     .. py:coroutinemethod:: query_required_single_json(query, *args, **kwargs)
 
@@ -668,7 +668,7 @@ See also:
         block.
 
         See :py:meth:`AsyncIOClient.query_requried_single_json()
-        <edgedb.AsyncIOClient.query_required_single_json>` for details.
+        <gel.AsyncIOClient.query_required_single_json>` for details.
 
     .. py:coroutinemethod:: execute(query)
 
@@ -678,6 +678,6 @@ See also:
         returned back to the pool when exiting the transaction block.
 
         See :py:meth:`AsyncIOClient.execute()
-        <edgedb.AsyncIOClient.execute>` for details.
+        <gel.AsyncIOClient.execute>` for details.
 
-.. _RFC1004: https://github.com/edgedb/rfcs/blob/master/text/1004-transactions-api.rst
+.. _RFC1004: https://github.com/gel/rfcs/blob/master/text/1004-transactions-api.rst

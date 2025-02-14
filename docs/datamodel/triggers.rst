@@ -153,9 +153,9 @@ Now, whenever we run a query, we get a log entry as well:
 .. note::
 
     In some cases, a trigger can cause another trigger to fire. When this
-    happens, EdgeDB completes all the triggers fired by the initial query
+    happens, Gel completes all the triggers fired by the initial query
     before kicking off a new "stage" of triggers. In the second stage, any
-    triggers fired by the initial stage of triggers will fire. EdgeDB will
+    triggers fired by the initial stage of triggers will fire. Gel will
     continue adding trigger stages until all triggers are complete.
 
     The exception to this is when triggers would cause a loop or would cause
@@ -347,7 +347,7 @@ both a friend and an enemy of any other person.
     ...     select detached Person filter .name = 'Dracula'
     ...   )
     ... };
-    edgedb error: EdgeDBError: Invalid frenemies
+    edgedb error: GelError: Invalid frenemies
 
 
 .. list-table::
