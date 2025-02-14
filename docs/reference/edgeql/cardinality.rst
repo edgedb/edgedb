@@ -17,7 +17,7 @@ tracks 5 different cardinality ranges: ``Empty`` (zero elements), ``One`` (a
 singleton set), ``AtMostOne`` (zero or one elements), ``AtLeastOne`` (one or
 more elements), and ``Many`` (any number of elements).
 
-EdgeDB uses this information to statically check queries for validity. For
+|Gel| uses this information to statically check queries for validity. For
 instance, when assigning to a ``required multi`` link, the value being
 assigned in question *must* have a cardinality of ``One`` or ``AtLeastOne``
 (as empty sets are not permitted).

@@ -4,7 +4,7 @@
 Binary protocol
 ===============
 
-EdgeDB uses a message-based binary protocol for communication between
+|Gel| uses a message-based binary protocol for communication between
 clients and servers.  The protocol is supported over TCP/IP.
 
 

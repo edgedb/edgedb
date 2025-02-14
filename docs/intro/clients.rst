@@ -4,7 +4,7 @@
 Client Libraries
 ================
 
-EdgeDB implements libraries for popular languages that make it easier to work
+|Gel| implements libraries for popular languages that make it easier to work
 with Gel. These libraries provide a common set of functionality.
 
 - *Instantiating clients.* Most libraries implement a ``Client`` class that

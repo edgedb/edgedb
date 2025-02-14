@@ -5,7 +5,7 @@
 Deployment
 ==========
 
-EdgeDB can be hosted on all major cloud hosting platforms. The guides below
+|Gel| can be hosted on all major cloud hosting platforms. The guides below
 demonstrate how to spin up both a managed PostgreSQL instance and a container
 running Gel `in Docker <https://github.com/edgedb/edgedb-docker>`_.
 

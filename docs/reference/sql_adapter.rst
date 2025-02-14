@@ -11,7 +11,7 @@ SQL adapter
 Connecting
 ==========
 
-EdgeDB server supports PostgreSQL connection interface. It implements PostgreSQL
+|Gel| server supports PostgreSQL connection interface. It implements PostgreSQL
 wire protocol as well as SQL query language.
 
 As of |Gel| 6.0, it also supports a subset of Data Modification Language,

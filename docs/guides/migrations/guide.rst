@@ -522,7 +522,7 @@ Sometimes you may want to initialize a database with some default
 data, or add some data to a migration that you have just created before
 you apply it.
 
-EdgeDB assumes by default that a migration involves a change to your
+|Gel| assumes by default that a migration involves a change to your
 schema, so it won't create a migration for you if it doesn't see a
 schema change:
 
@@ -804,8 +804,8 @@ We'll take its suggestion to apply the migration:
     Squashing is limited to schema changes, so queries inside
     data migrations will be discarded during a squash.
 
-EdgeDB Watch
-============
+Gel Watch
+=========
 
 Another option when quickly iterating over schema changes is ``edgedb watch``.
 This will create a long-running process that keeps track of every time you

@@ -16,7 +16,7 @@ Auth
 
 :edb-alt-title: Using Gel Auth
 
-EdgeDB Auth is a batteries-included authentication solution for your app built
+|Gel| Auth is a batteries-included authentication solution for your app built
 into the Gel server. Here's how you can integrate it with your app.
 
 
@@ -316,7 +316,7 @@ To enable via query or script:
 
 If you use the Email and Password provider, in addition to the
 ``require_verification`` configuration, you'll need to configure SMTP to allow
-EdgeDB to send email verification and password reset emails on your behalf or
+|Gel| to send email verification and password reset emails on your behalf or
 set up webhooks for the relevant events:
 
 - ``ext::auth::WebhookEvent.EmailVerificationRequested``

@@ -218,7 +218,7 @@ see the following file structure.
   │   ├── default.esdl
   │   ├── migrations
 
-EdgeDB schemas are defined with a dedicated schema definition language called
+|Gel| schemas are defined with a dedicated schema definition language called
 (predictably) Gel SDL (or just **SDL** for short). It's an elegant,
 declarative way to define your data model.
 
@@ -504,7 +504,7 @@ will look something like this:
     }
   ]
 
-EdgeDB UI is a useful development tool, but in practice your application will
+|Gel| UI is a useful development tool, but in practice your application will
 likely be using one of Gel's *client libraries* to execute queries. Gel
 provides official libraries for many langauges:
 

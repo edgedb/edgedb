@@ -22,7 +22,7 @@ You can reference the following repositories for more context:
 Step 1: Gel setup
 =================
 
-EdgeDB will serve as the database layer for your application.
+|Gel| will serve as the database layer for your application.
 
 Install and initialize Gel
 --------------------------
@@ -274,8 +274,8 @@ and context in both **Next.js** and **Express** environments. This will ensure
 that user authentication is handled securely and that both server-side and
 client-side tRPC calls can access the user's session.
 
-EdgeDB Auth with tRPC and tRPC context in Next.js
--------------------------------------------------
+Gel Auth with tRPC and tRPC context in Next.js
+----------------------------------------------
 
 In **Next.js**, integrating **Gel Auth** with **tRPC** involves creating a
 context that provides the user session and Gel client to the tRPC API.
@@ -361,8 +361,8 @@ context that provides the user session and Gel client to the tRPC API.
         }),
       });
 
-EdgeDB Auth with tRPC and Context in Express
---------------------------------------------
+Gel Auth with tRPC and Context in Express
+-----------------------------------------
 
 In **Express**, the process involves setting up middleware to manage the
 authentication and context for tRPC procedures.
