@@ -15,7 +15,7 @@ List matching database objects by name and type.
 Description
 ===========
 
-The ``gel list`` group of commands contains tools for listing
+The :gelcmd:`list` group of commands contains tools for listing
 database objects by matching name or type. The sub-commands are
 organized by the type of the objects listed.
 

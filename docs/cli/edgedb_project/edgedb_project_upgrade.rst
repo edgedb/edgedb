@@ -30,7 +30,7 @@ if upgrading from nightly to the stable version).
 
 .. note::
 
-    The ``gel project upgrade`` command is not intended for use with
+    The :gelcmd:`project upgrade` command is not intended for use with
     self-hosted instances.
 
 

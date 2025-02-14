@@ -31,7 +31,7 @@ logging in using :ref:`ref_cli_edgedb_cloud_login`.
 To create a Cloud instance, your instance name should be in the format
 ``<org-name>/<instance-name>``. Cloud instance names may contain alphanumeric
 characters and hyphens (i.e., ``-``). You can provide this Cloud instance name
-through the interactive project initiation by running ``gel project init``
+through the interactive project initiation by running :gelcmd:`project init`
 or by providing it via the ``--server-instance`` option.
 
 .. note::

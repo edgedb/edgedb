@@ -15,7 +15,7 @@ Configure the |Gel| server.
 Description
 ===========
 
-``gel configure`` is a terminal command used to alter the
+:gelcmd:`configure` is a terminal command used to alter the
 configuration of a |Gel| instance. There are three types of
 configuration actions that can be performed.
 

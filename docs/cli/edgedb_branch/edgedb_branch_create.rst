@@ -14,7 +14,7 @@ Create a new :ref:`branch <ref_datamodel_branches>`.
 Description
 ===========
 
-``gel branch create`` creates a new branch with the same schema as the
+:gelcmd:`branch create` creates a new branch with the same schema as the
 current branch specified in ``$CONFIG/credentials``. Without any options, it is
 equivalent to :eql:stmt:`create schema branch`.
 

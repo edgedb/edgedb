@@ -11,7 +11,7 @@ database using this command.
 .. warning:: Gel Cloud CI users and scripters
 
     When scripting a ``migrate``/``migration apply`` for an |Gel| Cloud
-    instance, do not use ``gel login`` to authenticate. Instead, you should
+    instance, do not use :gelcmd:`login` to authenticate. Instead, you should
     generate a secret key in the Gel Cloud UI or by running
     :ref:`ref_cli_edgedb_cloud_secretkey_create` and set the
     ``EDGEDB_SECRET_KEY`` environment variable to your secret key. Once this

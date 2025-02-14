@@ -15,7 +15,7 @@ instance name to simplify future connections.
 Description
 ===========
 
-``gel instance link`` is a terminal command used to bind a set of
+:gelcmd:`instance link` is a terminal command used to bind a set of
 connection credentials to an instance name. This is typically used as
 a way to simplify connecting to remote |Gel| database instances.
 Usually there's no need to do this for local instances as
@@ -24,7 +24,7 @@ instance.
 
 .. note::
 
-    Unlike other ``gel instance`` sub-commands, ``gel instance link`` is
+    Unlike other :gelcmd:`instance` sub-commands, :gelcmd:`instance link` is
     recommended to link self-hosted instances. This can make other operations
     like migrations, dumps, and restores more convenient.
 

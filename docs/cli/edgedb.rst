@@ -53,7 +53,7 @@ Options
     Specifies the named instance to connect to. The actual connection
     parameters are stored in ``<edgedb_config_dir>/credentials`` and are
     usually created by :ref:`ref_cli_edgedb_instance_create` or similar
-    commands. Run ``gel info`` to see the location of
+    commands. Run :gelcmd:`info` to see the location of
     ``<edgedb_config_dir>`` on your machine.
 
     This option overrides host and port.

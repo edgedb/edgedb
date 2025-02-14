@@ -5,7 +5,7 @@
 gel branch
 ==========
 
-The ``gel branch`` group of commands contains various branch management
+The :gelcmd:`branch` group of commands contains various branch management
 tools.
 
 .. toctree::

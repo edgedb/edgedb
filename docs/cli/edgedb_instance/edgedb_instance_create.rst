@@ -15,14 +15,14 @@ Initialize a new |Gel| instance.
 Description
 ===========
 
-``gel instance create`` is a terminal command for making a new Gel
+:gelcmd:`instance create` is a terminal command for making a new Gel
 instance and creating a corresponding credentials file in
-``<edgedb_config_dir>/credentials``. Run ``gel info`` to see the path to
+``<edgedb_config_dir>/credentials``. Run :gelcmd:`info` to see the path to
 ``<edgedb_config_dir>`` on your machine.
 
 .. note::
 
-    The ``gel instance create`` command is not intended for use with
+    The :gelcmd:`instance create` command is not intended for use with
     self-hosted instances. You can follow one of our :ref:`deployment guides
     <ref_guide_deployment>` for information on how to create one of these
     instances.

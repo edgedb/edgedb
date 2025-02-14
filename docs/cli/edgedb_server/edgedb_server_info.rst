@@ -15,7 +15,7 @@ Show server information.
 Description
 ===========
 
-``gel server info`` is a terminal command for displaying the
+:gelcmd:`server info` is a terminal command for displaying the
 information about installed |Gel| servers.
 
 

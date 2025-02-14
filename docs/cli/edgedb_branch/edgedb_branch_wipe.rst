@@ -17,7 +17,7 @@ Description
 The contents of the branch will be destroyed and the schema reset to its
 state before any migrations, but the branch itself will be preserved.
 
-``gel branch wipe`` is a terminal command equivalent to
+:gelcmd:`branch wipe` is a terminal command equivalent to
 :eql:stmt:`reset schema to initial`.
 
 

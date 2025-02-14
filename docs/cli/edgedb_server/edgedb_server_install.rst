@@ -15,7 +15,7 @@ Install |Gel| server.
 Description
 ===========
 
-``gel server install`` is a terminal command for installing a
+:gelcmd:`server install` is a terminal command for installing a
 specific |Gel| server version.
 
 

@@ -84,7 +84,7 @@ analyzer in JavaScript—which we don't intend to do anytime soon.
   Make sure your development database is up-to-date with your latest schema
   before running a generator!
 
-If you're using ``gel project init``, the connection is automatically handled
+If you're using :gelcmd:`project init`, the connection is automatically handled
 for you. Otherwise, you'll need to explicitly pass connection information via
 environment variables or CLI flags, just like any other CLI command. See
 :ref:`Client Libraries > Connection <edgedb_client_connection>` for guidance.

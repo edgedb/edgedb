@@ -15,12 +15,12 @@ Restart an |Gel| instance.
 Description
 ===========
 
-``gel instance restart`` is a terminal command for restarting an
+:gelcmd:`instance restart` is a terminal command for restarting an
 |Gel| instance.
 
 .. note::
 
-    The ``gel instance restart`` command is not intended for use with
+    The :gelcmd:`instance restart` command is not intended for use with
     self-hosted instances.
 
 
