@@ -27,8 +27,8 @@ allows you to monitor your instance, navigate to the management page for its
 branches, and create secret keys.
 
 You'll also see instructions in the bottom-right for linking your |Gel| CLI to
-your Gel Cloud account. You do this by running the CLI command ``edgedb
-cloud login``. This will make all of your Gel Cloud instances accessible via
+your Gel Cloud account. You do this by running the CLI command
+:gelcmd:`cloud login`. This will make all of your Gel Cloud instances accessible via
 the CLI. You can manage them just as you would other remote Gel instances.
 
 If you want to manage a branch of your database, click through on the
