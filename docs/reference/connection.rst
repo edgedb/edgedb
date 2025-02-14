@@ -304,57 +304,33 @@ configuration.
 The following "granular" parameters will override any value set by the
 instance-level configuration object.
 
-.. versionchanged:: _default
+.. list-table::
 
-  .. list-table::
+  * - **Environment variable**
+    - **CLI flag**
+  * - ``EDGEDB_BRANCH``
+    - ``--branch/-b <name>``
+  * - ``EDGEDB_USER``
+    - ``--user/-u <user>``
+  * - ``EDGEDB_PASSWORD``
+    - ``--password <pass>``
+  * - ``EDGEDB_TLS_CA_FILE``
+    - ``--tls-ca-file <path>``
+  * - ``EDGEDB_TLS_SERVER_NAME``
+    - ``--tls-server-name``
+  * - ``EDGEDB_CLIENT_TLS_SECURITY``
+    - ``--tls-security``
+  * - ``EDGEDB_CLIENT_SECURITY``
+    - N/A
 
-    * - **Environment variable**
-      - **CLI flag**
-    * - ``EDGEDB_DATABASE``
-      - ``--database/-d <name>``
-    * - ``EDGEDB_USER``
-      - ``--user/-u <user>``
-    * - ``EDGEDB_PASSWORD``
-      - ``--password <pass>``
-    * - ``EDGEDB_TLS_CA_FILE``
-      - ``--tls-ca-file <path>``
-    * - ``EDGEDB_CLIENT_TLS_SECURITY``
-      - ``--tls-security``
-    * - ``EDGEDB_CLIENT_SECURITY``
-      - N/A
+**EDGEDB_BRANCH**
+  Each Gel *instance* can be branched multiple times. When an instance is
+  created, a default branch named ``main`` is created. For CLI-managed
+  instances, connections are made to the currently active branch. In other
+  cases, incoming connections connect to the ``main`` branch by default.
 
-  **EDGEDB_DATABASE**
-    Each Gel *instance* can contain multiple *databases*. When an instance is
-    created, a default database named ``edgedb`` is created. Unless otherwise
-    specified, all incoming connections connect to the ``edgedb`` database.
-
-
-.. versionchanged:: 5.0
-
-  .. list-table::
-
-    * - **Environment variable**
-      - **CLI flag**
-    * - ``EDGEDB_BRANCH``
-      - ``--branch/-b <name>``
-    * - ``EDGEDB_USER``
-      - ``--user/-u <user>``
-    * - ``EDGEDB_PASSWORD``
-      - ``--password <pass>``
-    * - ``EDGEDB_TLS_CA_FILE``
-      - ``--tls-ca-file <path>``
-    * - ``EDGEDB_TLS_SERVER_NAME``
-      - ``--tls-server-name``
-    * - ``EDGEDB_CLIENT_TLS_SECURITY``
-      - ``--tls-security``
-    * - ``EDGEDB_CLIENT_SECURITY``
-      - N/A
-
-  **EDGEDB_BRANCH**
-    Each Gel *instance* can be branched multiple times. When an instance is
-    created, a default branch named ``main`` is created. For CLI-managed
-    instances, connections are made to the currently active branch. In other
-    cases, incoming connections connect to the ``main`` branch by default.
+  Note, that for |EdgeDB| versions prior to 5, the default branch is
+  ``edgedb`` (and branches were called "databases").
 
 **EDGEDB_USER/EDGEDB_PASSWORD**
   These are the credentials of the database user account to connect to the

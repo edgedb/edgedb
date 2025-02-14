@@ -4,7 +4,7 @@
 Connection flags
 ================
 
-The ``edgedb`` CLI supports a standard set of connection flags used to specify
+The |gelcmd| CLI supports a standard set of connection flags used to specify
 the *target* of a given command. The CLI always respects any connection
 parameters passed explicitly using flags.
 
@@ -85,9 +85,9 @@ Connection flags
     created via :ref:`ref_cli_edgedb_project_init`.
 
 :cli:synopsis:`--password | --no-password`
-    If :cli:synopsis:`--password` is specified, force ``edgedb`` to prompt
+    If :cli:synopsis:`--password` is specified, force |gelcmd| to prompt
     for a password before connecting to the database. This is usually not
-    necessary, since ``edgedb`` will prompt for a password automatically
+    necessary, since |gelcmd| will prompt for a password automatically
     if the server requires it.
 
     Specifying :cli:synopsis:`--no-password` disables all password prompts.

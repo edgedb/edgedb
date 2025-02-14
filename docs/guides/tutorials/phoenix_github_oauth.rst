@@ -521,7 +521,7 @@ which defines a query to find an user with a specified email provider.
 
 .. code-block:: edgeql
 
-  # edgedb = :query_single!
+  # gel = :query_single!
   # mapper = GitHubOAuth.Accounts.User
 
   select User {
@@ -540,10 +540,10 @@ which defines a query to find an user with a specified email provider.
     str_lower(.email) = str_lower(<str>$email)
   limit 1
 
-It is worth noting the ``# edgedb = :query_single!`` and
+It is worth noting the ``# gel = :query_single!`` and
 ``# mapper = GitHubOAuth.Accounts.User`` comments. Both are special comments
 that will be used by ``GelEcto`` when generating query functions. The
-``edgedb`` comment defines the driver function for requesting data.
+``gel`` comment defines the driver function for requesting data.
 Information on all supported features can be found in the driver
 `documentation <https://hexdocs.pm/edgedb/Gel.html#functions>`_.
 The ``mapper`` comment is used to define the module that will be used to map

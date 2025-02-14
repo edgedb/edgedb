@@ -17,7 +17,7 @@ One-click Deploy
 Prerequisites
 =============
 
-* ``edgedb`` CLI (`install <edgedb-install_>`_)
+* |gelcmd| CLI (`install <edgedb-install_>`_)
 * DigitalOcean account
 
 Click the button below and follow the droplet creation workflow on
@@ -116,7 +116,7 @@ Deploy with Managed PostgreSQL
 Prerequisites
 =============
 
-* ``edgedb`` CLI (`install <edgedb-install_>`_)
+* |gelcmd| CLI (`install <edgedb-install_>`_)
 * DigitalOcean account
 * ``doctl`` CLI (`install <doclt-install_>`_)
 * ``jq`` (`install <jq_>`_)

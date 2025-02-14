@@ -30,7 +30,7 @@ Windows Command Prompt uses a different command as shown below:
 Description
 ===========
 
-``edgedb`` is a terminal-based front-end to |Gel|.  It allows running
+|gelcmd| is a terminal-based front-end to |Gel|.  It allows running
 queries and seeing results interactively.
 
 
@@ -98,7 +98,7 @@ Options
         option above.
 
 :cli:synopsis:`--password | --no-password`
-    If :cli:synopsis:`--password` is specified, force ``edgedb`` to prompt
+    If :cli:synopsis:`--password` is specified, force |gelcmd| to prompt
     for a password before connecting to the database.  This is usually not
     necessary, since ``gel`` will prompt for a password automatically
     if the server requires it.

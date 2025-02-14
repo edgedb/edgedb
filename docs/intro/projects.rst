@@ -104,7 +104,7 @@ Connection
 
 As long as you are inside the project directory, all CLI commands will be
 executed against the project-linked instance. For instance, you can simply run
-``edgedb`` to open a REPL.
+|gelcmd| to open a REPL.
 
 .. code-block:: bash
 

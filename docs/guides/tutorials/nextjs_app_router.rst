@@ -167,7 +167,7 @@ associated it with your current directory. As long as you're inside that
 directory, CLI commands and client libraries will be able to connect to the
 linked instance automatically, without additional configuration.
 
-To test this, run the ``edgedb`` command to open a REPL to the linked instance.
+To test this, run the |gelcmd| command to open a REPL to the linked instance.
 
 .. code-block:: bash
 
@@ -232,7 +232,7 @@ our database. Let's do that.
   Applied m1fee6oypqpjrreleos5hmivgfqg6zfkgbrowx7sw5jvnicm73hqdq (00001.edgeql)
 
 Our database now has a schema consisting of the ``BlogPost`` type. We can
-create some sample data from the REPL. Run the ``edgedb`` command to re-open
+create some sample data from the REPL. Run the |gelcmd| command to re-open
 the REPL.
 
 .. code-block:: bash
@@ -264,12 +264,12 @@ Loading posts with React Server Components
 
 Now that we have a couple posts in the database, let's load them into our
 Next.js app.
-To do that, we'll need the ``edgedb`` client library. Let's install that from
+To do that, we'll need the ``gel`` client library. Let's install that from
 NPM:
 
 .. code-block:: bash
 
-  $ npm install edgedb
+  $ npm install gel
   # or yarn add edgedb or pnpm add edgedb or bun add edgedb
 
 Then go to the ``app/page.tsx`` file to replace the static data with

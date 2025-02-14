@@ -109,9 +109,9 @@ Windows (Powershell)
         edgedb-cli.exe _self_install
 
 The script installation methods download and execute a bash script that
-installs the ``edgedb`` CLI on your machine. You may be asked for your
+installs the |gelcmd| CLI on your machine. You may be asked for your
 password. Once the installation completes, you may need to **restart your
-terminal** before you can use the ``edgedb`` command.
+terminal** before you can use the |gelcmd| command.
 
 Now let's set up your Gel project.
 
@@ -189,7 +189,7 @@ This did a couple things.
   (though commonly your schema will be entirely defined inside the ``default``
   module).
 
-Let's connect to our new instance! Run ``edgedb`` in your terminal to open an
+Let's connect to our new instance! Run |gelcmd| in your terminal to open an
 interactive REPL to your instance. You're now connected to a live Gel
 instance running on your computer! Try executing a simple query (``select 1 + 1;``) after the
 REPL prompt (``quickstart:main>``):

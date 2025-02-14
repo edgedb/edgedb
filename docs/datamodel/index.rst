@@ -114,26 +114,12 @@ Branch
 
 .. versionadded:: 5.0
 
-.. versionchanged:: 5.0
-
-   Prior to |Gel| 5, *branches* were called "databases"
+   Prior to |EdgeDB| 5 and Gel, *branches* were called "databases"
    (and "databases" is what Gel branches map to in PostgreSQL).
 
 Instances can be branched when working on new features, similar to branches in
 your VCS. Each branch has its own schema and data.
 
-
-Database
-^^^^^^^^
-
-.. versionadded:: 5.0
-
-    In |EdgeDB| 5, databases were replaced by branches.
-
-Each instance can contain several **databases**, each with a unique name. At
-the time of creation, all instances contain a single default database called
-``edgedb``. All incoming queries are executed
-against it unless otherwise specified.
 
 .. _ref_datamodel_modules:
 

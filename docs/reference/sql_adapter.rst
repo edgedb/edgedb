@@ -27,25 +27,10 @@ same port that is used for the Gel protocol and the
 :versionreplace:`database;5.0:branch` name, username, and password already used
 for the database.
 
-.. versionchanged:: _default
-
-    Here's how you might connect to a local instance on port 10701 (determined
-    by running ``edgedb instance list``) with a database ``edgedb`` using the
-    ``psql`` CLI:
-
-    .. code-block:: bash
-
-        $ psql -h localhost -p 10701 -U edgedb -d edgedb
-
-    You'll then be prompted for a password. If you don't have it, you can run
-    ``edgedb instance credentials --insecure-dsn`` and grab it out of the DSN
-    the command returns. (It's the string between the second colon and the "at"
-    symbol: ``edgedb://edgedb:PASSWORD_IS_HERE@<host>:<port>/<database>``)
-
 .. versionchanged:: 5.0
 
     Here's how you might connect to a local instance on port 10701 (determined
-    by running ``edgedb instance list``) on a branch ``main`` using the
+    by running ``gel instance list``) on a branch ``main`` using the
     ``psql`` CLI:
 
     .. code-block:: bash
