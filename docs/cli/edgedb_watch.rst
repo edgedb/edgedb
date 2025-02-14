@@ -25,7 +25,7 @@ watch``, read our :ref:`intro to migrations <ref_intro_migrations>`.
 .. note::
 
     If you want to apply a migration in the same manner as ``watch`` but
-    without the long-running process, use ``gel migrate --dev-mode``. See
+    without the long-running process, use :gelcmd:`migrate --dev-mode`. See
     :ref:`ref_cli_edgedb_migration_apply` for more details.
 
 Demo
