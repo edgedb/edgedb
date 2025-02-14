@@ -150,7 +150,7 @@ class GelSubstitutionTransform(transforms.SphinxTransform):
         # Traverse all substitution_reference nodes.
         for node in self.document.traverse(d_nodes.substitution_reference):
             nt = node.astext()
-            if nt in {"Gel", "EdgeDB", "gelcmd", ".gel", "gel.toml"}:
+            if nt in {"Gel", "Gel's","EdgeDB", "gelcmd", ".gel", "gel.toml"}:
                 if builder_name in {"xml", "edge-xml"}:
                     if nt == "gelcmd":
                         sub = d_nodes.literal(

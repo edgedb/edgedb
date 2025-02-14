@@ -4,7 +4,7 @@
 vs SQL and ORMs
 ===============
 
-EdgeDB's approach to schema modeling builds upon the foundation of SQL while
+|Gel's| approach to schema modeling builds upon the foundation of SQL while
 taking cues from modern tools like ORM libraries. Let's see how it stacks up.
 
 .. _ref_datamodel_sql_comparison:

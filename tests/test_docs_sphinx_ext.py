@@ -36,6 +36,7 @@ class BaseDomainTest:
                 '-n',
                 '-C',
                 '-D', 'extensions=edb.tools.docs',
+                '-D', 'smartquotes_action=De',
                 '-q',
                 td_in,
                 td_out,
@@ -953,6 +954,7 @@ class TestOthers(unittest.TestCase, BaseDomainTest):
     def test_sphinx_edb_brand_name_01(self):
         src = '''
         blah |Gel|
+        blah2 |Gel's|
         '''
 
         out = self.build(src, format='xml')
@@ -962,7 +964,7 @@ class TestOthers(unittest.TestCase, BaseDomainTest):
             x.xpath('''
                 //paragraph/inline[@edb-substitution="true"]/text()
             '''),
-            ['Gel'])
+            ["Gel", "Gel's"])
 
     def test_sphinx_edb_brand_name_02(self):
         src = '''
