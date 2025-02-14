@@ -71,13 +71,14 @@ class EDBEnvironmentSwitcher(d_rst.Directive):
 
 
 class EDBSplitSection(d_rst.Directive):
+
     has_content = True
     optional_arguments = 0
     required_arguments = 0
 
     def run(self):
         node = d_nodes.container()
-        node["split-section"] = True
+        node['split-section'] = True
         self.state.nested_parse(self.content, self.content_offset, node)
 
         split_indexes = [
