@@ -5,7 +5,7 @@
 gel describe
 ============
 
-The ``gel describe`` group of commands contains various schema
+The :gelcmd:`describe` group of commands contains various schema
 introspection tools.
 
 .. toctree::

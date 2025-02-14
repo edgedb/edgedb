@@ -34,7 +34,7 @@ Extension configuration
 =======================
 
 The AI extension may be configured via our UI or via EdgeQL. To use the
-built-in UI, access it by running ``gel ui``. If you have the extension
+built-in UI, access it by running :gelcmd:`ui`. If you have the extension
 enabled in your schema as shown above and have migrated that schema change, you
 will see the "AI Admin" icon in the left-hand toolbar.
 

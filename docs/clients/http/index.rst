@@ -36,7 +36,7 @@ Your instance can now receive EdgeQL queries over HTTP at
     Here's how to determine your local |Gel| instance's HTTP server URL:
 
     - The ``hostname`` will be ``localhost``
-    - Find the ``port`` by running ``gel instance list``. This will print a
+    - Find the ``port`` by running :gelcmd:`instance list`. This will print a
       table of all |Gel| instances on your machine, including their associated
       port number.
     - The default ``branch-name`` will be ``main``, and after initializing
@@ -52,7 +52,7 @@ Your instance can now receive EdgeQL queries over HTTP at
 
     To determine the URL of a self-hosted remote instance you have linked with
     the CLI, you can get both the hostname and port of the instance from the
-    "Port" column of the ``gel instance list`` table (formatted as
+    "Port" column of the :gelcmd:`instance list` table (formatted as
     ``<hostname>:<port>``). The same guidance on local branch names applies
     here.
 

@@ -15,12 +15,12 @@ Show instance logs.
 Description
 ===========
 
-``gel instance logs`` is a terminal command for displaying the logs
+:gelcmd:`instance logs` is a terminal command for displaying the logs
 for a given |Gel| instance.
 
 .. note::
 
-    The ``gel instance logs`` command is not intended for use with
+    The :gelcmd:`instance logs` command is not intended for use with
     self-hosted instances.
 
 

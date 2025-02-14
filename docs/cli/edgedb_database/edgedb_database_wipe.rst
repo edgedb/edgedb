@@ -22,7 +22,7 @@ Destroy the contents of a :ref:`database <ref_datamodel_databases>`
 Description
 ===========
 
-``gel database wipe`` is a terminal command equivalent to
+:gelcmd:`database wipe` is a terminal command equivalent to
 :eql:stmt:`reset schema to initial`.
 
 The database wiped will be one of these values: the value passed for the

@@ -22,7 +22,7 @@ Drop a :ref:`database <ref_datamodel_databases>`.
 Description
 ===========
 
-``gel database drop`` is a terminal command equivalent to
+:gelcmd:`database drop` is a terminal command equivalent to
 :eql:stmt:`drop database`.
 
 

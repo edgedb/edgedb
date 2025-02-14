@@ -15,7 +15,7 @@ Show instance information.
 Description
 ===========
 
-``gel instance status`` is a terminal command for displaying the
+:gelcmd:`instance status` is a terminal command for displaying the
 information about |Gel| instances.
 
 

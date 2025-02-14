@@ -15,12 +15,12 @@ Start an |Gel| instance.
 Description
 ===========
 
-``gel instance start`` is a terminal command for starting a new
+:gelcmd:`instance start` is a terminal command for starting a new
 |Gel| instance.
 
 .. note::
 
-    The ``gel instance start`` command is not intended for use with
+    The :gelcmd:`instance start` command is not intended for use with
     self-hosted instances.
 
 

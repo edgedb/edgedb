@@ -20,7 +20,7 @@ bulk.
 
 .. note::
 
-    The ``gel instance upgrade`` command is not intended for use with
+    The :gelcmd:`instance upgrade` command is not intended for use with
     self-hosted instances.
 
 

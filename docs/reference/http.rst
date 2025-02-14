@@ -19,13 +19,13 @@ Here's how to determine your *local* Gel instance's HTTP server URL:
 
 - The ``hostname`` will be ``localhost``
 
-- Find the ``port`` by running ``gel instance list``. This will print a
+- Find the ``port`` by running :gelcmd:`instance list`. This will print a
   table of all Gel instances on your machine, including their associated
   port number.
 
 To determine the URL of a remote instance you have linked with the CLI, you
 can get both the hostname and port of the instance from the "Port" column
-of the ``gel instance list`` table (formatted as ``<hostname>:<port>``).
+of the :gelcmd:`instance list` table (formatted as ``<hostname>:<port>``).
 The same guidance on local :versionreplace:`database;5.0:branch` names
 applies to remote instances.
 

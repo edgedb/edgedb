@@ -15,7 +15,7 @@ Describe a named schema object.
 Description
 ===========
 
-``gel describe`` is a terminal command equivalent to
+:gelcmd:`describe` is a terminal command equivalent to
 :eql:stmt:`describe object <describe>` introspection command.
 
 

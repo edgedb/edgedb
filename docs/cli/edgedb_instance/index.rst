@@ -4,12 +4,12 @@
 gel instance
 ============
 
-The ``gel instance`` group of commands contains all sorts of tools
+The :gelcmd:`instance` group of commands contains all sorts of tools
 for managing |Gel| instances.
 
 .. note::
 
-    Most commands in the ``gel instance`` command group are not intended to
+    Most commands in the :gelcmd:`instance` command group are not intended to
     manage self-hosted instances. See individual commands for more details.
 
 .. toctree::

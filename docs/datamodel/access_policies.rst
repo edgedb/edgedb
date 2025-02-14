@@ -598,7 +598,7 @@ You may disable all access policies by setting the ``apply_access_policies``
 
 You may also toggle access policies using the "Disable Access Policies"
 checkbox in the "Config" dropdown in the Gel UI (accessible by running
-the CLI command ``gel ui`` from inside your project). This is the most
+the CLI command :gelcmd:`ui` from inside your project). This is the most
 convenient way to temporarily disable access policies since it applies only to
 your UI session.
 

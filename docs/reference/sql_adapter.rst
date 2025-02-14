@@ -30,7 +30,7 @@ for the database.
 .. versionchanged:: 5.0
 
     Here's how you might connect to a local instance on port 10701 (determined
-    by running ``gel instance list``) on a branch ``main`` using the
+    by running :gelcmd:`instance list`) on a branch ``main`` using the
     ``psql`` CLI:
 
     .. code-block:: bash

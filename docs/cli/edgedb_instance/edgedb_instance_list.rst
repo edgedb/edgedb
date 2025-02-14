@@ -15,7 +15,7 @@ Show all |Gel| instances.
 Description
 ===========
 
-``gel instance list`` is a terminal command that shows all the
+:gelcmd:`instance list` is a terminal command that shows all the
 registered |Gel| instances and some relevant information about them
 (status, port, etc.).
 
