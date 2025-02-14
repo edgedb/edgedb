@@ -1,15 +1,15 @@
 .. _ref_cli_edgedb_project_info:
 
 
-===================
-edgedb project info
-===================
+================
+gel project info
+================
 
 Display various metadata about the project.
 
 .. cli:synopsis::
 
-    edgedb project info [OPTIONS]
+    gel project info [OPTIONS]
 
 
 Description

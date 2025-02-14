@@ -94,7 +94,7 @@ from a `time.Duration <https://pkg.go.dev/time>`_ represented as nanoseconds.
 
     func ParseDuration(s string) (Duration, error)
 
-ParseDuration parses an EdgeDB duration string.
+ParseDuration parses an |Gel| duration string.
 
 
 
@@ -128,7 +128,7 @@ the internal int64 representation.
 ----------------
 
 LocalDate is a date without a time zone.
-`docs/stdlib/datetime#type::cal::local_date <https://www.edgedb.com/docs/stdlib/datetime#type::cal::local_date>`_
+`docs/stdlib/datetime#type::cal::local_date <https://www.geldata.com/docs/stdlib/datetime#type::cal::local_date>`_
 
 
 .. code-block:: go
@@ -188,7 +188,7 @@ UnmarshalText unmarshals bytes into \*d.
 --------------------
 
 LocalDateTime is a date and time without timezone.
-`docs/stdlib/datetime#type::cal::local_datetime <https://www.edgedb.com/docs/stdlib/datetime#type::cal::local_datetime>`_
+`docs/stdlib/datetime#type::cal::local_datetime <https://www.geldata.com/docs/stdlib/datetime#type::cal::local_datetime>`_
 
 
 .. code-block:: go
@@ -250,7 +250,7 @@ UnmarshalText unmarshals bytes into \*dt.
 ----------------
 
 LocalTime is a time without a time zone.
-`docs/stdlib/datetime#type::cal::local_time <https://www.edgedb.com/docs/stdlib/datetime#type::cal::local_time>`_
+`docs/stdlib/datetime#type::cal::local_time <https://www.geldata.com/docs/stdlib/datetime#type::cal::local_time>`_
 
 
 .. code-block:: go
@@ -439,8 +439,8 @@ Optional is embedded in structs to make them optional. For example:
 .. code-block:: go
 
     type User struct {
-        edgedb.Optional
-        Name string `edgedb:"name"`
+        gel.Optional
+        Name string `gel:"name"`
     }
 
 
@@ -3516,7 +3516,7 @@ UnmarshalText unmarshals bytes into \*rd.
 -----------
 
 UUID is a universally unique identifier
-`docs/stdlib/uuid <https://www.edgedb.com/docs/stdlib/uuid>`_
+`docs/stdlib/uuid <https://www.geldata.com/docs/stdlib/uuid>`_
 
 
 .. code-block:: go

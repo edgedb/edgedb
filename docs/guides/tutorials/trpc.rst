@@ -6,7 +6,7 @@ tRPC
 
 :edb-alt-title: Integrating Gel with tRPC
 
-This guide explains how to integrate **EdgeDB** with **tRPC** for a modern,
+This guide explains how to integrate **Gel** with **tRPC** for a modern,
 type-safe API. We'll cover setting up database interactions, API routing,
 and implementing authentication, all while ensuring type safety across the
 client and server.
@@ -15,29 +15,29 @@ You can reference the following repositories for more context:
 
 - `create-t3-turbo-edgedb <https://github.com/edgedb/create-t3-turbo-edgedb>`_ -
   A monorepo template using the `T3 stack <https://init.tips/>`_,
-  `Turborepo <https://turbo.build/>`_, and EdgeDB.
+  `Turborepo <https://turbo.build/>`_, and Gel.
 - `LookFeel Project <https://github.com/LewTrn/lookfeel>`_ - A real-world
-  example using **EdgeDB** and **tRPC**.
+  example using **Gel** and **tRPC**.
 
-Step 1: EdgeDB setup
-====================
+Step 1: Gel setup
+=================
 
 EdgeDB will serve as the database layer for your application.
 
-Install and initialize EdgeDB
------------------------------
+Install and initialize Gel
+--------------------------
 
-To initialize **EdgeDB**, run the following command using your preferred
+To initialize **Gel**, run the following command using your preferred
 package manager:
 
 .. code-block:: bash
 
    $ pnpm dlx edgedb project init # or npx edgedb project init
 
-This will create an EdgeDB project and set up a schema to start with.
+This will create an Gel project and set up a schema to start with.
 
-Define the EdgeDB Schema
-------------------------
+Define the Gel Schema
+---------------------
 
 The previous command generated a schema file in the ``dbschema`` directory.
 
@@ -63,16 +63,16 @@ Once schema changes are made, apply migrations with:
    $ pnpm dlx edgedb migration create # or npx edgedb migration create
    $ pnpm dlx edgedb migration apply # or npx edgedb migration apply
 
-Step 2: Configure EdgeDB Client
-===============================
+Step 2: Configure Gel Client
+============================
 
-To interact with **EdgeDB** from your application, you need to configure the
+To interact with **Gel** from your application, you need to configure the
 client.
 
-Install EdgeDB Client
----------------------
+Install Gel Client
+------------------
 
-First, install the **EdgeDB** client using your package manager:
+First, install the **Gel** client using your package manager:
 
 .. code-block:: bash
 
@@ -124,7 +124,7 @@ install a wrapper around the `@tanstack/react-query <https://tanstack.com/query/
 Define the tRPC Router
 -----------------------
 
-Here's how to define a simple tRPC query that interacts with **EdgeDB**:
+Here's how to define a simple tRPC query that interacts with **Gel**:
 
 .. code-block:: typescript
    :caption: server/routers/_app.ts
@@ -143,7 +143,7 @@ Here's how to define a simple tRPC query that interacts with **EdgeDB**:
 
    export type AppRouter = typeof appRouter;
 
-This example defines a query that fetches user data from EdgeDB, ensuring
+This example defines a query that fetches user data from Gel, ensuring
 type safety in both the query and response.
 
 Step 4: Use tRPC Client
@@ -266,10 +266,10 @@ In non-Next.js apps, use the tRPC client to interact with the server:
      console.log(users);
    }
 
-Step 5: Set up authentication with EdgeDB Auth
-==============================================
+Step 5: Set up authentication with Gel Auth
+===========================================
 
-In this section, we will cover how to integrate **EdgeDB Auth** with **tRPC**
+In this section, we will cover how to integrate **Gel Auth** with **tRPC**
 and context in both **Next.js** and **Express** environments. This will ensure
 that user authentication is handled securely and that both server-side and
 client-side tRPC calls can access the user's session.
@@ -277,22 +277,22 @@ client-side tRPC calls can access the user's session.
 EdgeDB Auth with tRPC and tRPC context in Next.js
 -------------------------------------------------
 
-In **Next.js**, integrating **EdgeDB Auth** with **tRPC** involves creating a
-context that provides the user session and EdgeDB client to the tRPC API.
+In **Next.js**, integrating **Gel Auth** with **tRPC** involves creating a
+context that provides the user session and Gel client to the tRPC API.
 
-1. **Initialize EdgeDB Client and Auth**
+1. **Initialize Gel Client and Auth**
 
-   First, initialize the **EdgeDB** client and **EdgeDB Auth**:
+   First, initialize the **Gel** client and **Gel Auth**:
 
    .. code-block:: typescript
 
       import { createClient } from "edgedb";
       import createAuth from "@edgedb/auth-nextjs/app";
 
-      // Initialize EdgeDB client
+      // Initialize Gel client
       export const edgedbClient = createClient();
 
-      // Initialize EdgeDB Auth
+      // Initialize Gel Auth
       export const auth = createAuth(edgedbClient, {
         baseUrl: process.env.VERCEL_ENV === "production"
           ? "https://production.yourapp.com"
@@ -301,7 +301,7 @@ context that provides the user session and EdgeDB client to the tRPC API.
 
 2. **Create tRPC Context**
 
-   The **tRPC** context provides the EdgeDB Auth session to the tRPC
+   The **tRPC** context provides the Gel Auth session to the tRPC
    procedures:
 
    .. code-block:: typescript
@@ -311,9 +311,9 @@ context that provides the user session and EdgeDB client to the tRPC API.
       import { headers } from "next/headers";
       import { auth } from "src/edgedb.ts";
 
-      // Create tRPC context with session and EdgeDB client
+      // Create tRPC context with session and Gel client
       export const createTRPCContext = async () => {
-        const session = await auth.getSession(); // Retrieve session from EdgeDB Auth
+        const session = await auth.getSession(); // Retrieve session from Gel Auth
 
         return {
           session, // Pass the session to the context
@@ -343,7 +343,7 @@ context that provides the user session and EdgeDB client to the tRPC API.
 4. **Example tRPC Procedure**
 
    You can now write procedures in your tRPC router, making use of the
-   **EdgeDB Auth** session and the **EdgeDB** client:
+   **Gel Auth** session and the **Gel** client:
 
    .. code-block:: typescript
 
@@ -352,7 +352,7 @@ context that provides the user session and EdgeDB client to the tRPC API.
           if (!(await ctx.session.isSignedIn())) {
             throw new Error("Not authenticated");
           }
-          // Fetch data from EdgeDB using the authenticated client
+          // Fetch data from Gel using the authenticated client
           const userData = await ctx.session.client.query(`
             select User { name, email }
           `);
@@ -367,20 +367,20 @@ EdgeDB Auth with tRPC and Context in Express
 In **Express**, the process involves setting up middleware to manage the
 authentication and context for tRPC procedures.
 
-1. **Initialize EdgeDB Client and Auth for Express**
+1. **Initialize Gel Client and Auth for Express**
 
-   Just like in **Next.js**, you first initialize the **EdgeDB** client and
-   **EdgeDB Auth**:
+   Just like in **Next.js**, you first initialize the **Gel** client and
+   **Gel Auth**:
 
    .. code-block:: typescript
 
       import { createClient } from "edgedb";
       import createExpressAuth from "@edgedb/auth-express";
 
-      // Initialize EdgeDB client
+      // Initialize Gel client
       const edgedbClient = createClient();
 
-      // Initialize EdgeDB Auth for Express
+      // Initialize Gel Auth for Express
       export const auth = createExpressAuth(edgedbClient, {
         baseUrl: `http://localhost:${process.env.PORT || 3000}`,
       });
@@ -388,7 +388,7 @@ authentication and context for tRPC procedures.
 2. **Create tRPC Context Middleware for Express**
 
    In **Express**, create middleware to pass the authenticated session and
-   EdgeDB client to the tRPC context:
+   Gel client to the tRPC context:
 
    .. code-block:: typescript
 
@@ -403,7 +403,7 @@ authentication and context for tRPC procedures.
         const session = req.auth?.session(); // Get authenticated session
         req.context = {
           session, // Add session to context
-          edgedbClient, // Add EdgeDB client to context
+          edgedbClient, // Add Gel client to context
         };
         next();
       };
@@ -411,7 +411,7 @@ authentication and context for tRPC procedures.
 3. **Set up tRPC Router in Express**
 
    Use the **tRPC router** in **Express** by including the context middleware
-   and **EdgeDB Auth** middleware:
+   and **Gel Auth** middleware:
 
    .. code-block:: typescript
 
@@ -423,7 +423,7 @@ authentication and context for tRPC procedures.
 
       const app = express();
 
-      // EdgeDB Auth middleware to handle sessions
+      // Gel Auth middleware to handle sessions
       app.use(auth.middleware);
 
       // Custom middleware to pass tRPC context
@@ -445,7 +445,7 @@ authentication and context for tRPC procedures.
 4. **Example tRPC Procedure in Express**
 
    Once the context is set, you can define tRPC procedures that use both the
-   session and EdgeDB client:
+   session and Gel client:
 
    .. code-block:: typescript
 
@@ -454,7 +454,7 @@ authentication and context for tRPC procedures.
           if (!(await ctx.session.isSignedIn())) {
             throw new Error("Not authenticated");
           }
-          // Fetch data from EdgeDB using the authenticated client
+          // Fetch data from Gel using the authenticated client
           const userData = await ctx.session.client.query(`
             select User { name, email }
           `);
@@ -466,7 +466,7 @@ authentication and context for tRPC procedures.
 Conclusion
 ----------
 
-By integrating **EdgeDB Auth** into the tRPC context, you ensure that
+By integrating **Gel Auth** into the tRPC context, you ensure that
 authenticated sessions are securely passed to API procedures, enabling
 user authentication and protecting routes.
 
@@ -474,6 +474,6 @@ You can also reference these projects for further examples:
 
 - `create-t3-turbo-edgedb <https://github.com/edgedb/create-t3-turbo-edgedb>`_ -
   A monorepo template using the `T3 stack <https://init.tips/>`_,
-  `Turborepo <https://turbo.build/>`_, and EdgeDB.
+  `Turborepo <https://turbo.build/>`_, and Gel.
 - `LookFeel Project <https://github.com/LewTrn/lookfeel>`_ - A real-world
-  example using **EdgeDB** and **tRPC**.
+  example using **Gel** and **tRPC**.

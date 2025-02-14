@@ -1,41 +1,37 @@
 .. _ref_cli_edgedb_instance_create:
 
 
-======================
-edgedb instance create
-======================
+===================
+gel instance create
+===================
 
-Initialize a new EdgeDB instance.
+Initialize a new |Gel| instance.
 
 .. cli:synopsis::
 
-     edgedb instance create [<options>] [<name>] [<default-branch-or-database>]
+     gel instance create [<options>] [<name>] [<default-branch-or-database>]
 
 
 Description
 ===========
 
-``edgedb instance create`` is a terminal command for making a new EdgeDB
+``gel instance create`` is a terminal command for making a new Gel
 instance and creating a corresponding credentials file in
-``<edgedb_config_dir>/credentials``. Run ``edgedb info`` to see the path to
+``<edgedb_config_dir>/credentials``. Run ``gel info`` to see the path to
 ``<edgedb_config_dir>`` on your machine.
 
 .. note::
 
-    The ``edgedb instance create`` command is not intended for use with
+    The ``gel instance create`` command is not intended for use with
     self-hosted instances. You can follow one of our :ref:`deployment guides
     <ref_guide_deployment>` for information on how to create one of these
     instances.
 
 
-EdgeDB Cloud
-------------
+Gel Cloud
+---------
 
-.. note::
-
-    Creating a Cloud instance requires CLI version 3.0 or later.
-
-EdgeDB Cloud users may use this command to create a Cloud instance after
+Gel Cloud users may use this command to create a Cloud instance after
 logging in using :ref:`ref_cli_edgedb_cloud_login`.
 
 To create a Cloud instance, your instance name should be in the format
@@ -44,7 +40,7 @@ characters and hyphens (i.e., ``-``).
 
 .. note::
 
-    Please be aware of the following restrictions on EdgeDB Cloud instance
+    Please be aware of the following restrictions on |Gel| Cloud instance
     names:
 
     * can contain only Latin alpha-numeric characters or ``-``
@@ -58,18 +54,18 @@ Options
 =======
 
 :cli:synopsis:`<name>`
-    The new EdgeDB instance name. Asked interactively if not specified.
+    The new |Gel| instance name. Asked interactively if not specified.
 
 :cli:synopsis:`<branch-or-database-name>`
     The default branch (or database pre-v5) name on the new instance. Defaults
-    to ``main`` or, when creating a pre-v5 instance, ``edgedb``.
+    to ``main`` or, when creating a pre-v5 instance, ``gel``.
 
 :cli:synopsis:`--nightly`
     Use the nightly server for this instance.
 
 :cli:synopsis:`--default-user=<default-user>`
     Specifies the default user name (created during initialization,
-    and saved in credentials file). Defaults to: ``edgedb``.
+    and saved in credentials file). Defaults to: ``gel``.
 
 :cli:synopsis:`--port=<port>`
     Specifies which port should the instance be configured on. By
@@ -88,35 +84,35 @@ Options
     ``testing``, or ``nightly``.
 
 :cli:synopsis:`--version=<version>`
-    Specifies the version of the EdgeDB server to be used to run the
+    Specifies the version of the |Gel| server to be used to run the
     new instance. To list the currently available options use
     :ref:`ref_cli_edgedb_server_list_versions`.
 
     By default, when you specify a version, the CLI will use the latest release
     in the major version specified. This command, for example, will install the
-    latest 2.x release:
+    latest X.Y release:
 
     .. code-block:: bash
 
-        $ edgedb instance create --version 2.6 demo26
+        $ gel instance create --version X.0 demoxy
 
     You may pin to a specific version by prepending the version number with an
-    equals sign. This command will install version 2.6:
+    equals sign. This command will install version X.Y:
 
     .. code-block:: bash
 
-        $ edgedb instance create --version =2.6 demo26
+        $ gel instance create --version =X.Y demoxy
 
     .. note::
 
         Some shells like ZSH may require you to escape the equals sign (e.g.,
-        ``\=2.6``) or quote the version string (e.g., ``"=2.6"``).
+        ``\=X.Y``) or quote the version string (e.g., ``"=X.Y"``).
 
-EdgeDB Cloud options
---------------------
+Gel Cloud options
+-----------------
 
 :cli:synopsis:`--region=<region>`
-    The region in which to create the instance (for EdgeDB Cloud instances).
+    The region in which to create the instance (for |Gel| Cloud instances).
     Possible values are ``aws-us-west-2``, ``aws-us-east-2``, and
     ``aws-eu-west-1``.
 
@@ -125,7 +121,7 @@ EdgeDB Cloud options
     ``pro`` and ``free``.
 
 :cli:synopsis:`--compute-size=<number>`
-    The size of compute to be allocated for the EdgeDB Cloud instance (in
+    The size of compute to be allocated for the Gel Cloud instance (in
     Compute Units)
 
 :cli:synopsis:`--storage-size=<GiB>`

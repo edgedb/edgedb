@@ -4,7 +4,7 @@
 Types
 -----
 
-The entire type system of EdgeDB is reflected in the ``e`` object, including
+The entire type system of |Gel| is reflected in the ``e`` object, including
 scalar types, object types, and enums. These types are used in queries for thinks like *casting* and *declaring parameters*.
 
 .. code-block:: typescript

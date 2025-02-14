@@ -1,19 +1,15 @@
 .. _ref_cli_edgedb_cloud_secretkey_revoke:
 
 
-=============================
-edgedb cloud secretkey revoke
-=============================
-
-.. note::
-
-    This CLI command requires CLI version 3.0 or later.
+==========================
+gel cloud secretkey revoke
+==========================
 
 Revoke a secret key
 
 .. cli:synopsis::
 
-    edgedb cloud secretkey revoke [<options>] --secret-key-id <secret-key-id>
+    gel cloud secretkey revoke [<options>] --secret-key-id <secret-key-id>
 
 .. note::
 

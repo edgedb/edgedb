@@ -1,13 +1,9 @@
 .. _ref_cli_edgedb_cloud_secretkey:
 
 
-======================
-edgedb cloud secretkey
-======================
-
-.. note::
-
-    These CLI commands require CLI version 3.0 or later.
+===================
+gel cloud secretkey
+===================
 
 Manage your secret keys
 

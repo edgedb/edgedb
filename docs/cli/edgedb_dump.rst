@@ -1,15 +1,15 @@
 .. _ref_cli_edgedb_dump:
 
 
-===========
-edgedb dump
-===========
+========
+gel dump
+========
 
-Backup an EdgeDB branch (or database pre-v5) to a file.
+Backup an |Gel| branch (or database pre-v5) to a file.
 
 .. cli:synopsis::
 
-    edgedb dump [<options>] <path>
+    gel dump [<options>] <path>
 
 
 Options

@@ -108,7 +108,7 @@ with a default value:
     ... };
 
 We use :eql:stmt:`describe current migration as json <describe current
-migration>` to see what EdgeDB is proposing. The JSON format makes it
+migration>` to see what |EdgeDB| is proposing. The JSON format makes it
 easier to potentially integrate this with other tools. For this
 example it's worth turning on ``json`` output mode for edgedb REPL:
 
@@ -196,7 +196,7 @@ Command-Line Tools
 
 * Default user and default database are now simply ``edgedb`` and no
   longer named after the system user.
-* Add ``--connect-timeout`` to control how long to wait for EdgeDB
+* Add ``--connect-timeout`` to control how long to wait for |EdgeDB|
   response (`#191 <https://github.com/edgedb/edgedb-cli/pull/191>`_).
 * Add ``--dsn`` as a connection option (`#176
   <https://github.com/edgedb/edgedb-cli/issues/176>`_).

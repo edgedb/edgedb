@@ -5,8 +5,8 @@ Schema
 ======
 
 
-This page is intended as a rapid-fire overview of EdgeDB's schema definition
-language (SDL) so you can hit the ground running with EdgeDB. Refer to the
+This page is intended as a rapid-fire overview of Gel's schema definition
+language (SDL) so you can hit the ground running with Gel. Refer to the
 linked pages for more in-depth documentation!
 
 Scalar types
@@ -22,7 +22,7 @@ types.
   * - Booleans
     - ``bool``
   * - Numbers
-    - ``int16`` ``int32`` ``int64`` ``float32`` ``float64`` 
+    - ``int16`` ``int32`` ``int64`` ``float32`` ``float64``
       ``bigint`` ``decimal``
   * - UUID
     - ``uuid``
@@ -53,7 +53,7 @@ These primitives can be combined into arrays, tuples, and ranges.
   * - Ranges
     - ``range<float64>``
 
-Collectively, *primitive* and *collection* types comprise EdgeDB's *scalar
+Collectively, *primitive* and *collection* types comprise Gel's *scalar
 type system*.
 
 Object types
@@ -199,7 +199,7 @@ Object types can have links to other object types.
       required name: str;
     }
 
-The ``link`` keyword can be omitted for non-computed links since EdgeDB v3.
+The ``link`` keyword can be omitted for non-computed links since Gel v3.
 
 Use the ``required`` and ``multi`` keywords to specify the cardinality of the
 relation.
@@ -371,7 +371,7 @@ understand backlink syntax is to split it into two parts:
 
 ``[is Movie]``
   This is a *type filter* that filters out all objects that aren't ``Movie``
-  objects. A backlink still works without this filter, but could contain any 
+  objects. A backlink still works without this filter, but could contain any
   other number of objects besides ``Movie`` objects.
 
 See :ref:`Schema > Computeds > Backlinks <ref_datamodel_links_backlinks>`.

@@ -1,26 +1,26 @@
 .. _ref_cli_edgedb_instance_start:
 
 
-=====================
-edgedb instance start
-=====================
+==================
+gel instance start
+==================
 
-Start an EdgeDB instance.
+Start an |Gel| instance.
 
 .. cli:synopsis::
 
-     edgedb instance start [--foreground] <name>
+     gel instance start [--foreground] <name>
 
 
 Description
 ===========
 
-``edgedb instance start`` is a terminal command for starting a new
-EdgeDB instance.
+``gel instance start`` is a terminal command for starting a new
+|Gel| instance.
 
 .. note::
 
-    The ``edgedb instance start`` command is not intended for use with
+    The ``gel instance start`` command is not intended for use with
     self-hosted instances.
 
 
@@ -28,7 +28,7 @@ Options
 =======
 
 :cli:synopsis:`<name>`
-    The EdgeDB instance name.
+    The |Gel| instance name.
 
 :cli:synopsis:`--foreground`
     Start the instance in the foreground rather than using systemd to

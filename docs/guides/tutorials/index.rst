@@ -1,9 +1,9 @@
 .. _ref_guide_tutorials:
 
 
-====================
-Using EdgeDB with...
-====================
+=================
+Using Gel with...
+=================
 
 .. toctree::
     :maxdepth: 1

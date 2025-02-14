@@ -3,10 +3,6 @@
 Group
 =====
 
-.. note::
-
-  The ``group`` statement is only available in EdgeDB 2.0 or later.
-
 The ``group`` statement provides a powerful mechanism for categorizing a set
 of objects (e.g., movies) into *groups*. You can group by properties,
 expressions, or combinatations thereof.

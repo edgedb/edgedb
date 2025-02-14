@@ -16,17 +16,17 @@ EdgeDB.
   * - :eql:type:`cfg::AbstractConfig`
     - The abstract base type for all configuration objects. The properties
       of this type define the set of configuruation settings supported by
-      EdgeDB.
+      Gel.
   * - :eql:type:`cfg::Config`
     - The main configuration object. The properties of this object reflect
       the overall configuration setting from instance level all the way to
       session level.
   * - :eql:type:`cfg::DatabaseConfig`
     - The database configuration object. It reflects all the applicable
-      configuration at the EdgeDB database level.
+      configuration at the Gel database level.
   * - :eql:type:`cfg::BranchConfig`
     - The database branch configuration object. It reflects all the applicable
-      configuration at the EdgeDB branch level.
+      configuration at the Gel branch level.
   * - :eql:type:`cfg::InstanceConfig`
     - The instance configuration object.
   * - :eql:type:`cfg::ExtensionConfig`
@@ -36,7 +36,7 @@ EdgeDB.
   * - :eql:type:`cfg::Auth`
     - An object type representing an authentication profile.
   * - :eql:type:`cfg::ConnectionTransport`
-    - An enum type representing the different protocols that EdgeDB speaks.
+    - An enum type representing the different protocols that Gel speaks.
   * - :eql:type:`cfg::AuthMethod`
     - An abstract object type representing a method of authentication
   * - :eql:type:`cfg::Trust`
@@ -128,7 +128,7 @@ Query cache
   Allows the developer to set where the query cache is stored. Possible values:
 
   * ``cfg::QueryCacheMode.InMemory``- All query cache is lost on server restart.
-    This mirrors pre-5.0 EdgeDB's behavior.
+    This mirrors pre-5.0 |EdgeDB| behavior.
   * ``cfg::QueryCacheMode.RegInline``- The in-memory query cache is also stored in
     the database as-is so it can be restored on restart.
   * ``cfg::QueryCacheMode.Default``- Allow the server to select the best caching
@@ -165,7 +165,7 @@ Query behavior
   .. note::
 
       This setting can also be conveniently accessed via the "Config" dropdown
-      menu at the top of the EdgeDB UI (accessible by running the CLI command
+      menu at the top of the Gel UI (accessible by running the CLI command
       ``edgedb ui`` from within a project). The setting will apply only to your
       UI session, so you won't have to remember to re-enable it when you're
       done.
@@ -182,7 +182,7 @@ Query behavior
       This parameter takes a ``str`` instead of a ``bool`` to allow more
       verbose messages when all queries are forced to fail. The database will
       attempt to deserialize this ``str`` into a JSON object that must include
-      a ``type`` (which must be an EdgeDB
+      a ``type`` (which must be an Gel
       :ref:`error type <ref_protocol_errors>` name), and may also include
       ``message``, ``hint``, and ``details`` which can be set ad-hoc by
       the user.
@@ -285,7 +285,7 @@ Client connections
   An abstract type representing the configuration of an instance or database.
 
   The properties of this object type represent the set of configuration
-  options supported by EdgeDB (listed above).
+  options supported by Gel (listed above).
 
 
 ----------
@@ -296,7 +296,7 @@ Client connections
   The main configuration object type.
 
   This type will have only one object instance. The ``cfg::Config`` object
-  represents the sum total of the current EdgeDB configuration. It reflects
+  represents the sum total of the current Gel configuration. It reflects
   the result of applying instance, branch, and session level configuration.
   Examining this object is the recommended way of determining the current
   configuration.
@@ -323,14 +323,14 @@ Client connections
 
   This type will have only one object instance. The ``cfg::DatabaseConfig``
   object represents the state of :versionreplace:`database;5.0:branch` and
-  instance-level EdgeDB configuration.
+  instance-level Gel configuration.
 
   For overall configuration state please refer to the :eql:type:`cfg::Config`
   instead.
 
   .. versionadded:: 5.0
 
-      As of EdgeDB 5.0, this config object represents database *branch*
+      As of |EdgeDB| 5.0, this config object represents database *branch*
       and instance-level configuration.
 
 
@@ -345,7 +345,7 @@ Client connections
 
   This type will have only one object instance. The ``cfg::BranchConfig``
   object represents the state of :versionreplace:`database;5.0:branch` and
-  instance-level EdgeDB configuration.
+  instance-level Gel configuration.
 
   For overall configuration state please refer to the :eql:type:`cfg::Config`
   instead.
@@ -359,7 +359,7 @@ Client connections
   The instance-level configuration object type.
 
   This type will have only one object instance. The ``cfg::InstanceConfig``
-  object represents the state of only instance-level EdgeDB configuration.
+  object represents the state of only instance-level Gel configuration.
 
   For overall configuraiton state please refer to the :eql:type:`cfg::Config`
   instead.
@@ -440,7 +440,7 @@ Client connections
 
 .. eql:type:: cfg::ConnectionTransport
 
-  An enum listing the various protocols that EdgeDB can speak.
+  An enum listing the various protocols that Gel can speak.
 
   Possible values are:
 
@@ -450,12 +450,12 @@ Client connections
   * - **Value**
     - **Description**
   * - ``cfg::ConnectionTransport.TCP``
-    - EdgeDB binary protocol
+    - Gel binary protocol
   * - ``cfg::ConnectionTransport.TCP_PG``
     - Postgres protocol for the
       :ref:`SQL query mode <ref_sql_adapter>`
   * - ``cfg::ConnectionTransport.HTTP``
-    - EdgeDB binary protocol
+    - Gel binary protocol
       :ref:`tunneled over HTTP <ref_http_tunnelling>`
   * - ``cfg::ConnectionTransport.SIMPLE_HTTP``
     - :ref:`EdgeQL over HTTP <ref_edgeql_http>`

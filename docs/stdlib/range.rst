@@ -26,7 +26,7 @@ Constructing ranges
 
 There's a special :eql:func:`range` constructor function for making range
 values. This is a little different from how scalars, arrays and tuples are
-created typically in EdgeDB.
+created typically in Gel.
 
 For example:
 

@@ -122,7 +122,7 @@ module* on a per-query basis.
   ... select ObjectType;
 
 This ``with module`` clause changes the default module to schema, so we can
-refer to ``schema::ObjectType`` (a built-in EdgeDB type) as simply
+refer to ``schema::ObjectType`` (a built-in Gel type) as simply
 ``ObjectType``.
 
 As with module aliases, if the active module does not exist at the top level,

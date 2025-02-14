@@ -9,7 +9,7 @@ CLI
 :edb-alt-title: The Gel CLI
 
 The ``edgedb`` command-line interface (CLI) provides an idiomatic way to
-install EdgeDB, spin up local instances, open a REPL, execute queries,
+install |Gel|, spin up local instances, open a REPL, execute queries,
 manage auth roles, introspect schema, create migrations, and more.
 
 You can install it with one shell command.
@@ -32,13 +32,13 @@ For Windows, the installation script is:
     PS> iwr https://ps1.edgedb.com -useb | iex
 
 * The `script <https://sh.edgedb.com>`_, inspired by ``rustup``, will
-  detect the OS and download the appropriate build of the EdgeDB CLI
-  tool, ``edgedb``.
+  detect the OS and download the appropriate build of the Gel CLI
+  tool, ``gel``.
 * The ``edgedb`` command is a single executable (it's `open source!
   <https://github.com/edgedb/edgedb-cli/>`_)
-* Once installed, the ``edgedb`` command can be used to install,
-  uninstall, upgrade, and interact with EdgeDB server instances.
-* You can uninstall EdgeDB server or remove the ``edgedb`` command at
+* Once installed, the ``gel`` command can be used to install,
+  uninstall, upgrade, and interact with |Gel| server instances.
+* You can uninstall Gel server or remove the ``gel`` command at
   any time.
 
 
@@ -55,7 +55,7 @@ remotely.
 .. rubric:: Nightly version
 
 To install the nightly version of the CLI (not to be confused with the nightly
-version of EdgeDB itself!) use this command:
+version of |Gel| itself!) use this command:
 
 .. code-block:: bash
 
@@ -72,31 +72,31 @@ macOS run:
 
 .. code-block:: bash
 
-   $ rm "$(which edgedb)"
+   $ rm "$(which gel)"
 
-To remove all configuration files, run ``edgedb info`` to list the directories
-where EdgeDB stores data, then use ``rm -rf <dir>`` to delete those
+To remove all configuration files, run ``gel info`` to list the directories
+where |Gel| stores data, then use ``rm -rf <dir>`` to delete those
 directories.
 
 If the command-line tool was installed by the user (recommended) then it
 will also remove the binary.
 
-If you've used ``edgedb`` commands you can also delete
+If you've used ``gel`` commands you can also delete
 :ref:`instances <ref_cli_edgedb_instance_destroy>` and :ref:`server
 <ref_cli_edgedb_server_uninstall>` packages, prior to removing the
 tool:
 
 .. code-block:: bash
 
-   $ edgedb instance destroy <instance_name>
+   $ gel instance destroy <instance_name>
 
 To list instances and server versions use the following commands
 respectively:
 
 .. code-block:: bash
 
-   $ edgedb instance status
-   $ edgedb server list-versions --installed-only
+   $ gel instance status
+   $ gel server list-versions --installed-only
 
 
 .. _ref_cli_edgedb_config:

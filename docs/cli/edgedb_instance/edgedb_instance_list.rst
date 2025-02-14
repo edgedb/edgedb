@@ -1,22 +1,22 @@
 .. _ref_cli_edgedb_instance_list:
 
 
-====================
-edgedb instance list
-====================
+=================
+gel instance list
+=================
 
-Show all EdgeDB instances.
+Show all |Gel| instances.
 
 .. cli:synopsis::
 
-    edgedb instance list [<options>]
+    gel instance list [<options>]
 
 
 Description
 ===========
 
-``edgedb instance list`` is a terminal command that shows all the
-registered EdgeDB instances and some relevant information about them
+``gel instance list`` is a terminal command that shows all the
+registered |Gel| instances and some relevant information about them
 (status, port, etc.).
 
 

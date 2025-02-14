@@ -1,22 +1,22 @@
 .. _ref_cli_edgedb_server_list_versions:
 
 
-===========================
-edgedb server list-versions
-===========================
+========================
+gel server list-versions
+========================
 
-List available and installed versions of the EdgeDB server.
+List available and installed versions of the |Gel| server.
 
 .. cli:synopsis::
 
-     edgedb server list-versions [<options>]
+     gel server list-versions [<options>]
 
 
 Description
 ===========
 
-``edgedb server list-versions`` is a terminal command for displaying
-all the available EdgeDB server versions along with indicating whether
+``gel server list-versions`` is a terminal command for displaying
+all the available |Gel| server versions along with indicating whether
 or not and how they are currently installed.
 
 

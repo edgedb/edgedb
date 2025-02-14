@@ -1,13 +1,9 @@
 .. _ref_cli_edgedb_analyze:
 
 
-==============
-edgedb analyze
-==============
-
-.. note::
-
-    This CLI feature is compatible with EdgeDB server 3.0 and above.
+===========
+gel analyze
+===========
 
 .. note::
 
@@ -20,7 +16,7 @@ Run a query performance analysis on the given query.
 
 .. cli:synopsis::
 
-	edgedb analyze [<options>] <query>
+	gel analyze [<options>] <query>
 
 An example of ``analyze`` output from a simple query:
 

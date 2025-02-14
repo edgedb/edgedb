@@ -147,14 +147,15 @@ class GelSubstitutionTransform(transforms.SphinxTransform):
 
         # Traverse all substitution_reference nodes.
         for node in self.document.traverse(d_nodes.substitution_reference):
-            if node.astext() == "Gel":
+            nt = node.astext()
+            if nt in {"Gel", "EdgeDB", "gelcli", ".gel", "gel.toml"}:
                 if builder_name in {"xml", "edge-xml"}:
                     sub = d_nodes.inline(
-                        "Gel", "Gel", **{"edb-substitution": "true"}
+                        nt, nt, **{"edb-substitution": "true"}
                     )
                     node.replace_self(sub)
                 else:
-                    node.replace_self(d_nodes.Text("Gel"))
+                    node.replace_self(d_nodes.Text(nt))
 
 
 def setup_domain(app):

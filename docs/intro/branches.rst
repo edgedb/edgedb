@@ -6,7 +6,7 @@ Branches
 
 EdgeDB's branches make it easy to prototype app features that impact your
 database schema, even in cases where those features are never released. You can
-create a branch in your EdgeDB database that corresponds to a feature branch in
+create a branch in your Gel database that corresponds to a feature branch in
 your VCS. When you're done, either :ref:`merge <ref_cli_edgedb_branch_merge>`
 that branch into your main branch or :ref:`drop <ref_cli_edgedb_branch_drop>`
 it leaving your original schema intact.
@@ -15,7 +15,7 @@ it leaving your original schema intact.
 
     The procedure we will describe should be adaptable to any VCS offering
     branching and rebasing, but in order to make the examples concrete and
-    easy-to-follow, we'll be demonstrating how EdgeDB branches interact with
+    easy-to-follow, we'll be demonstrating how Gel branches interact with
     Git branches. You may adapt these examples to your VCS of choice.
 
 
@@ -23,7 +23,7 @@ it leaving your original schema intact.
 ------------------------------
 
 Create a feature branch in your VCS and switch to it. Then, create and switch
-to a corresponding branch in EdgeDB using the CLI.
+to a corresponding branch in Gel using the CLI.
 
 .. code-block:: bash
 

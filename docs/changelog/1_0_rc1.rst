@@ -7,7 +7,7 @@
 ========
 
 This changelog summarizes new features and breaking changes in
-EdgeDB 1.0 Release Candidate 1 "Epsilon Eridani".
+|EdgeDB| 1.0 Release Candidate 1 "Epsilon Eridani".
 
 
 Migrations

@@ -7,14 +7,14 @@ FastAPI
 :edb-alt-title: Building a REST API with Gel and FastAPI
 
 Because FastAPI encourages and facilitates strong typing, it's a natural
-pairing with EdgeDB. Our Python code generation generates not only typed
+pairing with Gel. Our Python code generation generates not only typed
 query functions but result types you can use to annotate your endpoint handler
 functions.
 
 EdgeDB can help you quickly build REST APIs in Python without getting into the
 rigmarole of using ORM libraries to handle your data effectively. Here, we'll
 be using `FastAPI <https://fastapi.tiangolo.com/>`_ to expose the API endpoints
-and EdgeDB to store the content.
+and Gel to store the content.
 
 We'll build a simple event management system where you'll be able to fetch,
 create, update, and delete *events* and *event hosts* via RESTful API
@@ -35,7 +35,7 @@ database more efficiently. You can use newer versions of Python if you prefer,
 but you may need to adjust the code accordingly. If you want to skip ahead,
 the completed source code for this API can be found `in our examples repo
 <https://github.com/edgedb/edgedb-examples/tree/main/fastapi-crud>`_. If you
-want to check out an example with EdgeDB Auth, you can find that in the same
+want to check out an example with Gel Auth, you can find that in the same
 repo in the `fastapi-crud-auth folder
 <https://github.com/edgedb/edgedb-examples/tree/main/fastapi-crud-auth>`_.
 
@@ -83,7 +83,7 @@ note for help with Windows):
 Initialize the database
 ^^^^^^^^^^^^^^^^^^^^^^^
 
-Now, let's initialize an EdgeDB project. From the project's root directory:
+Now, let's initialize an Gel project. From the project's root directory:
 
 .. code-block:: bash
 
@@ -91,14 +91,14 @@ Now, let's initialize an EdgeDB project. From the project's root directory:
     No `edgedb.toml` found in `<project-path>` or above
     Do you want to initialize a new project? [Y/n]
     > Y
-    Specify the name of EdgeDB instance to use with this project [default:
+    Specify the name of Gel instance to use with this project [default:
     fastapi_crud]:
     > fastapi_crud
-    Checking EdgeDB versions...
-    Specify the version of EdgeDB to use with this project [default: 2.7]:
+    Checking Gel versions...
+    Specify the version of Gel to use with this project [default: 2.7]:
     > 2.7
 
-Once you've answered the prompts, a new EdgeDB instance called ``fastapi_crud``
+Once you've answered the prompts, a new Gel instance called ``fastapi_crud``
 will be created and started. If you see ``Project initialized``, you're ready.
 
 
@@ -116,7 +116,7 @@ database instance:
 
 ::
 
-    EdgeDB 2.x (repl 2.x)
+    Gel x.x (repl x.x)
     Type \help for help, \quit to quit.
     edgedb>
 
@@ -133,7 +133,7 @@ and delete the entities while maintaining their relationships.
 
 EdgeDB allows us to declaratively define the structure of the entities. If
 you've worked with SQLAlchemy or Django ORM, you might refer to these
-declarative schema definitions as *models*. In EdgeDB we call them
+declarative schema definitions as *models*. In Gel we call them
 "object types".
 
 The schema lives inside ``.esdl`` files in the ``dbschema`` directory. It's
@@ -172,7 +172,7 @@ datatypes look like:
     }
 
 Here, we've defined an ``abstract`` type called ``Auditable`` to take advantage
-of EdgeDB's schema mixin system. This allows us to add a ``created_at``
+of Gel's schema mixin system. This allows us to add a ``created_at``
 property to multiple types without repeating ourselves. Abstract types
 don't have any concrete footprints in the database, as they don't hold any
 actual data. Their only job is to propagate properties, links, and constraints
@@ -211,7 +211,7 @@ Now run the migration we just created.
 
 Once this is done, you'll see ``Applied`` along with the migration's ID. I like
 to go one step further in verifying success and see the schema applied to my
-database. To do that, first fire up the EdgeDB console:
+database. To do that, first fire up the Gel console:
 
 .. code-block:: bash
 
@@ -281,7 +281,7 @@ simple text files containing the queries we want our app to be able to run.
 
 The code generator will search through our project for all files with the
 ``.edgeql`` extension and generate those functions for us as individual Python
-modules. When you installed the EdgeDB client (via ``pip install edgedb``), the
+modules. When you installed the Gel client (via ``pip install edgedb``), the
 code generator was installed alongside it, so you're already ready to go. We
 just need to write those queries!
 
@@ -311,7 +311,7 @@ Save that file and get ready to kick off the magic that is code generation! 🪄
 .. code-block:: bash
 
     $ edgedb-py
-    Found EdgeDB project: <project-path>
+    Found Gel project: <project-path>
     Processing <project-path>/app/queries/get_user_by_name.edgeql
     Processing <project-path>/app/queries/get_users.edgeql
     Generating <project-path>/app/queries/get_user_by_name.py
@@ -369,7 +369,7 @@ We've imported the generated code and aliased it (using ``as <new-name>``) to
 make the module names we use in our code a bit neater.
 
 The ``APIRouter`` instance does the actual work of exposing the API. We also
-create an async EdgeDB client instance to communicate with the database.
+create an async Gel client instance to communicate with the database.
 
 By default, this API will return a list of all users, but you can also filter
 the user objects by name. We have the ``RequestData`` class to handle the data
@@ -1170,18 +1170,18 @@ payload:
 You can do the same to test ``DELETE /events``, just make sure you give it
 whatever name you set for the event in your previous test of the PUT method.
 
-Integrating EdgeDB Auth
-=======================
+Integrating Gel Auth
+====================
 
 EdgeDB Auth provides a built-in authentication solution that is deeply
-integrated with the EdgeDB server. This section outlines how to enable and
-configure EdgeDB Auth in your application schema, manage authentication
+integrated with the Gel server. This section outlines how to enable and
+configure Gel Auth in your application schema, manage authentication
 providers, and set key configuration parameters.
 
-Setting up EdgeDB Auth
-^^^^^^^^^^^^^^^^^^^^^^^
+Setting up Gel Auth
+^^^^^^^^^^^^^^^^^^^
 
-To start using EdgeDB Auth, you must first enable it in your schema. Add the
+To start using Gel Auth, you must first enable it in your schema. Add the
 following to your schema definition:
 
 .. code-block:: sdl
@@ -1197,13 +1197,13 @@ schema.
     $ edgedb migrate
 
 
-Configuring EdgeDB Auth
------------------------
+Configuring Gel Auth
+--------------------
 
-The configuration of EdgeDB Auth involves setting various parameters to secure
+The configuration of Gel Auth involves setting various parameters to secure
 and tailor authentication to your needs. For now, we'll focus on the essential
 parameters to get started. You can configure these settings through a Python
-script, which is recommended for scalability, or you can use the EdgeDB UI for
+script, which is recommended for scalability, or you can use the Gel UI for
 a more user-friendly approach.
 
 **Auth Signing Key**
@@ -1226,7 +1226,7 @@ Using Python:
     import secrets
     print(secrets.token_urlsafe(32))
 
-Once you have generated your key, configure it in EdgeDB like this:
+Once you have generated your key, configure it in Gel like this:
 
 .. code-block:: edgeql
 
@@ -1253,8 +1253,8 @@ To configure this in your application:
 Enabling authentication providers
 ---------------------------------
 
-You need to configure at least one authentication provider to use EdgeDB Auth.
-This can be done via the EdgeDB UI or directly through queries.
+You need to configure at least one authentication provider to use Gel Auth.
+This can be done via the Gel UI or directly through queries.
 
 In this example, we'll configure a email and password provider. You can add
 it with the following query:
@@ -1396,7 +1396,7 @@ Next, we're going to create endpoints in FastAPI to handle user registration
         response.set_cookie(key="edgedb-auth-token", value=auth_token, httponly=True, secure=True, samesite='strict')
         return response
 
-The sign-up endpoint sends a POST request to the EdgeDB Auth server to register
+The sign-up endpoint sends a POST request to the Gel Auth server to register
 a new user. It also sets the auth token as an HttpOnly cookie in the response.
 
 **Sign-in endpoint**
@@ -1438,7 +1438,7 @@ a new user. It also sets the auth token as an HttpOnly cookie in the response.
         response.set_cookie(key="edgedb-auth-token", value=auth_token, httponly=True, secure=True, samesite='strict')
         return response
 
-The sign-in endpoint sends a POST request to the EdgeDB Auth server to authenticate
+The sign-in endpoint sends a POST request to the Gel Auth server to authenticate
 a user. It then retrieves the code from the response and exchanges it for an auth
 token. The token is set as an HttpOnly cookie in the response.
 
@@ -1459,8 +1459,8 @@ We'll use the ``create_user_async_edgeql`` query we generated earlier
 to achieve this, but we'll need to modify it slightly to link it to the
 EdgeDB Auth identity.
 
-First, let's update the EdgeDB schema to include a new field in the User type
-to store the EdgeDB Auth identity and a new ``current_user`` type.
+First, let's update the Gel schema to include a new field in the User type
+to store the Gel Auth identity and a new ``current_user`` type.
 
 .. code-block:: sdl-diff
     :caption: dbschema/default.esdl
@@ -1506,9 +1506,9 @@ endpoint to create a new user in the database. We need to do a few things:
 
 1. Import ``edgedb``.
 
-2. Create an EdgeDB client.
+2. Create an Gel client.
 
-3. Get the identity ID from the EdgeDB Auth server response.
+3. Get the identity ID from the Gel Auth server response.
 
 4. Create a new user in the database using the ``create_user_async_edgeql``
    query.
@@ -1583,11 +1583,11 @@ If the request is successful, you should see a response with the message
 Wrapping up
 ===========
 
-Now you have a fully functioning events API in FastAPI backed by EdgeDB. If you
+Now you have a fully functioning events API in FastAPI backed by Gel. If you
 want to see all the source code for the completed project, you'll find it in
 `our examples repo
 <https://github.com/edgedb/edgedb-examples/tree/main/fastapi-crud>`_. We also
-have a separate example that demonstrates how to integrate EdgeDB Auth with
+have a separate example that demonstrates how to integrate Gel Auth with
 FastAPI in the same repo. Check it out
 `here <https://github.com/edgedb/edgedb-examples/tree/main/fastapi-crud-auth>`_.
 If you're stuck or if you just want to show off what you've built, come talk
@@ -1595,7 +1595,7 @@ to us `on Discord <https://discord.gg/umUueND6ag>`_. It's a great community of
 helpful folks, all passionate about being part of the next generation of
 databases.
 
-If you like what you see and want to dive deeper into EdgeDB and what it can
-do, check out our `Easy EdgeDB book </easy-edgedb>`_. In
-it, you'll get to learn more about EdgeDB as we build an imaginary role-playing
+If you like what you see and want to dive deeper into Gel and what it can
+do, check out our `Easy Gel book </easy-edgedb>`_. In
+it, you'll get to learn more about Gel as we build an imaginary role-playing
 game based on Bram Stoker's Dracula.

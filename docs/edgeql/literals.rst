@@ -5,7 +5,7 @@ Literals
 
 .. index:: primitive types
 
-EdgeQL is *inextricably tied* to EdgeDB's rigorous type system. Below is an
+EdgeQL is *inextricably tied* to Gel's rigorous type system. Below is an
 overview of how to declare a literal value of each *primitive type*. Click a
 link in the left column to jump to the associated section.
 
@@ -180,7 +180,7 @@ EdgeDB provides a set of operators that operate on boolean values.
 Numbers
 -------
 
-There are several numerical types in EdgeDB's type system.
+There are several numerical types in Gel's type system.
 
 .. list-table::
 

@@ -6,7 +6,7 @@
 1.0 RC 3
 ========
 
-This changelog summarizes changes and bugfixes in EdgeDB 1.0 Release
+This changelog summarizes changes and bugfixes in |EdgeDB| 1.0 Release
 Candidate 3 "Cygni". This release is focusing on fixing existing
 issues rather than introducing new features.
 

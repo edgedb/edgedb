@@ -1,20 +1,20 @@
 .. _ref_cli_edgedb_instance_unlink:
 
-======================
-edgedb instance unlink
-======================
+===================
+gel instance unlink
+===================
 
-Unlink from a previously linked remote EdgeDB instance.
+Unlink from a previously linked remote Gel instance.
 
 .. cli:synopsis::
 
-    edgedb instance unlink <name>
+    gel instance unlink <name>
 
 
 Description
 ===========
 
-``edgedb instance unlink`` is a terminal command used to unlink a
+``gel instance unlink`` is a terminal command used to unlink a
 remote instance. This removes the instance name from the list of valid
 instances.
 

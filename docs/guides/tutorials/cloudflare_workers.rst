@@ -7,17 +7,17 @@ Cloudflare Workers
 :edb-alt-title: Using Gel in Cloudflare Workers
 
 
-This guide demonstrates how to integrate EdgeDB with Cloudflare Workers to
-build serverless applications that can interact with EdgeDB.
+This guide demonstrates how to integrate Gel with Cloudflare Workers to
+build serverless applications that can interact with Gel.
 
 It covers the following:
 
 - Setting up a new Cloudflare Worker project
-- Configuring EdgeDB
-- Using EdgeDB in a Cloudflare Worker
+- Configuring Gel
+- Using Gel in a Cloudflare Worker
 - Deploying the Worker to Cloudflare
 
-You can use this project as a reference: `EdgeDB Cloudflare Workers Example`_.
+You can use this project as a reference: `Gel Cloudflare Workers Example`_.
 
 Prerequisites
 -------------
@@ -27,7 +27,7 @@ Prerequisites
 Ensure you have the following installed:
 
 - `Node.js`_
-- :ref:`EdgeDB CLI <ref_intro_cli>`
+- :ref:`Gel CLI <ref_intro_cli>`
 
 .. _Sign up for a Cloudflare account: https://dash.cloudflare.com/sign-up
 .. _Node.js: https://nodejs.org/en/
@@ -66,16 +66,16 @@ project on Cloudflare, you can run ``npx wrangler deploy`` to push it.
 .. _Wrangler: https://developers.cloudflare.com/workers/cli-wrangler
 
 
-Configure EdgeDB
-=================
+Configure Gel
+=============
 
-You can use `EdgeDB Cloud`_ for a managed service or run EdgeDB locally.
+You can use `Gel Cloud`_ for a managed service or run Gel locally.
 
-.. _`EdgeDB Cloud`: https://www.edgedb.com/cloud
+.. _`Gel Cloud`: https://www.edgedb.com/cloud
 
-**Local EdgeDB Setup (Optional for EdgeDB Cloud Users)**
+**Local Gel Setup (Optional for Gel Cloud Users)**
 
-If you're running EdgeDB locally, you can use the following command
+If you're running Gel locally, you can use the following command
 to create a new instance:
 
 .. code-block:: bash
@@ -85,7 +85,7 @@ to create a new instance:
 It creates an :code:`edgedb.toml` config file and a schema file
 :code:`dbschema/default.esdl`.
 
-It also spins up an EdgeDB instance and associates it with the current
+It also spins up an Gel instance and associates it with the current
 directory.
 As long as you're inside the project directory, all CLI commands will
 be executed against this instance.
@@ -97,7 +97,7 @@ interactive REPL to your instance.
 
     $ edgedb
 
-**Install the EdgeDB npm package**
+**Install the Gel npm package**
 
 .. code-block:: bash
 
@@ -125,20 +125,20 @@ Add new types to the schema file:
       }
     }
 
-Then apply the schema schema to your EdgeDB instance:
+Then apply the schema schema to your Gel instance:
 
 .. code-block:: bash
 
     $ edgedb migration create
     $ edgedb migrate
 
-Using EdgeDB in a Cloudflare Worker
-====================================
+Using Gel in a Cloudflare Worker
+================================
 
 Open the :code:`index.ts` file from the :code:`src` directory in your project,
 and remove the default code.
 
-To interact with your **local EdgeDB instance**, use the following code:
+To interact with your **local Gel instance**, use the following code:
 
 .. code-block:: typescript
 
@@ -164,10 +164,10 @@ To interact with your **local EdgeDB instance**, use the following code:
     } satisfies ExportedHandler<Env>;
 
 
-.. note:: EdgeDB DSN
+.. note:: Gel DSN
 
-    Replace :code:`<your-edgedb-dsn>` with your EdgeDB DSN.
-    You can obtain your EdgeDB DSN from the command line by running:
+    Replace :code:`<your-edgedb-dsn>` with your Gel DSN.
+    You can obtain your Gel DSN from the command line by running:
 
     .. code-block:: bash
 
@@ -176,12 +176,12 @@ To interact with your **local EdgeDB instance**, use the following code:
 .. note:: tlsSecurity
 
     The :code:`tlsSecurity` option is set to :code:`insecure` to allow
-    connections to a local EdgeDB instance. This lets you test your
+    connections to a local Gel instance. This lets you test your
     Cloudflare Worker locally. **Don't use this option in production.**
 
-**Client Setup with EdgeDB Cloud**
+**Client Setup with Gel Cloud**
 
-If you're using EdgeDB Cloud, you can instead use the following code to
+If you're using Gel Cloud, you can instead use the following code to
 set up the client:
 
 .. code-block:: typescript
@@ -194,7 +194,7 @@ set up the client:
 .. note:: Environment variables
 
     You can obtain :code:`EDGEDB_INSTANCE` and :code:`EDGEDB_SECRET_KEY`
-    values from the EdgeDB Cloud dashboard.
+    values from the Gel Cloud dashboard.
 
 You will need to set the :code:`EDGEDB_INSTANCE` and :code:`EDGEDB_SECRET`
 environment variables in your Cloudflare Worker project.
@@ -246,16 +246,16 @@ to access your worker.
 Wrapping up
 ===========
 
-Congratulations! You have successfully integrated EdgeDB with
+Congratulations! You have successfully integrated Gel with
 Cloudflare Workers.
 
 Here's a minimal starter project that you can use as a
-reference: `EdgeDB Cloudflare Workers Example`_.
+reference: `Gel Cloudflare Workers Example`_.
 
 Check out the `Cloudflare Workers documentation`_ for more information and
 to learn about the various features and capabilities of Cloudflare Workers.
 
-.. _`EdgeDB Cloudflare Workers Example`:
+.. _`Gel Cloudflare Workers Example`:
   https://github.com/edgedb/edgedb-examples/tree/main/cloudflare-workers
 .. _`Cloudflare Workers documentation`:
   https://developers.cloudflare.com/workers

@@ -2,10 +2,10 @@
 v4.0
 ====
 
-:edb-alt-title: Gel v4
+:edb-alt-title: EdgeDB v4
 
 This release cycle is much shorter than the previous ones. It reflects our new
-approach at EdgeDB where the goal is to provide improvements at a steady
+approach at |EdgeDB| where the goal is to provide improvements at a steady
 regular pace rather than in big, but infrequent batches. Going forward we
 expect to maintain this shorter release cadence focusing on a few features at
 a time.

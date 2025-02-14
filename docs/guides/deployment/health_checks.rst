@@ -4,7 +4,7 @@
 Health Checks
 =============
 
-You may want to monitor the status of your EdgeDB instance. Is it up? Is it
+You may want to monitor the status of your Gel instance. Is it up? Is it
 ready to take queries? This guide will show you to perform health checks using
 HTTP and the ``alive`` and ``ready`` endpoints.
 

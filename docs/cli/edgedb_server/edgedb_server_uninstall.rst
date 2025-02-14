@@ -1,22 +1,22 @@
 .. _ref_cli_edgedb_server_uninstall:
 
 
-=======================
-edgedb server uninstall
-=======================
+====================
+gel server uninstall
+====================
 
-Uninstall EdgeDB server.
+Uninstall |Gel| server.
 
 .. cli:synopsis::
 
-     edgedb server uninstall [<options>]
+     gel server uninstall [<options>]
 
 
 Description
 ===========
 
-``edgedb server uninstall`` is a terminal command for removing a
-specific EdgeDB server version from your system.
+``gel server uninstall`` is a terminal command for removing a
+specific |Gel| server version from your system.
 
 
 Options

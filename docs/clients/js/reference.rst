@@ -17,16 +17,17 @@ Client
 
     :param options:
         This is an optional parameter. When it is not specified the client
-        will connect to the current EdgeDB Project instance.
+        will connect to the current |Gel| Project instance.
 
         If this parameter is a string it can represent either a
         DSN or an instance name:
 
-        * when the string does not start with ``edgedb://`` it is a
-          :ref:`name of an instance <ref_reference_connection_instance_name>`;
+        * when the string does not start with ``gel://`` (or legacy
+          ``edgedb://``) it is a :ref:`name of an instance
+          <ref_reference_connection_instance_name>`;
 
         * otherwise it specifies a single string in the connection URI format:
-          ``edgedb://user:password@host:port/database?option=value``.
+          ``gel://user:password@host:port/database?option=value``.
 
           See the :ref:`Connection Parameters <ref_reference_connection>`
           docs for full details.
@@ -99,10 +100,10 @@ Client
 
         // Use the Node.js assert library to test results.
         const assert = require("assert");
-        const edgedb = require("edgedb");
+        const gel = require("gel");
 
         async function main() {
-          const client = edgedb.createClient();
+          const client = gel.createClient();
 
           const data = await client.querySingle("select 1 + 1");
 
@@ -116,7 +117,7 @@ Client
 
 .. js:class:: Client
 
-    A ``Client`` allows you to run queries on an EdgeDB instance.
+    A ``Client`` allows you to run queries on a |Gel| instance.
 
     Since opening connections is an expensive operation, ``Client`` also
     maintains a internal pool of connections to the instance, allowing
@@ -413,7 +414,7 @@ Client
 
         .. code-block:: javascript
 
-            import {createClient} from 'edgedb';
+            import {createClient} from 'gel';
 
             async function getClient() {
               try {
@@ -503,7 +504,7 @@ Client
 
         .. code-block:: javascript
 
-            import {createClient} from 'edgedb';
+            import {createClient} from 'gel';
 
             function main() {
               const client = createClient();
@@ -556,15 +557,15 @@ Client
 Type conversion
 ===============
 
-The client automatically converts EdgeDB types to the corresponding JavaScript
+The client automatically converts |Gel| types to the corresponding JavaScript
 types and vice versa.
 
-The table below shows the correspondence between EdgeDB and JavaScript types.
+The table below shows the correspondence between Gel and JavaScript types.
 
 
 .. list-table::
 
-  * - **EdgeDB Type**
+  * - **Gel Type**
     - **JavaScript Type**
   * - ``multi`` set
     - ``Array``
@@ -631,16 +632,16 @@ The table below shows the correspondence between EdgeDB and JavaScript types.
 Arrays
 ======
 
-EdgeDB ``array``  maps onto the JavaScript ``Array``.
+Gel ``array``  maps onto the JavaScript ``Array``.
 
 .. code-block:: javascript
 
     // Use the Node.js assert library to test results.
     const assert = require("assert");
-    const edgedb = require("edgedb");
+    const gel = require("gel");
 
     async function main() {
-      const client = edgedb.createClient("edgedb://edgedb@localhost/");
+      const client = gel.createClient();
 
       const data = await client.querySingle("select [1, 2, 3]");
 
@@ -665,10 +666,10 @@ object property or a link can be accessed through a corresponding object key:
 
     // Use the Node.js assert library to test results.
     const assert = require("assert");
-    const edgedb = require("edgedb");
+    const gel = require("gel");
 
     async function main() {
-      const client = edgedb.createClient("edgedb://edgedb@localhost/");
+      const client = gel.createClient();
 
       const data = await client.querySingle(`
         select schema::Property {
@@ -684,7 +685,7 @@ object property or a link can be accessed through a corresponding object key:
       assert(typeof data.name === "string");
       // The link 'annotaions' is accessible and is a Set.
       assert(typeof data.annotations === "object");
-      assert(data.annotations instanceof edgedb.Set);
+      assert(data.annotations instanceof gel.Set);
       // The Set of 'annotations' is array-like.
       assert(data.annotations.length > 0);
       assert(data.annotations[0].name === "cfg::system");
@@ -696,16 +697,16 @@ object property or a link can be accessed through a corresponding object key:
 Tuples
 ======
 
-A regular EdgeDB ``tuple`` becomes an ``Array`` in JavaScript.
+A regular |Gel| ``tuple`` becomes an ``Array`` in JavaScript.
 
 .. code-block:: javascript
 
     // Use the Node.js assert library to test results.
     const assert = require("assert");
-    const edgedb = require("edgedb");
+    const gel = require("gel");
 
     async function main() {
-      const client = edgedb.createClient("edgedb://edgedb@localhost/");
+      const client = gel.createClient();
 
       const data = await client.querySingle(`
         select (1, 'a', [3])
@@ -724,17 +725,17 @@ A regular EdgeDB ``tuple`` becomes an ``Array`` in JavaScript.
 Named Tuples
 ============
 
-A named EdgeDB ``tuple`` becomes an ``Array``-like ``object`` in JavaScript,
+A named |Gel| ``tuple`` becomes an ``Array``-like ``object`` in JavaScript,
 where the elements are accessible either by their names or indexes.
 
 .. code-block:: javascript
 
     // Use the Node.js assert library to test results.
     const assert = require("assert");
-    const edgedb = require("edgedb");
+    const gel = require("gel");
 
     async function main() {
-      const client = edgedb.createClient("edgedb://edgedb@localhost/");
+      const client = gel.createClient();
 
       const data = await client.querySingle(`
         select (a := 1, b := 'a', c := [3])
@@ -763,7 +764,7 @@ Local Date
         month: number, \
         day: number)
 
-    A JavaScript representation of an EdgeDB ``local_date`` value. Implements
+    A JavaScript representation of an |Gel| ``local_date`` value. Implements
     a subset of the `TC39 Temporal Proposal`_ ``PlainDate`` type.
 
     Assumes the calendar is always `ISO 8601`_.
@@ -848,14 +849,14 @@ Local Time
         microsecond: number = 0, \
         nanosecond: number = 0)
 
-    A JavaScript representation of an EdgeDB ``local_time`` value. Implements
+    A JavaScript representation of an Gel ``local_time`` value. Implements
     a subset of the `TC39 Temporal Proposal`_ ``PlainTime`` type.
 
     .. note::
 
-        The EdgeDB ``local_time`` type only has microsecond precision, any
+        The Gel ``local_time`` type only has microsecond precision, any
         nanoseconds specified in the ``LocalTime`` will be ignored when
-        encoding to an EdgeDB ``local_time``.
+        encoding to an Gel ``local_time``.
 
     .. js:attribute:: hour: number
 
@@ -909,7 +910,7 @@ Local Date and Time
         microsecond: number = 0, \
         nanosecond: number = 0) extends LocalDate, LocalTime
 
-    A JavaScript representation of an EdgeDB ``local_datetime`` value.
+    A JavaScript representation of an |Gel| ``local_datetime`` value.
     Implements a subset of the `TC39 Temporal Proposal`_ ``PlainDateTime``
     type.
 
@@ -945,7 +946,7 @@ Duration
         microseconds: number = 0, \
         nanoseconds: number = 0)
 
-    A JavaScript representation of an EdgeDB ``duration`` value. This class
+    A JavaScript representation of a Gel ``duration`` value. This class
     attempts to conform to the `TC39 Temporal Proposal`_ ``Duration`` type as
     closely as possible.
 
@@ -960,24 +961,24 @@ Duration
         their absolute duration changes depending on the exact date they are
         relative to (eg. different months have a different number of days).
 
-        The EdgeDB ``duration`` type only supports absolute durations, so any
+        The Gel ``duration`` type only supports absolute durations, so any
         ``Duration`` with non-zero years, months, weeks, or days will throw
         an error when trying to encode them.
 
     .. note::
 
-        The EdgeDB ``duration`` type only has microsecond precision, any
+        The Gel ``duration`` type only has microsecond precision, any
         nanoseconds specified in the ``Duration`` will be ignored when
-        encoding to an EdgeDB ``duration``.
+        encoding to an Gel ``duration``.
 
     .. note::
 
         Temporal ``Duration`` objects can be unbalanced_, (ie. have a greater
         value in any property than it would naturally have, eg. have a seconds
-        property greater than 59), but EdgeDB ``duration`` objects are always
+        property greater than 59), but Gel ``duration`` objects are always
         balanced.
 
-        Therefore in a round-trip of a ``Duration`` object to EdgeDB and back,
+        Therefore in a round-trip of a ``Duration`` object to Gel and back,
         the returned object, while being an equivalent duration, may not
         have exactly the same property values as the sent object.
 
@@ -1058,7 +1059,7 @@ RelativeDuration
         milliseconds: number = 0, \
         microseconds: number = 0)
 
-  A JavaScript representation of an EdgeDB
+  A JavaScript representation of an Gel
   :eql:type:`cal::relative_duration` value. This type represents a
   non-definite span of time such as "2 years 3 days". This cannot be
   represented as a :eql:type:`duration` because a year has no absolute
@@ -1133,7 +1134,7 @@ DateDuration
       days: number = 0, \
     )
 
-  A JavaScript representation of an EdgeDB
+  A JavaScript representation of an Gel
   :eql:type:`cal::date_duration` value. This type represents a
   non-definite span of time consisting of an integer number of *months* and
   *days*.
@@ -1189,7 +1190,7 @@ Memory
 
 .. js:class:: ConfigMemory(bytes: BigInt)
 
-  A JavaScript representation of an EdgeDB ``cfg::memory`` value.
+  A JavaScript representation of an Gel ``cfg::memory`` value.
 
   .. js:attribute:: bytes: number
 
@@ -1197,7 +1198,7 @@ Memory
 
       .. note::
 
-          The EdgeDB ``cfg::memory`` represents a number of bytes stored as
+          The Gel ``cfg::memory`` represents a number of bytes stored as
           an ``int64``. Since JS the ``number`` type is a ``float64``, values
           above ``~8191TiB`` will lose precision when represented as a JS
           ``number``. To keep full precision use the ``bytesBigInt``
@@ -1230,7 +1231,7 @@ Memory
   .. js:method:: toString(): string
 
       Get the string representation of the memory value. Format is the same
-      as returned by string casting a ``cfg::memory`` value in EdgeDB.
+      as returned by string casting a ``cfg::memory`` value in Gel.
 
 Range
 =====
@@ -1242,7 +1243,7 @@ Range
         incUpper: boolean = false \
     )
 
-  A JavaScript representation of an EdgeDB ``std::range`` value. This is a generic TypeScript class with the following type signature.
+  A JavaScript representation of an Gel ``std::range`` value. This is a generic TypeScript class with the following type signature.
 
   .. code-block:: typescript
 

@@ -390,7 +390,7 @@ operator.
         ...     select detached Person filter .name = 'Dracula'
         ...   )
         ... };
-        edgedb error: EdgeDBError: Invalid frenemies
+        edgedb error: GelError: Invalid frenemies
 
     In the following examples, the ``size`` properties of the ``File`` objects
     are ``1024``, ``1024``, and ``131,072``.

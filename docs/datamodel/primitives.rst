@@ -5,7 +5,7 @@ Primitives
 ==========
 
 EdgeDB has a robust type system consisting of primitive and object types.
-Below is a review of EdgeDB's primitive types; later, these will be used to
+Below is a review of Gel's primitive types; later, these will be used to
 declare *properties* on object types.
 
 

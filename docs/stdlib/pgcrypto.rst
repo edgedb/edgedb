@@ -8,8 +8,8 @@ ext::pgcrypto
 
 This extension provides tools for your hashing and encrypting needs.
 
-The Postgres that comes packaged with the EdgeDB 4.0+ server includes
-``pgcrypto``, as does EdgeDB Cloud. It you are using a separate
+The Postgres that comes packaged with the |Gel| (since |EdgeDB| 4.0) server
+includes ``pgcrypto``, as does Gel Cloud. It you are using a separate
 Postgres backend, you will need to arrange for it to be installed.
 
 To activate this functionality you can use the :ref:`extension

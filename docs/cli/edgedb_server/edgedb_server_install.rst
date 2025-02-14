@@ -1,22 +1,22 @@
 .. _ref_cli_edgedb_server_install:
 
 
-=====================
-edgedb server install
-=====================
+==================
+gel server install
+==================
 
-Install EdgeDB server.
+Install |Gel| server.
 
 .. cli:synopsis::
 
-     edgedb server install [<options>]
+     gel server install [<options>]
 
 
 Description
 ===========
 
-``edgedb server install`` is a terminal command for installing a
-specific EdgeDB server version.
+``gel server install`` is a terminal command for installing a
+specific |Gel| server version.
 
 
 Options

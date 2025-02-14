@@ -1,35 +1,35 @@
 .. _ref_cli_edgedb_configure:
 
-================
-edgedb configure
-================
+=============
+gel configure
+=============
 
-Configure the EdgeDB server.
+Configure the |Gel| server.
 
 .. cli:synopsis::
 
-    edgedb configure [<connection-options>] <action> \
+    gel configure [<connection-options>] <action> \
         [<parameter> <value>] \
         [<parameter-class> --<property>=<value> ...]
 
 Description
 ===========
 
-``edgedb configure`` is a terminal command used to alter the
-configuration of an EdgeDB instance. There are three types of
+``gel configure`` is a terminal command used to alter the
+configuration of a |Gel| instance. There are three types of
 configuration actions that can be performed.
 
 Actions
 =======
 
-:cli:synopsis:`edgedb configure insert`
+:cli:synopsis:`gel configure insert`
     Insert a new configuration entry for a setting that supports
     multiple configuration objects (e.g. Auth or Port).
 
-:cli:synopsis:`edgedb configure set`
+:cli:synopsis:`gel configure set`
     Set a scalar configuration value.
 
-:cli:synopsis:`edgedb configure reset`
+:cli:synopsis:`gel configure reset`
     Reset an existing configuration entry or remove all values for an
     entry that supports multiple configuration objects.
 
