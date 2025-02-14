@@ -4,32 +4,15 @@
 Working with the data
 =====================
 
-.. edb:split-section::
-
-  With TypeScript, there are three ways to run a query: use a string EdgeQL query, use the ``queries`` generator to turn a string of EdgeQL into a TypeScript function, or use the query builder API to build queries dynamically in a type-safe manner. In this tutorial, you will use the TypeScript query builder API.
-
-  This query builder must be generated any time the schema changes, so add a hook in your ``gel.toml`` file to generate the query builder when the schema is updated.
-
-  .. code-block:: toml-diff
-    :caption: gel.toml
-
-      [instance]
-      server-version = 6.0
-    +
-    + [hooks]
-    + schema.update.after = "npx @gel/generate edgeql-js"
+In this section, you will update the existing application to use Gel to store and query data, instead of a static JSON file. Having a working application with mock data allows you to focus on learning how Gel works, without getting bogged down by the details of the application.
 
 .. edb:split-section::
 
-  Since our schema migration has already run, we will run the generator once now to generate the query builder files, but subsequent migrations will automatically generate the files as needed.
+  Begin by updating the server action to import a deck with cards. Loop through each card in the deck and insert it, building an array of IDs as you go. This array of IDs will be used to set the ``cards`` link on the ``Deck`` object after all cards have been inserted.
 
-  .. code-block:: sh
+  The array of card IDs is initially an array of strings. To satisfy the Gel type system, which expects the ``id`` property of ``Card`` objects to be a ``uuid`` rather than a ``str``, you need to cast the array of strings to an array of UUIDs. Use the ``e.literal(e.array(e.uuid), cardIds)`` function to perform this casting.
 
-    $ npx @gel/generate edgeql-js
-
-.. edb:split-section::
-
-  Now that the schema has been defined, and the query builder has been generated, update the server action for importing a deck with cards.
+  The function ``e.includes(cardIdsLiteral, c.id)`` from our standard library checks if a value is present in an array and returns a boolean. When inserting the ``Deck`` object, set the ``cards`` to the result of selecting only the ``Card`` objects whose ``id`` is included in the ``cardIds`` array.
 
   .. code-block:: typescript-diff
     :caption: app/actions.ts
@@ -78,24 +61,22 @@ Working with the data
     +     cardIds.push(createdCard.id);
     +   }
     +
-    +   await e
-    +     .params({ cardIds: e.array(e.uuid) }, (params) =>
-    +       e.insert(e.Deck, {
-    +         name: deck.name,
-    +         description: deck.description,
-    +         cards: e.select(e.Card, (c) => ({
-    +           filter: e.contains(params.cardIds, c.id),
-    +         })),
-    +       })
-    +     )
-    +     .run(client, { cardIds });
+    +   const cardIdsLiteral = e.literal(e.array(e.uuid), cardIds);
+    +
+    +   await e.insert(e.Deck, {
+    +     name: deck.name,
+    +     description: deck.description,
+    +     cards: e.select(e.Card, (c) => ({
+    +       filter: e.contains(cardIdsLiteral, c.id),
+    +     })),
+    +   }).run(client);
 
         revalidatePath("/");
       }
 
 .. edb:split-section::
 
-  This works, but you might notice that it is not atomic. If one of the ``Card`` objects fails to insert, the entire operation will fail and the ``Deck`` will not be inserted. To make this operation atomic, you can use a transaction.
+  This works, but you might notice that it is not atomic. If one of the ``Card`` objects fails to insert, the entire operation will fail and the ``Deck`` will not be inserted. To make this operation atomic, update the ``importDeck`` action to use a transaction.
 
   .. code-block:: typescript-diff
     :caption: app/actions.ts
@@ -118,32 +99,30 @@ Working with the data
           })),
         };
     +   await client.transaction(async (tx) => {
-        const cardIds: string[] = [];
-        for (const card of deck.cards) {
-          const createdCard = await e
-            .insert(e.Card, {
-              front: card.front,
-              back: card.back,
-              order: card.order,
-            })
-    -       .run(client);
-    +       .run(tx);
+          const cardIds: string[] = [];
+          for (const card of deck.cards) {
+            const createdCard = await e
+              .insert(e.Card, {
+                front: card.front,
+                back: card.back,
+                order: card.order,
+              })
+    -         .run(client);
+    +         .run(tx);
 
-          cardIds.push(createdCard.id);
-        }
+            cardIds.push(createdCard.id);
+          }
 
-        await e
-          .params({ cardIds: e.array(e.uuid) }, (params) =>
-            e.insert(e.Deck, {
-              name: deck.name,
-              description: deck.description,
-              cards: e.select(e.Card, (c) => ({
-                filter: e.contains(params.cardIds, c.id),
-              })),
-            })
-          )
-    -     .run(client, { cardIds });
-    +     .run(tx, { cardIds });
+          const cardIdsLiteral = e.literal(e.array(e.uuid), cardIds);
+
+          await e.insert(e.Deck, {
+            name: deck.name,
+            description: deck.description,
+            cards: e.select(e.Card, (c) => ({
+              filter: e.contains(cardIdsLiteral, c.id),
+            })),
+    -     }).run(client);
+    +     }).run(tx);
     +   });
 
         revalidatePath("/");
@@ -151,7 +130,11 @@ Working with the data
 
 .. edb:split-section::
 
-  You might think this is as good as it gets, and many ORMs will basically create exactly this set of queries. However, the query builder allows you to do even better by creating a single query that will insert the ``Deck`` and ``Card`` objects, and the link between them all as a single fast query.
+  You might think this is as good as it gets, and many ORMs will create a similar set of queries. However, with the query builder, you can improve this by crafting a single query that inserts the ``Deck`` and ``Card`` objects, along with their links, in one efficient query.
+
+  The first thing to notice is that the ``e.params`` function is used to define parameters for your query instead of embedding literal values directly. This approach eliminates the need for casting, as was necessary with the ``cardIds`` array. By defining the ``cards`` parameter as an array of tuples, you ensure full type safety with both TypeScript and the database.
+
+  Another key feature of this query builder expression is the ``e.for(e.array_unpack(params.cards), (card) => {...})`` construct. This expression converts the array of tuples into a set of tuples and generates a set containing an expression for each element. Essentially, you assign the ``Deck.cards`` set of ``Card`` objects to the result of inserting each element from the ``cards`` array. This is similar to what you were doing before by selecting all ``Card`` objects by their ``id``, but is more efficient since you are inserting the ``Deck`` and all ``Card`` objects in one query.
 
   .. code-block:: typescript-diff
     :caption: app/actions.ts
@@ -174,30 +157,30 @@ Working with the data
           })),
         };
     -   await client.transaction(async (tx) => {
-    -   const cardIds: string[] = [];
-    -   for (const card of deck.cards) {
-    -     const createdCard = await e
-    -       .insert(e.Card, {
-    -         front: card.front,
-    -         back: card.back,
-    -         order: card.order,
-    -       })
-    -       .run(tx);
+    -     const cardIds: string[] = [];
+    -     for (const card of deck.cards) {
+    -       const createdCard = await e
+    -         .insert(e.Card, {
+    -           front: card.front,
+    -           back: card.back,
+    -           order: card.order,
+    -         })
+    -         .run(tx);
     -
-    -     cardIds.push(createdCard.id);
-    -   }
+    -       cardIds.push(createdCard.id);
+    -     }
     -
-    -   await e
-    -     .params({ cardIds: e.array(e.uuid) }, (params) =>
-    -       e.insert(e.Deck, {
-    -         name: deck.name,
-    -         description: deck.description,
-    -         cards: e.select(e.Card, (c) => ({
-    -           filter: e.contains(params.cardIds, c.id),
-    -         })),
-    -       })
-    -     )
-    -     .run(tx, { cardIds });
+    -     await e
+    -       .params({ cardIds: e.array(e.uuid) }, (params) =>
+    -         e.insert(e.Deck, {
+    -           name: deck.name,
+    -           description: deck.description,
+    -           cards: e.select(e.Card, (c) => ({
+    -             filter: e.contains(params.cardIds, c.id),
+    -           })),
+    -         })
+    -       )
+    -       .run(tx, { cardIds });
     -   });
     +   await e
     +     .params(
@@ -226,9 +209,9 @@ Working with the data
 
 .. edb:split-section::
 
-  Next, update the Server Actions associated with each ``Deck`` object, ``updateDeck``, ``addCard``, and ``deleteCard``. Starting with ``updateDeck``, which is the most complex since it is dynamic. You can set either the ``title`` or ``description`` fields in an update, so we will use the dynamic nature of the query builder to generate separate queries depending on which fields are present in the form data.
+  Next, you will update the Server Actions for each ``Deck`` object: ``updateDeck``, ``addCard``, and ``deleteCard``. Start with ``updateDeck``, which is the most complex because it is dynamic. You can set either the ``title`` or ``description`` fields in an update. Use the dynamic nature of the query builder to generate separate queries based on which fields are present in the form data.
 
-  This may look a little intimidating at first, but the part that is making this query dynamic is the ``nameSet`` and ``descriptionSet`` variables. These variables are used to conditionally add the ``name`` or ``description`` fields to the ``set`` parameter of the ``update`` call.
+  This may seem a bit intimidating at first, but the key to making this query dynamic is the ``nameSet`` and ``descriptionSet`` variables. These variables conditionally add the ``name`` or ``description`` fields to the ``set`` parameter of the ``update`` call.
 
   .. code-block:: typescript-diff
     :caption: app/(authenticated)/deck/[id]/actions.ts
@@ -367,23 +350,22 @@ Working with the data
       - import { readFile } from "node:fs/promises";
       + import { client } from "@/lib/gel";
       + import e from "@/dbschema/edgeql-js";
-
+      -
       - import { Deck } from "@/lib/models";
-      + const getDecksQuery = e.select(e.Deck, (deck) => ({
-      +   id: true,
-      +   name: true,
-      +   description: true,
-      +   cards: e.select(deck.cards, (card) => ({
-      +     id: true,
-      +     front: true,
-      +     back: true,
-      +     order_by: card.order,
-      +   })),
-      + }));
 
         export async function getDecks() {
       -   const decks = JSON.parse(await readFile("./decks.json", "utf-8")) as Deck[];
-      +   const decks = await getDecksQuery.run(client);
+      +   const decks = await e.select(e.Deck, (deck) => ({
+      +     id: true,
+      +     name: true,
+      +     description: true,
+      +     cards: e.select(deck.cards, (card) => ({
+      +       id: true,
+      +       front: true,
+      +       back: true,
+      +       order_by: card.order,
+      +     })),
+      +   })).run(client);
 
           return decks;
         }

@@ -10,6 +10,7 @@ Quickstart
 
   setup
   modeling
+  connecting
   working
   inheritance
 

@@ -1,7 +1,7 @@
 .. _ref_quickstart_inheritance:
 
 ========================
-Adding Shared Properties
+Adding shared properties
 ========================
 
 .. edb:split-section::
@@ -88,24 +88,22 @@ Adding Shared Properties
         import { client } from "@/lib/gel";
         import e from "@/dbschema/edgeql-js";
 
-      - const getDecksQuery = e.select(e.Deck, () => ({
-      + const getDecksQuery = e.select(e.Deck, (deck) => ({
-          id: true,
-          name: true,
-          description: true,
-          cards: {
-            id: true,
-            front: true,
-            back: true,
-          },
-      +   order_by: {
-      +     expression: deck.updated_at,
-      +     direction: e.DESC,
-      +   },
-        }));
-
         export async function getDecks() {
-          const decks = await getDecksQuery.run(client);
+          const decks = await e.select(e.Deck, (deck) => ({
+            id: true,
+            name: true,
+            description: true,
+            cards: e.select(deck.cards, (card) => ({
+              id: true,
+              front: true,
+              back: true,
+              order_by: card.order,
+            })),
+      +     order_by: {
+      +       expression: deck.updated_at,
+      +       direction: e.DESC,
+      +     },
+          })).run(client);
 
           return decks;
         }

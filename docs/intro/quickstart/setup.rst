@@ -67,3 +67,18 @@ Setting up your environment
 
     $ tree
 
+
+.. edb:split-section::
+
+  With TypeScript, there are three ways to run a query: use a string EdgeQL query, use the ``queries`` generator to turn a string of EdgeQL into a TypeScript function, or use the query builder API to build queries dynamically in a type-safe manner. In this tutorial, you will use the TypeScript query builder API.
+
+  This query builder must be generated any time the schema changes, so before you start building your application, add a hook in your ``gel.toml`` file to generate the query builder when the schema is updated.
+
+  .. code-block:: toml-diff
+    :caption: gel.toml
+
+      [instance]
+      server-version = 6.0
+    +
+    + [hooks]
+    + schema.update.after = "npx @gel/generate edgeql-js"

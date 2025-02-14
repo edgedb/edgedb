@@ -50,7 +50,17 @@ Modeling the data
 
 .. edb:split-section::
 
-  Now that you've written the first version of your data model's schema, create a migration to apply this schema to the database. When making changes to your schema, the CLI migration tool will ask some questions to ensure that the changes you are making are what you expect. Since you had an empty schema before, the CLI will skip asking any questions and simply create the migration file.
+  Congratulations! This first version of the data model's schema is *stored in a file on disk*. Now you need to signal the database to actually create types for ``Deck`` and ``Card`` in the database.
+
+  To make Gel do that, you need to do two quick steps:
+
+  * **Create a migration**: a file with a list of low-level instructions.
+
+    .. note::
+
+      When you are changing existing schema, the CLI migration tool might ask questions to ensure that it understands your changes exactly. Since the existing schema was empty, the CLI will skip asking any questions and simply create the migration file.
+
+  * **Apply the migration**: basically, tell Gel "I want you to use these instructions and get my types ready for action."
 
   .. code-block:: sh
 
