@@ -4,27 +4,27 @@
 Datatypes
 =========
 
-.. py:currentmodule:: edgedb
+.. py:currentmodule:: gel
 
 
-edgedb-python automatically converts EdgeDB types to the corresponding Python
+gel-python automatically converts |Gel| types to the corresponding Python
 types and vice versa.
 
-The table below shows the correspondence between EdgeDB and Python types.
+The table below shows the correspondence between Gel and Python types.
 
 +----------------------------+-----------------------------------------------------+
-| EdgeDB Type                |  Python Type                                        |
+| Gel Type                   |  Python Type                                        |
 +============================+=====================================================+
-| ``Set``                    | :py:class:`edgedb.Set`                              |
+| ``Set``                    | :py:class:`gel.Set`                                 |
 +----------------------------+-----------------------------------------------------+
-| ``array<anytype>``         | :py:class:`edgedb.Array`                            |
+| ``array<anytype>``         | :py:class:`gel.Array`                               |
 +----------------------------+-----------------------------------------------------+
-| ``anytuple``               | :py:class:`edgedb.Tuple` or                         |
-|                            | :py:class:`edgedb.NamedTuple`                       |
+| ``anytuple``               | :py:class:`gel.Tuple` or                            |
+|                            | :py:class:`gel.NamedTuple`                          |
 +----------------------------+-----------------------------------------------------+
-| ``anyenum``                | :py:class:`edgedb.EnumValue`                        |
+| ``anyenum``                | :py:class:`gel.EnumValue`                           |
 +----------------------------+-----------------------------------------------------+
-| ``Object``                 | :py:class:`edgedb.Object`                           |
+| ``Object``                 | :py:class:`gel.Object`                              |
 +----------------------------+-----------------------------------------------------+
 | ``bool``                   | :py:class:`bool <python:bool>`                      |
 +----------------------------+-----------------------------------------------------+
@@ -40,9 +40,9 @@ The table below shows the correspondence between EdgeDB and Python types.
 | ``cal::local_datetime``    | offset-naive :py:class:`datetime.datetime \         |
 |                            | <python:datetime.datetime>`                         |
 +----------------------------+-----------------------------------------------------+
-| ``cal::relative_duration`` | :py:class:`edgedb.RelativeDuration`                 |
+| ``cal::relative_duration`` | :py:class:`gel.RelativeDuration`                    |
 +----------------------------+-----------------------------------------------------+
-| ``cal::date_duration``     | :py:class:`edgedb.DateDuration`                     |
+| ``cal::date_duration``     | :py:class:`gel.DateDuration`                        |
 +----------------------------+-----------------------------------------------------+
 | ``datetime``               | offset-aware :py:class:`datetime.datetime \         |
 |                            | <python:datetime.datetime>`                         |
@@ -95,24 +95,24 @@ Objects
 
     .. versionchanged:: 1.0
 
-        ``edgedb.Object`` instances are dataclass-compatible since version 1.0,
+        ``gel.Object`` instances are dataclass-compatible since version 1.0,
         for example, ``dataclasses.is_dataclass()`` will return ``True``, and
-        ``dataclasses.asdict()`` will work on ``edgedb.Object`` instances.
+        ``dataclasses.asdict()`` will work on ``gel.Object`` instances.
 
     .. versionchanged:: 1.0
 
-        ``edgedb.Object.__hash__`` is just ``object.__hash__`` in version 1.0.
+        ``gel.Object.__hash__`` is just ``object.__hash__`` in version 1.0.
         Similarly, ``==`` is equivalent to the ``is`` operator comparing
-        ``edgedb.Object`` instances, and ``<``, ``<=``, ``>``, ``>=`` are not
-        allowed on ``edgedb.Object`` instances.
+        ``gel.Object`` instances, and ``<``, ``<=``, ``>``, ``>=`` are not
+        allowed on ``gel.Object`` instances.
 
     The value of an object property or a link can be accessed through
     a corresponding attribute:
 
     .. code-block:: pycon
 
-        >>> import edgedb
-        >>> client = edgedb.create_client()
+        >>> import gel
+        >>> client = gel.create_client()
         >>> r = client.query_single('''
         ...     SELECT schema::ObjectType {name}
         ...     FILTER .name = 'std::Object'
@@ -124,7 +124,7 @@ Objects
 
     .. describe:: obj[linkname]
 
-       Return a :py:class:`edgedb.Link` or a :py:class:`edgedb.LinkSet` instance
+       Return a :py:class:`gel.Link` or a :py:class:`gel.LinkSet` instance
        representing the instance(s) of link *linkname* associated with
        *obj*.
 
@@ -132,8 +132,8 @@ Objects
 
        .. code-block:: pycon
 
-          >>> import edgedb
-          >>> client = edgedb.create_client()
+          >>> import gel
+          >>> client = gel.create_client()
           >>> r = client.query_single('''
           ...     SELECT schema::Property {name, annotations: {name, @value}}
           ...     FILTER .name = 'listen_port'
@@ -163,7 +163,7 @@ Links
 
     An immutable representation of an object link.
 
-    Links are created when :py:class:`edgedb.Object` is accessed via
+    Links are created when :py:class:`gel.Object` is accessed via
     a ``[]`` operator.  Using Link objects explicitly is useful for
     accessing link properties.
 
@@ -172,7 +172,7 @@ Links
 
     An immutable representation of a set of Links.
 
-    LinkSets are created when a multi link on :py:class:`edgedb.Object`
+    LinkSets are created when a multi link on :py:class:`gel.Object`
     is accessed via a ``[]`` operator.
 
 
@@ -189,21 +189,21 @@ Named Tuples
 
 .. py:class:: NamedTuple()
 
-    An immutable value representing an EdgeDB named tuple value.
+    An immutable value representing an Gel named tuple value.
 
     .. versionchanged:: 1.0
 
-        ``edgedb.NamedTuple`` is a subclass of :py:class:`tuple <python:tuple>`
+        ``gel.NamedTuple`` is a subclass of :py:class:`tuple <python:tuple>`
         and is duck-type compatible with ``collections.namedtuple`` since
         version 1.0.
 
-    Instances of ``edgedb.NamedTuple`` generally behave similarly to
+    Instances of ``gel.NamedTuple`` generally behave similarly to
     :py:func:`namedtuple <python:collections.namedtuple>`:
 
     .. code-block:: pycon
 
-        >>> import edgedb
-        >>> client = edgedb.create_client()
+        >>> import gel
+        >>> client = gel.create_client()
         >>> r = client.query_single('''SELECT (a := 1, b := 'a', c := [3])''')
         >>> r
         (a := 1, b := 'a', c := [3])
@@ -230,15 +230,15 @@ RelativeDuration
 
 .. py:class:: RelativeDuration()
 
-    An immutable value representing an EdgeDB ``cal::relative_duration`` value.
+    An immutable value representing an Gel ``cal::relative_duration`` value.
 
     .. code-block:: pycon
 
-        >>> import edgedb
-        >>> client = edgedb.create_client()
+        >>> import gel
+        >>> client = gel.create_client()
         >>> r = client.query_single('''SELECT <cal::relative_duration>"1 year 2 days 3 seconds"''')
         >>> r
-        <edgedb.RelativeDuration "P1Y2DT3S">
+        <gel.RelativeDuration "P1Y2DT3S">
         >>> r.months
         12
         >>> r.days
@@ -252,15 +252,15 @@ DateDuration
 
 .. py:class:: DateDuration()
 
-    An immutable value representing an EdgeDB ``cal::date_duration`` value.
+    An immutable value representing an Gel ``cal::date_duration`` value.
 
     .. code-block:: pycon
 
-        >>> import edgedb
-        >>> client = edgedb.create_client()
+        >>> import gel
+        >>> client = gel.create_client()
         >>> r = client.query_single('''SELECT <cal::date_duration>"1 year 2 days"''')
         >>> r
-        <edgedb.DateDuration "P1Y2D">
+        <gel.DateDuration "P1Y2D">
         >>> r.months
         12
         >>> r.days
@@ -272,22 +272,22 @@ EnumValue
 
 .. py:class:: EnumValue()
 
-    An immutable value representing an EdgeDB enum value.
+    An immutable value representing an Gel enum value.
 
     .. versionchanged:: 1.0
 
-        Since version 1.0, ``edgedb.EnumValue`` is a subclass of
+        Since version 1.0, ``gel.EnumValue`` is a subclass of
         :py:class:`enum.Enum <python:enum.Enum>`. Actual enum values are
         instances of ad-hoc enum classes created by the codecs to represent
-        the actual members defined in your EdgeDB schema.
+        the actual members defined in your Gel schema.
 
     .. code-block:: pycon
 
-        >>> import edgedb
-        >>> client = edgedb.create_client()
+        >>> import gel
+        >>> client = gel.create_client()
         >>> r = client.query_single("""SELECT <Color>'red'""")
         >>> r
-        <edgedb.EnumValue 'red'>
+        <gel.EnumValue 'red'>
         >>> str(r)
         'red'
         >>> r.value  # added in 1.0

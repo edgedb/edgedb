@@ -6,7 +6,7 @@ Code
 
 :edb-alt-title: Developing Gel
 
-This section describes how to build EdgeDB locally, how to use its
+This section describes how to build Gel locally, how to use its
 internal tools, and how to contribute to it.
 
 .. warning::
@@ -146,7 +146,7 @@ Python "venv" with all dependencies and commands installed into it.
       $ cd edgedb
       $ pip install -v -e ".[test]"
 
-   In addition to compiling EdgeDB and all dependencies, this will also
+   In addition to compiling Gel and all dependencies, this will also
    install the ``edb`` and ``edgedb`` command line tools into the current
    Python virtual environment.
 
@@ -165,7 +165,7 @@ activated at any time.
 Running Tests
 =============
 
-To run all EdgeDB tests simply use the ``$ edb test`` command without
+To run all Gel tests simply use the ``$ edb test`` command without
 arguments.
 
 The command also supports running a few selected tests.  To run all

@@ -14,8 +14,8 @@ exceptions:
    docker images and also invoke package managers and the docker
    engine to do :ref:`index updates and related data.
    <ref_cli_edgedb_net_server>`
-3. The CLI communicates with the EdgeDB Cloud API to provide easy access to
-   your EdgeDB Cloud instances.
+3. The CLI communicates with the |Gel| Cloud API to provide easy access to
+   your Gel Cloud instances.
 
 
 .. _ref_cli_edgedb_version_check:
@@ -24,17 +24,17 @@ Version Check
 =============
 
 Version check checks the current version of command-line tool by fetching
-``https://packages.edgedb.com/.jsonindexes/*.json``.
+``https://packages.geldata.com/.jsonindexes/*.json``.
 
 Here is how such a request looks like::
 
     GET /archive/.jsonindexes/linux-x86_64.json HTTP/1.1
-    host: packages.edgedb.com
+    host: packages.geldata.com
     content-length: 0
-    user-agent: edgedb
+    user-agent: gel
 
 The ``User-Agent`` header only specifies that request is done by
-``edgedb`` command-line tool (without version number). The platform,
+``gel`` command-line tool (without version number). The platform,
 architecture and whether nightly is used can be devised from the URL of
 the query.
 
@@ -59,15 +59,15 @@ logging facility can be used::
    $ export RUST_LOG=edgedb::version_check=debug
    $ edgedb --no-cli-update-check
    [..snip..] Skipping version check due to --no-cli-update-check
-   edgedb>
+   gel>
    $ EDGEDB_RUN_VERSION_CHECK=never edgedb
    [..snip..] Skipping version check due to EDGEDB_RUN_VERSION_CHECK=never
-   edgedb>
+   gel>
 
 
 .. _ref_cli_edgedb_net_server:
 
-``edgedb server`` and ``edgedb self upgrade``
+``gel server`` and ``gel self upgrade``
 =============================================
 
 Generally these commands do requests with exactly the headers
@@ -75,22 +75,22 @@ like :ref:`version check <ref_cli_edgedb_version_check>`.
 
 Data sources for the commands directly:
 
-1. Package indexes and packages at ``https://packages.edgedb.com``
+1. Package indexes and packages at ``https://packages.geldata.com``
 2. Docker image index at ``https://registry.hub.docker.com``
 
 Data sources that can be used indirectly:
 
 1. Docker engine may fetch indexes and images. Currently the only
    images used are at Docker Hub. More specifically
-   are ``edgedb/*`` and ``busybox`` (Docker's official image).
+   are ``gel/*`` and ``busybox`` (Docker's official image).
 2. Package managers (currently ``apt-get``, ``yum``) can fetch indexes
-   and install packages from ``https://packages.edgedb.com``. And
+   and install packages from ``https://packages.geldata.com``. And
    as we use generic commands (e.g. ``apt-get update``) and system
    dependencies, package manager can fetch package indexes and package
    data from any sources listed in repositories configured in the
    system.
 
-To avoid reaching these hosts, avoid using: ``edgedb server`` and
-``edgedb self upgrade`` subcommands. These commands only simplify
-installation and maintenance of the installations. All EdgeDB features
+To avoid reaching these hosts, avoid using: ``gel server`` and
+``gel self upgrade`` subcommands. These commands only simplify
+installation and maintenance of the installations. All |Gel| features
 are available without using them.

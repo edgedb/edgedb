@@ -14,7 +14,7 @@ AI
 
 :edb-alt-title: Using Gel AI
 
-EdgeDB AI allows you to ship AI-enabled apps with practically no effort. It
+|Gel| AI allows you to ship AI-enabled apps with practically no effort. It
 automatically generates embeddings for your data. Works with OpenAI, Mistral
 AI, Anthropic, and any other provider with a compatible API.
 
@@ -22,7 +22,7 @@ AI, Anthropic, and any other provider with a compatible API.
 Enable extension in your schema
 ===============================
 
-AI is an EdgeDB extension. To enable it, you will need to add the extension
+AI is an |Gel| extension. To enable it, you will need to add the extension
 to your app's schema:
 
 .. code-block:: sdl
@@ -34,12 +34,12 @@ Extension configuration
 =======================
 
 The AI extension may be configured via our UI or via EdgeQL. To use the
-built-in UI, access it by running ``edgedb ui``. If you have the extension
+built-in UI, access it by running ``gel ui``. If you have the extension
 enabled in your schema as shown above and have migrated that schema change, you
 will see the "AI Admin" icon in the left-hand toolbar.
 
 .. image:: images/ui-ai.png
-    :alt: The EdgeDB local development server UI highlighting the AI admin
+    :alt: The Gel local development server UI highlighting the AI admin
           icon in the left-hand toolbar. The icon is two stars, one larger and
           one smaller, the smaller being a light pink color and the larger
           being a light blue when selected.
@@ -69,7 +69,7 @@ Provider" button, selecting the appropriate API, and pasting your key in the
 "Secret" field.
 
 .. image:: images/ui-ai-add-provider.png
-    :alt: The "Add Provider" form of the EdgeDB local development server UI.
+    :alt: The "Add Provider" form of the Gel local development server UI.
           On the left, the sidebar navigation for the view showing Playground,
           Prompts, and Providers options, with Provider selected (indicated
           with a purple border on the left). The main content area shows a
@@ -104,13 +104,13 @@ We have provider config types for each of the three supported APIs:
 Usage
 =====
 
-Using EdgeDB AI requires some changes to your schema.
+Using |Gel| AI requires some changes to your schema.
 
 
 Add an index
 ------------
 
-To start using EdgeDB AI on a type, create an index:
+To start using |Gel| AI on a type, create an index:
 
 .. code-block:: sdl-diff
 
@@ -154,13 +154,13 @@ can define an AI index on an expression:
 .. note:: When AI indexes aren't working…
 
     If you find your queries are not returning the expected results, try
-    inspecting your instance logs. On an EdgeDB Cloud instance, use the "Logs"
+    inspecting your instance logs. On an |Gel| Cloud instance, use the "Logs"
     tab in your instance dashboard. On local or :ref:`CLI-linked remote
-    instances <ref_cli_edgedb_instance_link>`, use ``edgedb instance logs -I
+    instances <ref_cli_edgedb_instance_link>`, use ``gel instance logs -I
     <instance-name>``. You may find the problem there.
 
     Providers impose rate limits on their APIs which can often be the source of
-    AI index problems. If index creation hits a rate limit, EdgeDB will wait
+    AI index problems. If index creation hits a rate limit, |Gel| will wait
     the ``indexer_naptime`` (see the docs on :ref:`ext::ai configuration
     <ref_ai_reference_config>`) and resume index creation.
 
@@ -209,13 +209,13 @@ Use RAG via HTTP
 ----------------
 
 By making an HTTP request to
-``https://<edgedb-host>:<port>/branch/<branch-name>/ai/rag``, you can generate
+``https://<gel-host>:<port>/branch/<branch-name>/ai/rag``, you can generate
 text via the generative AI API of your choice within the context of a type with
 a deferred embedding index.
 
 .. note::
 
-    Making HTTP requests to EdgeDB requires :ref:`authentication
+    Making HTTP requests to |Gel| requires :ref:`authentication
     <ref_http_auth>`.
 
 .. code-block:: bash
@@ -224,7 +224,7 @@ a deferred embedding index.
         "query": "What color is the sky on Mars?",
         "model": "gpt-4-turbo-preview",
         "context": {"query":"select Astronomy"}
-      }' https://<edgedb-host>:<port>/branch/<branch-name>/ai/rag
+      }' https://<gel-host>:<port>/branch/<branch-name>/ai/rag
     {"response": "The sky on Mars is red."}
 
 Since LLMs are often slow, it may be useful to stream the response. To do this,
@@ -243,14 +243,14 @@ add ``"stream": true`` to your request JSON.
 Use RAG via JavaScript
 ----------------------
 
-``@edgedb/ai`` offers a convenient wrapper around ``ext::ai``. Install it with
-``npm install @edgedb/ai`` (or via your package manager of choice) and
+``@gel/ai`` offers a convenient wrapper around ``ext::ai``. Install it with
+``npm install @gel/ai`` (or via your package manager of choice) and
 implement it like this example:
 
 .. code-block:: typescript
 
-    import { createClient } from "edgedb";
-    import { createAI } from "@edgedb/ai";
+    import { createClient } from "gel";
+    import { createAI } from "@gel/ai";
 
     const client = createClient();
 

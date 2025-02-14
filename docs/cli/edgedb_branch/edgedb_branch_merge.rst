@@ -1,22 +1,15 @@
 .. _ref_cli_edgedb_branch_merge:
 
 
-===================
-edgedb branch merge
-===================
+================
+gel branch merge
+================
 
 Merge a :ref:`branch <ref_datamodel_branches>` into the current branch.
 
 .. cli:synopsis::
 
-    edgedb branch merge [<options>] <name>
-
-.. note::
-
-    This CLI command requires CLI version 4.0 or later and EdgeDB version 5.0
-    or later. Earlier versions did not feature branches and instead featured
-    databases. Databases offered no analog to merging. See the
-    :ref:`ref_cli_edgedb_database` command suite to manage databases.
+    gel branch merge [<options>] <name>
 
 
 Description
@@ -43,7 +36,7 @@ applying any new migrations from the target branch on the current branch.
 Options
 =======
 
-The ``branch merge`` command runs in the EdgeDB instance it is
+The ``branch merge`` command runs in the |Gel| instance it is
 connected to. For specifying the connection target see
 :ref:`connection options <ref_cli_edgedb_connopts>`.
 

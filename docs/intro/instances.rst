@@ -4,7 +4,7 @@
 Instances
 =========
 
-Let's get to the good stuff. You can spin up an EdgeDB instance with a single
+Let's get to the good stuff. You can spin up an Gel instance with a single
 command.
 
 .. code-block:: bash
@@ -12,13 +12,13 @@ command.
   $ edgedb instance create my_instance
 
 This creates a new instance named ``my_instance`` that runs the latest stable
-version of EdgeDB. (EdgeDB itself will be automatically installed if it isn't
+version of Gel. (Gel itself will be automatically installed if it isn't
 already.) Alternatively you can specify a specific version with
 ``--version``.
 
 .. code-block:: bash
 
-  $ edgedb instance create my_instance --version 2.1
+  $ edgedb instance create my_instance --version 6.1
   $ edgedb instance create my_instance --version nightly
 
 We can execute a query against our new instance with ``edgedb query``. Specify
@@ -52,9 +52,9 @@ To list all instances on your machine:
   ┌────────┬──────────────────┬──────────┬────────────────┬──────────┐
   │ Kind   │ Name             │ Port     │ Version        │ Status   │
   ├────────┼──────────────────┼──────────┼────────────────┼──────────┤
-  │ local  │ my_instance      │ 10700    │ 4.x+cc4f3b5    │ active   │
-  │ local  │ my_instance_2    │ 10701    │ 4.x+cc4f3b5    │ active   │
-  │ local  │ my_instance_3    │ 10702    │ 4.x+cc4f3b5    │ active   │
+  │ local  │ my_instance      │ 10700    │ x.x+cc4f3b5    │ active   │
+  │ local  │ my_instance_2    │ 10701    │ x.x+cc4f3b5    │ active   │
+  │ local  │ my_instance_3    │ 10702    │ x.x+cc4f3b5    │ active   │
   └────────┴──────────────────┴──────────┴────────────────┴──────────┘
 
 Further reference

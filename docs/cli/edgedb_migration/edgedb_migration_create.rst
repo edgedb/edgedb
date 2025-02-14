@@ -1,16 +1,16 @@
 .. _ref_cli_edgedb_migration_create:
 
 
-=======================
-edgedb migration create
-=======================
+====================
+gel migration create
+====================
 
 The next step after setting up the desired target schema is creating a
 migration script. This is done by invoking the following command:
 
 .. cli:synopsis::
 
-    edgedb migration create [<options>]
+    gel migration create [<options>]
 
 This will start an interactive tool that will provide the user with
 suggestions based on the differences between the current branch (or database
@@ -55,8 +55,4 @@ to. For specifying the connection target see :ref:`connection options
     ``./dbschema``.
 
 :cli:synopsis:`--squash`
-    .. note::
-
-        This CLI feature is compatible with EdgeDB server 3.0 and above.
-
     Squashes all your migrations into a single migration.

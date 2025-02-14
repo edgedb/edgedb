@@ -4,21 +4,21 @@
 Code Generation
 ===============
 
-.. py:currentmodule:: edgedb
+.. py:currentmodule:: gel
 
-The ``edgedb-python`` package exposes a command-line tool to generate
+The ``gel-python`` package exposes a command-line tool to generate
 typesafe functions from ``*.edgeql`` files, using :py:mod:`dataclasses` for
 objects primarily.
 
 .. code-block:: bash
 
-  $ edgedb-py
+  $ gel-py
 
 Or alternatively:
 
 .. code-block:: bash
 
-  $ python -m edgedb.codegen
+  $ python -m gel.codegen
 
 Consider a simple query that lives in a file called ``get_number.edgeql``:
 
@@ -32,11 +32,11 @@ Running the code generator will generate a new file called
 .. code-block:: python
 
   from __future__ import annotations
-  import edgedb
+  import gel
 
 
   async def get_number(
-      client: edgedb.AsyncIOClient,
+      client: gel.AsyncIOClient,
       *,
       arg: int,
   ) -> int:
@@ -55,8 +55,8 @@ additional targets via the ``--target`` flag.
 
 .. code-block:: bash
 
-  $ edgedb-py --target async        # generate async function (default)
-  $ edgedb-py --target blocking     # generate blocking code
+  $ gel-py --target async        # generate async function (default)
+  $ gel-py --target blocking     # generate blocking code
 
 The names of the generated files will differ accordingly:
 ``{query_filename}_{target}_edgeql.py``.
@@ -69,7 +69,7 @@ functions. This can be done by passing the ``--file`` flag.
 
 .. code-block:: bash
 
-  $ edgedb-py --file
+  $ gel-py --file
 
 This generates a single file called ``generated_{target}_edgeql.py`` in the
 root of your project.
@@ -77,8 +77,8 @@ root of your project.
 Connection
 ~~~~~~~~~~
 
-The ``edgedb-py`` command supports the same set of :ref:`connection options
-<ref_cli_edgedb_connopts>` as the ``edgedb`` CLI.
+The ``gel-py`` command supports the same set of :ref:`connection options
+<ref_cli_edgedb_connopts>` as the ``gel`` CLI.
 
 .. code-block::
 

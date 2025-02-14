@@ -1,18 +1,18 @@
 .. _ref_cli_edgedb_migration_log:
 
 
-====================
-edgedb migration log
-====================
+=================
+gel migration log
+=================
 
 Show all migration versions.
 
 .. cli:synopsis::
 
-    edgedb migration log [<options>]
+    gel migration log [<options>]
 
 The tool will display the migration history either by reading it from
-the EdgeDB instance or from the schema directory.
+the |Gel| instance or from the schema directory.
 
 Options
 =======

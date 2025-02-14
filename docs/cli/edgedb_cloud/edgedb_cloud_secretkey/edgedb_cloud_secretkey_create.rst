@@ -1,19 +1,15 @@
 .. _ref_cli_edgedb_cloud_secretkey_create:
 
 
-=============================
-edgedb cloud secretkey create
-=============================
-
-.. note::
-
-    This CLI command requires CLI version 3.0 or later.
+==========================
+gel cloud secretkey create
+==========================
 
 Create a new secret key
 
 .. cli:synopsis::
 
-    edgedb cloud secretkey create [<options>]
+    gel cloud secretkey create [<options>]
 
 .. note::
 

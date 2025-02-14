@@ -1,11 +1,11 @@
 .. _ref_cli_edgedb_migration:
 
 
-================
-edgedb migration
-================
+=============
+gel migration
+=============
 
-EdgeDB provides schema migration tools as server-side tools. This means that,
+|Gel| provides schema migration tools as server-side tools. This means that,
 from the point of view of the application, migrations are language- and
 platform-agnostic and don't require additional libraries.
 
@@ -52,4 +52,4 @@ single SDL document.
     * - :ref:`ref_cli_edgedb_migration_status`
       - Show current migration state
     * - :ref:`ref_cli_edgedb_migration_upgrade_check`
-      - Checks your schema against a different EdgeDB version.
+      - Checks your schema against a different |Gel| version.

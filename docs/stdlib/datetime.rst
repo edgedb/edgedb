@@ -538,7 +538,7 @@ functionality.
 
     In most cases, ``date_duration`` is fully compatible with
     :eql:type:`cal::relative_duration` and shares the same general behavior
-    and caveats. EdgeDB will apply type coercion in the event it expects a
+    and caveats. Gel will apply type coercion in the event it expects a
     :eql:type:`cal::relative_duration` and finds a ``cal::date_duration``
     instead.
 
@@ -653,10 +653,10 @@ functionality.
 
         Subtraction doesn't make sense for some type combinations. You
         couldn't subtract a point in time from a duration, so neither can
-        EdgeDB (although the inverse — subtracting a duration from a point in
+        Gel (although the inverse — subtracting a duration from a point in
         time — is perfectly fine). You also couldn't subtract a timezone-aware
         datetime from a local one or vice versa. If you attempt any of these,
-        EdgeDB will raise an exception as shown in these examples.
+        Gel will raise an exception as shown in these examples.
 
     When subtracting a date/time object from a time interval, an exception
     will be raised:

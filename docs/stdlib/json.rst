@@ -58,7 +58,7 @@ JSON
 Constructing JSON Values
 ------------------------
 
-JSON in EdgeDB is a :ref:`scalar type <ref_datamodel_scalar_types>`. This type
+JSON in Gel is a :ref:`scalar type <ref_datamodel_scalar_types>`. This type
 doesn't have its own literal, and instead can be obtained by either casting a
 value to the :eql:type:`json` type, or by using the :eql:func:`to_json`
 function:
@@ -70,7 +70,7 @@ function:
     db> select <json>'hello world';
     {Json("\"hello world\"")}
 
-Any value in EdgeDB can be cast to a :eql:type:`json` type as well:
+Any value in Gel can be cast to a :eql:type:`json` type as well:
 
 .. code-block:: edgeql-repl
 
@@ -90,7 +90,7 @@ Any value in EdgeDB can be cast to a :eql:type:`json` type as well:
         db> select json_object_pack({("hello", <json>"world")});
         {Json("{\"hello\": \"world\"}")}
 
-Additionally, any :eql:type:`Object` in EdgeDB can be cast as a
+Additionally, any :eql:type:`Object` in Gel can be cast as a
 :eql:type:`json` type. This produces the same JSON value as the
 JSON-serialized result of that said object. Furthermore, this result will
 be the same as the output of a :eql:stmt:`select expression <select>` in
@@ -117,7 +117,7 @@ conditions for casting:
   string representing its original value. This means it is also possible to
   cast a JSON string back to those types. The value of the UUID or datetime
   string must be properly formatted to successfully cast from JSON, otherwise
-  EdgeDB will raise an exception.
+  Gel will raise an exception.
 - JSON numbers can be cast to any :ref:`numeric type <ref_std_numeric>`.
 - JSON booleans can be cast to a :eql:type:`bool` type.
 - JSON ``null`` is unique because it can be cast to an empty set (``{}``) of
@@ -176,7 +176,7 @@ JSON array.
     .. note::
 
         This type is backed by the Postgres ``jsonb`` type which has a size
-        limit of 256MiB minus one byte. The EdgeDB ``json`` type is also
+        limit of 256MiB minus one byte. The Gel ``json`` type is also
         subject to this limitation.
 
 

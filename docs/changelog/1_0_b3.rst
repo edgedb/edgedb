@@ -7,7 +7,7 @@
 ==========
 
 This changelog summarizes new features and breaking changes in
-EdgeDB 1.0 beta 3 "Ross".
+|EdgeDB| 1.0 beta 3 "Ross".
 
 
 Migrations

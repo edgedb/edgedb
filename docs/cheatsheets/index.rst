@@ -27,10 +27,7 @@ Cheatsheets
 
 
 Just getting started? Keep an eye on this collection of cheatsheets with
-handy examples for what you'll need to get started with EdgeDB.
-After familiarizing yourself with them, feel free to dive into more EdgeDB
-via our longer `interactive tutorial </tutorial>`_ and
-**much** longer `Easy EdgeDB textbook </easy-edgedb>`_.
+handy examples for what you'll need to get started with |Gel|.
 
 EdgeQL
 ======
@@ -63,6 +60,6 @@ CLI/Admin
 
 * :ref:`CLI Usage <ref_cheatsheet_cli>` -- Getting your database started.
 * :ref:`Interactive Shell <ref_cheatsheet_repl>` -- Shortcuts for
-  frequently used commands in the EdgeDB Interactive Shell.
+  frequently used commands in the Gel Interactive Shell.
 * :ref:`Administration <ref_cheatsheet_admin>` -- Branch and role creation,
   passwords, port configuration, etc.

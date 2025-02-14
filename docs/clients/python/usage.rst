@@ -3,15 +3,15 @@
 Basic Usage
 ===========
 
-To start using EdgeDB in Python, create an :py:class:`edgedb.Client` instance
-using :py:func:`edgedb.create_client`:
+To start using Gel in Python, create an :py:class:`gel.Client` instance
+using :py:func:`gel.create_client`:
 
 .. code-block:: python
 
     import datetime
-    import edgedb
+    import gel
 
-    client = edgedb.create_client()
+    client = gel.create_client()
 
     client.query("""
         INSERT User {
@@ -28,16 +28,16 @@ using :py:func:`edgedb.create_client`:
     client.close()
 
 When used with asyncio, this should be replaced with
-:py:func:`edgedb.create_async_client` which creates an instance of the
-:py:class:`~edgedb.AsyncIOClient`:
+:py:func:`gel.create_async_client` which creates an instance of the
+:py:class:`~gel.AsyncIOClient`:
 
 .. code-block:: python
 
     import asyncio
     import datetime
-    import edgedb
+    import gel
 
-    client = edgedb.create_async_client()
+    client = gel.create_async_client()
 
     async def main():
         await client.query("""
@@ -57,10 +57,10 @@ When used with asyncio, this should be replaced with
     asyncio.run(main())
 
 
-Connect to EdgeDB
------------------
+Connect to Gel
+--------------
 
-The examples above only work under an :ref:`EdgeDB project
+The examples above only work under an :ref:`Gel project
 <ref_guide_using_projects>`. You could also provide your own connection
 parameters, refer to the :ref:`Client Library Connection
 <edgedb_client_connection>` docs for details.
@@ -69,7 +69,7 @@ parameters, refer to the :ref:`Client Library Connection
 Type conversion
 ---------------
 
-edgedb-python automatically converts EdgeDB types to the corresponding Python
+gel-python automatically converts Gel types to the corresponding Python
 types and vice versa.  See :ref:`edgedb-python-datatypes` for details.
 
 
@@ -80,12 +80,12 @@ Client connection pools
 
 For server-type applications that handle frequent requests and need
 the database connection for a short period of time while handling a request,
-the use of a connection pool is recommended. Both :py:class:`edgedb.Client`
-and :py:class:`edgedb.AsyncIOClient` come with such a pool.
+the use of a connection pool is recommended. Both :py:class:`gel.Client`
+and :py:class:`gel.AsyncIOClient` come with such a pool.
 
-For :py:class:`edgedb.Client`, all methods are thread-safe. You can share the
+For :py:class:`gel.Client`, all methods are thread-safe. You can share the
 same client instance safely across multiple threads, and run queries
-concurrently. Likewise, :py:class:`~edgedb.AsyncIOClient` is designed to be
+concurrently. Likewise, :py:class:`~gel.AsyncIOClient` is designed to be
 shared among different :py:class:`asyncio.Task`/coroutines for concurrency.
 
 Below is an example of a web API server running `aiohttp
@@ -94,7 +94,7 @@ Below is an example of a web API server running `aiohttp
 .. code-block:: python
 
     import asyncio
-    import edgedb
+    import gel
     from aiohttp import web
 
 
@@ -118,7 +118,7 @@ Below is an example of a web API server running `aiohttp
         """Initialize the application server."""
         app = web.Application()
         # Create a database client
-        app['client'] = edgedb.create_async_client(
+        app['client'] = gel.create_async_client(
             database='my_service',
             user='my_service')
         # Configure service routes
@@ -146,8 +146,8 @@ The most robust way to create a
 :ref:`transaction <edgedb-python-asyncio-api-transaction>` is the
 ``transaction()`` method:
 
-* :py:meth:`AsyncIOClient.transaction() <edgedb.AsyncIOClient.transaction>`
-* :py:meth:`Client.transaction() <edgedb.Client.transaction>`
+* :py:meth:`AsyncIOClient.transaction() <gel.AsyncIOClient.transaction>`
+* :py:meth:`Client.transaction() <gel.Client.transaction>`
 
 
 Example:

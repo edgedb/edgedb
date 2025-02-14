@@ -1,26 +1,26 @@
 .. _ref_cli_edgedb_instance_upgrade:
 
 
-=======================
-edgedb instance upgrade
-=======================
+====================
+gel instance upgrade
+====================
 
-Upgrade EdgeDB instance or installation.
+Upgrade |Gel| instance or installation.
 
 .. cli:synopsis::
 
-    edgedb instance upgrade [<options>] [<name>]
+    gel instance upgrade [<options>] [<name>]
 
 
 Description
 ===========
 
-This command is used to upgrade EdgeDB instances individually or in
+This command is used to upgrade |Gel| instances individually or in
 bulk.
 
 .. note::
 
-    The ``edgedb instance upgrade`` command is not intended for use with
+    The ``gel instance upgrade`` command is not intended for use with
     self-hosted instances.
 
 
@@ -28,7 +28,7 @@ Options
 =======
 
 :cli:synopsis:`<name>`
-    The EdgeDB instance name to upgrade.
+    The |Gel| instance name to upgrade.
 
 :cli:synopsis:`--force`
     Force upgrade process even if there is no new version.

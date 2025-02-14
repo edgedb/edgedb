@@ -6,7 +6,7 @@ AWS
 
 :edb-alt-title:  Deploying Gel to AWS
 
-In this guide we show how to deploy EdgeDB on AWS using Amazon Aurora and
+In this guide we show how to deploy Gel on AWS using Amazon Aurora and
 Elastic Container Service.
 
 Prerequisites
@@ -24,7 +24,7 @@ Quick Install with CloudFormation
 =================================
 
 We maintain a `CloudFormation template <cf-template_>`_ for easy automated
-deployment of EdgeDB in your AWS account.  The template deploys EdgeDB
+deployment of Gel in your AWS account.  The template deploys Gel
 to a new ECS service and connects it to a newly provisioned Aurora PostgreSQL
 cluster. The created instance has a public IP address with TLS configured and
 is protected by a password you provide.
@@ -41,11 +41,11 @@ following parameters:
   <https://hub.docker.com/r/edgedb/edgedb/tags>`_.
 - ``InstanceName``: ⚠️ Due to limitations with AWS, this must be 22 characters
   or less!
-- ``SuperUserPassword``: this will be used as the password for the new EdgeDB
+- ``SuperUserPassword``: this will be used as the password for the new Gel
   instance. Keep track of the value you provide.
 
 Once the deployment is complete, follow these steps to find the host name that
-has been assigned to your EdgeDB instance:
+has been assigned to your Gel instance:
 
 .. lint-off
 
@@ -54,7 +54,7 @@ has been assigned to your EdgeDB instance:
 2. Wait for the status to read ``CREATE_COMPLETE``—it can take 15 minutes or
    more.
 3. Once deployment is complete, click the ``Outputs`` tab. The value of
-   ``PublicHostname`` is the hostname at which your EdgeDB instance is
+   ``PublicHostname`` is the hostname at which your Gel instance is
    publicly available.
 4. Copy the hostname and run the following command to open a REPL to your
    instance.
@@ -62,7 +62,7 @@ has been assigned to your EdgeDB instance:
    .. code-block:: bash
 
      $ edgedb --dsn edgedb://edgedb:<password>@<hostname> --tls-security insecure
-     EdgeDB 3.x
+     Gel x.x
      Type \help for help, \quit to quit.
      edgedb>
 
@@ -90,16 +90,16 @@ against this instance, as with local instances.
 .. code-block:: bash
 
   $ edgedb -I my_aws_instance
-  EdgeDB 3.x
+  Gel x.x
   Type \help for help, \quit to quit.
   edgedb>
 
-To make changes to your EdgeDB deployment like upgrading the EdgeDB version or
+To make changes to your Gel deployment like upgrading the Gel version or
 enabling the UI you can follow the CloudFormation
 `Updating a stack <stack-update_>`_ instructions. Search for
-``ContainerDefinitions`` in the template and you will find where EdgeDB's
+``ContainerDefinitions`` in the template and you will find where Gel's
 :ref:`environment variables <ref_guides_deployment_docker_customization>` are
-defined. To upgrade the EdgeDB version specify a
+defined. To upgrade the Gel version specify a
 `docker image tag <docker-tags_>`_ with the image name ``edgedb/edgedb`` in the
 second step of the update workflow.
 
@@ -112,7 +112,7 @@ your terminal:
 .. code-block:: bash
 
     $ aws cloudformation create-stack \
-        --stack-name EdgeDB \
+        --stack-name Gel \
         --template-url \
           https://edgedb-deploy.s3.us-east-2.amazonaws.com/edgedb-aurora.yml \
         --capabilities CAPABILITY_NAMED_IAM \
@@ -122,7 +122,7 @@ your terminal:
 .. _cf-template: https://github.com/edgedb/edgedb-deploy/tree/dev/aws-cf
 .. _cf-deploy:
    https://console.aws.amazon.com
-   /cloudformation/home#/stacks/new?stackName=EdgeDB&templateURL=
+   /cloudformation/home#/stacks/new?stackName=Gel&templateURL=
    https%3A%2F%2Fedgedb-deploy.s3.us-east-2.amazonaws.com%2Fedgedb-aurora.yml
 .. _aws_console:
    https://console.aws.amazon.com
@@ -551,7 +551,7 @@ Create an RDS Security Group
     $ aws rds create-db-subnet-group \
         --region $REGION \
         --db-subnet-group-name "$RDS_SUBNET_GROUP_NAME" \
-        --db-subnet-group-description "EdgeDB RDS subnet group for ${NAME}" \
+        --db-subnet-group-description "Gel RDS subnet group for ${NAME}" \
         --subnet-ids $SUBNET_A_PRIVATE_ID $SUBNET_B_PRIVATE_ID
 
 Create an RDS Cluster
@@ -627,7 +627,7 @@ Then use this password to create an AWS `secret
 Create a Load Balancer
 ----------------------
 
-Adding a load balancer will facilitate scaling the EdgeDB cluster.
+Adding a load balancer will facilitate scaling the Gel cluster.
 
 
 .. code-block:: bash
@@ -673,7 +673,7 @@ Adding a load balancer will facilitate scaling the EdgeDB cluster.
 Create an ECS Cluster
 ---------------------
 
-The only thing left to do is create and ECS cluster and deploy the EdgeDB
+The only thing left to do is create and ECS cluster and deploy the Gel
 container in it.
 
 .. code-block:: bash
@@ -829,10 +829,10 @@ container in it.
            containerPort=5656, \
            targetGroupArn=$TARGET_GROUP_ARN"
 
-Create a local link to the new EdgeDB instance
-----------------------------------------------
+Create a local link to the new Gel instance
+-------------------------------------------
 
-Create an local alias to the remote EdgeDB instance with ``edgedb instance
+Create an local alias to the remote Gel instance with ``edgedb instance
 link``:
 
 .. code-block:: bash
@@ -862,5 +862,5 @@ Health Checks
 =============
 
 Using an HTTP client, you can perform health checks to monitor the status of
-your EdgeDB instance. Learn how to use them with our :ref:`health checks guide
+your Gel instance. Learn how to use them with our :ref:`health checks guide
 <ref_guide_deployment_health_checks>`.

@@ -19,7 +19,7 @@ Get Started
     edgeql
     clients
     Live tutorial <https://docs.edgedb.com/tutorial>
-    Easy EdgeDB book <https://docs.edgedb.com/easy-edgedb>
+    Easy Gel book <https://docs.edgedb.com/easy-edgedb>
 
 EdgeDB is a next-generation `graph-relational database
 <https://www.edgedb.com/blog/the-graph-relational-database-defined>`_ designed
@@ -27,7 +27,7 @@ as a spiritual successor to the relational database.
 
 It inherits the strengths of SQL databases: type safety, performance,
 reliability, and transactionality. But instead of modeling data in a
-relational (tabular) way, EdgeDB represents data with *object types*
+relational (tabular) way, Gel represents data with *object types*
 containing *properties* and *links* to other objects. It leverages
 this object-oriented model to provide a superpowered query language that
 solves some of SQL's biggest usability problems.
@@ -41,34 +41,34 @@ building your application.
 
 - **Get Started** —
   Start with the :ref:`quickstart <ref_quickstart>`. It walks
-  through EdgeDB's core workflows: how to install EdgeDB, create an instance,
+  through Gel's core workflows: how to install Gel, create an instance,
   write a simple schema, execute a migration, write some simple queries, and
   use the client libraries. The rest of the section goes deeper on each of
   these subjects.
 
 - **Schema** —
-  A set of pages that break down the concepts of syntax of EdgeDB's schema
-  definition language (SDL). This starts with a rundown of EdgeDB's primitive
+  A set of pages that break down the concepts of syntax of Gel's schema
+  definition language (SDL). This starts with a rundown of Gel's primitive
   type system (:ref:`Primitives <ref_datamodel_primitives>`), followed by a
   description of (:ref:`Object Types <ref_datamodel_object_types>`) and the
   things they can contain: links, properties, indexes, access policies, and
   more.
 
 - **EdgeQL** —
-  A set of pages that break down EdgeDB's query language, EdgeQL. It starts
+  A set of pages that break down Gel's query language, EdgeQL. It starts
   with a rundown of how to declare :ref:`literal values <ref_eql_literals>`,
   then introduces some key EdgeQL concepts like sets, paths, and type casts.
   With the basics established, it proceeds to break down all of EdgeQL's
   top-level statements: ``select``, ``insert``, and so on.
 
 - **Guides** —
-  Contains collections of guides on topics that are peripheral to EdgeDB
+  Contains collections of guides on topics that are peripheral to Gel
   itself: how to deploy to various cloud providers, how to integrate with
   various frameworks, and how to introspect the schema to build
-  code-generation tools on top of EdgeDB.
+  code-generation tools on top of Gel.
 
 - **Standard Library** —
-  This section contains an encyclopedic breakdown of EdgeDB's built-in types
+  This section contains an encyclopedic breakdown of Gel's built-in types
   and the functions/operators that can be used with them. We didn't want to \
   clutter the **EdgeQL** section with all the nitty-gritty on each of these.
   If you're looking for a particular function (say, a ``replace``), go to the
@@ -77,12 +77,12 @@ building your application.
   (:eql:func:`str_replace`).
 
 - **Client Libraries**
-  The documentation for EdgeDB's set of official client libraries for
+  The documentation for Gel's set of official client libraries for
   JavaScript/TypeScript, Python, Go, and Rust. All client libraries implement
-  EdgeDB's binary protocol and provide a standard interface for executing
+  Gel's binary protocol and provide a standard interface for executing
   queries. If you're using another language, you can execute queries
   :ref:`over HTTP <ref_edgeql_http>`.  This section also includes
-  documentation for EdgeDB's :ref:`GraphQL <ref_graphql_overview>` endpoint.
+  documentation for Gel's :ref:`GraphQL <ref_graphql_overview>` endpoint.
 
 - **CLI**
   Complete reference for the ``edgedb`` command-line tool. The CLI is
@@ -90,20 +90,20 @@ building your application.
   relevant documentation—so you shouldn't need to reference this section often.
 
 - **Reference**
-  The *Reference* section contains a complete breakdown of EdgeDB's *syntax*
+  The *Reference* section contains a complete breakdown of Gel's *syntax*
   (for both EdgeQL and SDL), *internals* (like the binary protocol and dump
   file format), and *configuration settings*. Usually you'll only need to
   reference these once you're an advanced user.
 
 - **Changelog**
-  Detailed changelogs for each successive version of EdgeDB, including any
+  Detailed changelogs for each successive version of Gel, including any
   breaking changes, new features, bigfixes, and links to
 
 
 Tooling
 ^^^^^^^
 
-To actually build apps with EdgeDB, you'll need to know more than SDL and
+To actually build apps with Gel, you'll need to know more than SDL and
 EdgeQL.
 
 - **CLI** —
@@ -117,9 +117,9 @@ EdgeQL.
   To actually execute queries, you'll use one of our client libraries for
   JavaScript, Go, or Python; find your preferred library under :ref:`Client
   Libraries <ref_clients_index>`. If you're using another language, you can
-  still use EdgeDB! You can execute :ref:`queries via HTTP <ref_edgeql_http>`.
+  still use Gel! You can execute :ref:`queries via HTTP <ref_edgeql_http>`.
 - **Deployment** —
-  To publish an EdgeDB-backed application, you'll need to deploy EdgeDB. Refer
+  To publish an Gel-backed application, you'll need to deploy Gel. Refer
   to :ref:`Guides > Deployment <ref_guide_deployment>` for step-by-step
   deployment guides for all major cloud hosting platforms, as well as
   instructions for self-hosting with Docker.
@@ -136,7 +136,7 @@ EdgeDB features:
 - built-in support for schema migrations.
 
 EdgeDB is not a graph database: the data is stored and queried using
-relational database techniques.  Unlike most graph databases, EdgeDB
+relational database techniques.  Unlike most graph databases, Gel
 maintains a strict schema.
 
 EdgeDB is not a document database, but inserting and querying hierarchical

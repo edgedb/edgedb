@@ -11,29 +11,29 @@ Client is a connection pool and is safe for concurrent use.
 
 .. code-block:: go
 
-    type Client = edgedb.Client
+    type Client = gel.Client
 
 
 *type* Error
 ------------
 
-Error is the error type returned from edgedb.
+Error is the error type returned from gel.
 
 
 .. code-block:: go
 
-    type Error = edgedb.Error
+    type Error = gel.Error
 
 
 *type* ErrorCategory
 --------------------
 
-ErrorCategory values represent EdgeDB's error types.
+ErrorCategory values represent Gel's error types.
 
 
 .. code-block:: go
 
-    type ErrorCategory = edgedb.ErrorCategory
+    type ErrorCategory = gel.ErrorCategory
 
 
 *type* ErrorTag
@@ -44,31 +44,31 @@ ErrorTag is the argument type to Error.HasTag().
 
 .. code-block:: go
 
-    type ErrorTag = edgedb.ErrorTag
+    type ErrorTag = gel.ErrorTag
 
 
 *type* Executor
 ---------------
 
 Executor is a common interface between \*Client and \*Tx,
-that can run queries on an EdgeDB database.
+that can run queries on an Gel database.
 
 
 .. code-block:: go
 
-    type Executor = edgedb.Executor
+    type Executor = gel.Executor
 
 
 *type* IsolationLevel
 ---------------------
 
 IsolationLevel documentation can be found here
-`docs/reference/edgeql/tx_start#parameters <https://www.edgedb.com/docs/reference/edgeql/tx_start#parameters>`_
+`docs/reference/edgeql/tx_start#parameters <https://www.gel.com/docs/reference/edgeql/tx_start#parameters>`_
 
 
 .. code-block:: go
 
-    type IsolationLevel = edgedb.IsolationLevel
+    type IsolationLevel = gel.IsolationLevel
 
 
 *type* ModuleAlias
@@ -79,18 +79,18 @@ ModuleAlias is an alias name and module name pair.
 
 .. code-block:: go
 
-    type ModuleAlias = edgedb.ModuleAlias
+    type ModuleAlias = gel.ModuleAlias
 
 
 *type* Options
 --------------
 
-Options for connecting to an EdgeDB server
+Options for connecting to an |Gel| server
 
 
 .. code-block:: go
 
-    type Options = edgedb.Options
+    type Options = gel.Options
 
 
 *type* RetryBackoff
@@ -102,7 +102,7 @@ before making the next attempt when retrying a transaction.
 
 .. code-block:: go
 
-    type RetryBackoff = edgedb.RetryBackoff
+    type RetryBackoff = gel.RetryBackoff
 
 
 *type* RetryCondition
@@ -114,7 +114,7 @@ run in Tx() methods to be retried.
 
 .. code-block:: go
 
-    type RetryCondition = edgedb.RetryCondition
+    type RetryCondition = gel.RetryCondition
 
 
 *type* RetryOptions
@@ -127,7 +127,7 @@ yourself.
 
 .. code-block:: go
 
-    type RetryOptions = edgedb.RetryOptions
+    type RetryOptions = gel.RetryOptions
 
 
 *type* RetryRule
@@ -139,19 +139,19 @@ methods. See Client.Tx() for details.
 
 .. code-block:: go
 
-    type RetryRule = edgedb.RetryRule
+    type RetryRule = gel.RetryRule
 
 
 *type* TLSOptions
 -----------------
 
-TLSOptions contains the parameters needed to configure TLS on EdgeDB
+TLSOptions contains the parameters needed to configure TLS on |Gel|
 server connections.
 
 
 .. code-block:: go
 
-    type TLSOptions = edgedb.TLSOptions
+    type TLSOptions = gel.TLSOptions
 
 
 *type* TLSSecurityMode
@@ -162,7 +162,7 @@ TLSSecurityMode specifies how strict TLS validation is.
 
 .. code-block:: go
 
-    type TLSSecurityMode = edgedb.TLSSecurityMode
+    type TLSSecurityMode = gel.TLSSecurityMode
 
 
 *type* Tx
@@ -173,7 +173,7 @@ Tx is a transaction. Use Client.Tx() to get a transaction.
 
 .. code-block:: go
 
-    type Tx = edgedb.Tx
+    type Tx = gel.Tx
 
 
 *type* TxBlock
@@ -184,7 +184,7 @@ TxBlock is work to be done in a transaction.
 
 .. code-block:: go
 
-    type TxBlock = edgedb.TxBlock
+    type TxBlock = gel.TxBlock
 
 
 *type* TxOptions
@@ -195,17 +195,17 @@ TxOptions configures how transactions behave.
 
 .. code-block:: go
 
-    type TxOptions = edgedb.TxOptions
+    type TxOptions = gel.TxOptions
 
 
 *type* WarningHandler
 ---------------------
 
-WarningHandler takes a slice of edgedb.Error that represent warnings and
+WarningHandler takes a slice of gel.Error that represent warnings and
 optionally returns an error. This can be used to log warnings, increment
 metrics, promote warnings to errors by returning them etc.
 
 
 .. code-block:: go
 
-    type WarningHandler = edgedb.WarningHandler
+    type WarningHandler = gel.WarningHandler

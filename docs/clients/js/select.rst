@@ -271,7 +271,7 @@ params object. This should correspond to a boolean expression.
 .. note::
 
   Since ``filter`` is a :ref:`reserved keyword <ref_eql_lexical_names>` in
-  EdgeDB, there is minimal danger of conflicting with a property or link named
+  |Gel|, there is minimal danger of conflicting with a property or link named
   ``filter``. All shapes can contain filter clauses, even nested ones.
 
 If you have many conditions you want to test for, your filter can start to get
@@ -462,7 +462,7 @@ simply order by a property:
 
 .. note::
 
-  Unlike ``filter``, ``order_by`` is *not* a reserved word in EdgeDB. Using
+  Unlike ``filter``, ``order_by`` is *not* a reserved word in |Gel|. Using
   ``order_by`` as a link or property name will create a naming conflict and
   likely cause bugs.
 

@@ -2,12 +2,12 @@
 v3.0
 ====
 
-:edb-alt-title: Gel v3
+:edb-alt-title: EdgeDB v3
 
 .. image:: images/v3_betelgeuse.jpg
     :width: 100%
 
-EdgeDB 3.0 was released on June 22nd, 2023. Read the announcement
+|EdgeDB| 3.0 was released on June 22nd, 2023. Read the announcement
 blog post `here <v3anno_>`_.
 
 To play with the new features, install the CLI using `our installation guide

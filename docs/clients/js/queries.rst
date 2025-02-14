@@ -15,21 +15,21 @@ To get started, install the following packages.
 
   If you're using Deno, you can skip this step.
 
-Install the ``edgedb`` package.
+Install the ``gel`` package.
 
 .. code-block:: bash
 
-  $ npm install edgedb       # npm users
-  $ yarn add edgedb          # yarn users
-  $ bun add edgedb           # bun users
+  $ npm install gel       # npm users
+  $ yarn add gel          # yarn users
+  $ bun add gel           # bun users
 
-Then install ``@edgedb/generate`` as a dev dependency.
+Then install ``@gel/generate`` as a dev dependency.
 
 .. code-block:: bash
 
-  $ npm install @edgedb/generate --save-dev      # npm users
-  $ yarn add @edgedb/generate --dev              # yarn users
-  $ bun add --dev @edgedb/generate               # bun users
+  $ npm install @gel/generate --save-dev      # npm users
+  $ yarn add @gel/generate --dev              # yarn users
+  $ bun add --dev @gel/generate               # bun users
 
 
 Generation
@@ -41,7 +41,7 @@ Consider the following file tree.
 
   .
   ├── package.json
-  ├── edgedb.toml
+  ├── gel.toml
   ├── index.ts
   ├── dbschema
   └── queries
@@ -55,17 +55,17 @@ The following command will run the ``queries`` generator.
   .. code-tab:: bash
     :caption: Node.js
 
-    $ npx @edgedb/generate queries
+    $ npx @gel/generate queries
 
   .. code-tab:: bash
     :caption: Deno
 
-    $ deno run --allow-all --unstable https://deno.land/x/edgedb/generate.ts queries
+    $ deno run --allow-all --unstable https://deno.land/x/gel/generate.ts queries
 
   .. code-tab:: bash
     :caption: Bun
 
-    $ bunx @edgedb/generate queries
+    $ bunx @gel/generate queries
 
 .. note:: Deno users
 
@@ -76,8 +76,8 @@ The following command will run the ``queries`` generator.
 
         {
           "imports": {
-            "edgedb": "https://deno.land/x/edgedb/mod.ts",
-            "edgedb/": "https://deno.land/x/edgedb/"
+            "gel": "https://deno.land/x/gel/mod.ts",
+            "gel/": "https://deno.land/x/gel/"
           }
         }
 
@@ -88,7 +88,7 @@ The following command will run the ``queries`` generator.
           "importMap": "./importMap.json"
         }
 
-The generator will detect the project root by looking for an ``edgedb.toml``,
+The generator will detect the project root by looking for an ``gel.toml``,
 then scan the directory for ``*.edgeql`` files. In this case, there's only one:
 ``queries/getUser.edgeql``.
 
@@ -106,7 +106,7 @@ return type. The generator uses this information to create a new file
 
   .
   ├── package.json
-  ├── edgedb.toml
+  ├── gel.toml
   ├── index.ts
   ├── dbschema
   └── queries
@@ -125,7 +125,7 @@ The generated file will look something like this:
 
 .. code-block:: typescript
 
-  import type { Client } from "edgedb";
+  import type { Client } from "gel";
 
   export type GetUserArgs = {
     user_id: string;
@@ -162,7 +162,7 @@ We can now use this function in our code.
     createClient,
     type GetUserArgs,
     type GetUserReturns,
-  } from "edgedb";
+  } from "gel";
 
   const client = await createClient();
 
@@ -193,7 +193,7 @@ Let's say we start with the following file tree.
 
   .
   ├── package.json
-  ├── edgedb.toml
+  ├── gel.toml
   ├── index.ts
   ├── dbschema
   └── queries
@@ -204,7 +204,7 @@ The following command will run the generator in ``--file`` mode.
 
 .. code-block:: bash
 
-  $ npx @edgedb/generate queries --file
+  $ npx @gel/generate queries --file
 
 A single file will be generated that exports two functions, ``getUser`` and ``getMovies``. By default this file is generated into the ``dbschema`` directory.
 
@@ -212,7 +212,7 @@ A single file will be generated that exports two functions, ``getUser`` and ``ge
 
   .
   ├── package.json
-  ├── edgedb.toml
+  ├── gel.toml
   ├── index.ts
   ├── dbschema
   │   └── queries.ts  <-- generated file
@@ -226,7 +226,7 @@ We can now use these functions in our code.
 .. code-block:: typescript
 
   import * as queries from "./dbschema/queries";
-  import {createClient} from "edgedb";
+  import {createClient} from "gel";
 
   const client = await createClient();
 
@@ -239,7 +239,7 @@ To override the file path and name, you can optionally pass a value to the ``--f
 
 .. code-block:: bash
 
-  $ npx @edgedb/generate queries --file path/to/myqueries
+  $ npx @gel/generate queries --file path/to/myqueries
 
 The file extension is determined by the generator ``--target`` and will be automatically appended to the provided path. Extensionless "absolute" paths will work; relative paths will be resolved relative to the current working directory.
 
@@ -249,7 +249,7 @@ This will result in the following file tree.
 
   .
   ├── package.json
-  ├── edgedb.toml
+  ├── gel.toml
   ├── path
   │   └── to
   │       └── myqueries.ts
@@ -271,11 +271,11 @@ To exclude the generated files, add the following lines to your ``.gitignore`` f
 Writing Queries with Parameters
 -------------------------------
 
-To inject external values into your EdgeQL queries, you can use `parameters </docs/edgeql/parameters>`__. 
+To inject external values into your EdgeQL queries, you can use `parameters </docs/edgeql/parameters>`__.
 
-When using the queries generator, you may be tempted to declare the same parameter in multiple places. 
+When using the queries generator, you may be tempted to declare the same parameter in multiple places.
 However, it's better practice to declare it once by assigning it to a variable in a `with block </docs/edgeql/with#query-parameters>`__
-and reference that variable in the rest of your query. This way you avoid mismatched types in your declarations, 
+and reference that variable in the rest of your query. This way you avoid mismatched types in your declarations,
 such as forgetting to mark them all as `optional </docs/edgeql/parameters#optional-parameters>`__.
 
 Check out the `EdgeQL docs </docs/edgeql/index>`__ to learn more about writing queries.

@@ -20,11 +20,11 @@ clients and servers.  The protocol is supported over TCP/IP.
 
 .. _ref_protocol_connecting:
 
-Connecting to EdgeDB
-====================
+Connecting to Gel
+=================
 
-The EdgeDB binary protocol has two modes of operation: sockets and HTTP
-tunnelling. When connecting to EdgeDB, the client can specify an accepted
+The Gel binary protocol has two modes of operation: sockets and HTTP
+tunnelling. When connecting to Gel, the client can specify an accepted
 `ALPN Protocol`_ to use. If the client does not specify an ALPN protocol,
 HTTP tunnelling is assumed.
 
@@ -88,7 +88,7 @@ the client should abort the authentication attempt.
     the HTTP connection. The client then sends any following message to
     ``/branch/{BRANCH}`` with the following headers:
 
-* ``X-EdgeDB-User``: The username specified in the
+* ``X-Gel-User``: The username specified in the
   :ref:`connection parameters <ref_reference_connection>`.
 
 * ``Authorization``: The authorization token received from the
@@ -169,7 +169,7 @@ The following data types are used in the descriptions:
 Message Format
 ==============
 
-All messages in the EdgeDB wire protocol have the following format:
+All messages in the Gel wire protocol have the following format:
 
 .. code-block:: c
 
@@ -211,7 +211,7 @@ message and continue as before.
 Message Flow
 ============
 
-There are two main phases in the lifetime of an EdgeDB connection: the
+There are two main phases in the lifetime of an Gel connection: the
 connection phase, and the command phase.  The connection phase is responsible
 for negotiating the protocol and connection parameters, including
 authentication.  The command phase is the regular operation phase where the
@@ -239,7 +239,7 @@ the connection if protocol version is unsupported. Server *MUST* send subset
 of the extensions received in :ref:`ref_protocol_msg_client_handshake` (i.e.
 it never adds extra ones).
 
-While it's not required by the protocol specification itself, EdgeDB server
+While it's not required by the protocol specification itself, Gel server
 currently requires setting the following params in
 :ref:`ref_protocol_msg_client_handshake`:
 

@@ -609,7 +609,7 @@ by the server.
 
 .. note::
     At the moment, the only SASL authentication method supported
-    by EdgeDB is ``SCRAM-SHA-256``
+    by Gel is ``SCRAM-SHA-256``
     (`RFC 7677 <https://tools.ietf.org/html/rfc7677>`_).
 
 The client must select an appropriate authentication method from the list

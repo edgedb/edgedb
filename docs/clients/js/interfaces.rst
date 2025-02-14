@@ -4,34 +4,34 @@
 Interfaces Generator
 ====================
 
-The ``interfaces`` generator introspects your schema and generates file containing *TypeScript interfaces* that correspond to each object type. This is useful for writing typesafe code to interact with EdgeDB.
+The ``interfaces`` generator introspects your schema and generates file containing *TypeScript interfaces* that correspond to each object type. This is useful for writing typesafe code to interact with |Gel|.
 
 Installation
 ------------
 
 To get started, install the following packages. (If you're using Deno, you can skip this step.)
 
-Install the ``edgedb`` package.
+Install the ``gel`` package.
 
 .. code-block:: bash
 
-  $ npm install edgedb       # npm users
-  $ yarn add edgedb          # yarn users
-  $ bun add edgedb           # bun users
+  $ npm install gel       # npm users
+  $ yarn add gel          # yarn users
+  $ bun add gel           # bun users
 
-Then install ``@edgedb/generate`` as a dev dependency.
+Then install ``@gel/generate`` as a dev dependency.
 
 .. code-block:: bash
 
-  $ npm install @edgedb/generate --save-dev      # npm users
-  $ yarn add @edgedb/generate --dev              # yarn users
-  $ bun add --dev @edgedb/generate               # bun users
+  $ npm install @gel/generate --save-dev      # npm users
+  $ yarn add @gel/generate --dev              # yarn users
+  $ bun add --dev @gel/generate               # bun users
 
 
 Generation
 ----------
 
-Assume your database contains the following EdgeDB schema.
+Assume your database contains the following Gel schema.
 
 .. code-block:: sdl
 
@@ -56,17 +56,17 @@ The following command will run the ``interfaces`` generator.
   .. code-tab:: bash
     :caption: Node.js
 
-    $ npx @edgedb/generate interfaces
+    $ npx @gel/generate interfaces
 
   .. code-tab:: bash
     :caption: Deno
 
-    $ deno run --allow-all --unstable https://deno.land/x/edgedb/generate.ts interfaces
+    $ deno run --allow-all --unstable https://deno.land/x/gel/generate.ts interfaces
 
   .. code-tab:: bash
     :caption: Bun
 
-    $ bunx @edgedb/generate interfaces
+    $ bunx @gel/generate interfaces
 
 .. note:: Deno users
 
@@ -77,8 +77,8 @@ The following command will run the ``interfaces`` generator.
 
         {
           "imports": {
-            "edgedb": "https://deno.land/x/edgedb/mod.ts",
-            "edgedb/": "https://deno.land/x/edgedb/"
+            "gel": "https://deno.land/x/gel/mod.ts",
+            "gel/": "https://deno.land/x/gel/"
           }
         }
 
@@ -121,7 +121,7 @@ Pass a ``--file`` flag to specify the output file path.
 
 .. code-block:: bash
 
-  $ npx @edgedb/generate interfaces --file schema.ts
+  $ npx @gel/generate interfaces --file schema.ts
 
 If the value passed as ``--file`` is a relative path, it will be evaluated relative to the current working directory (``process.cwd()``). If the value is an absolute path, it will be used as-is.
 

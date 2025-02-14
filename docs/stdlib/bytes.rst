@@ -99,10 +99,10 @@ Bytes
 
     .. code-block:: edgeql-repl
 
-        db> select <json>b'Hello EdgeDB!';
+        db> select <json>b'Hello Gel!';
         {"\"SGVsbG8gRWRnZURCIQ==\""}
         db> select <bytes>to_json("\"SGVsbG8gRWRnZURCIQ==\"");
-        {b'Hello EdgeDB!'}
+        {b'Hello Gel!'}
 
 
 ----------

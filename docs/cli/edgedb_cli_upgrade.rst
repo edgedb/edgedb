@@ -1,21 +1,21 @@
 .. _ref_cli_edgedb_cli_upgrade:
 
 
-==================
-edgedb cli upgrade
-==================
+===============
+gel cli upgrade
+===============
 
 Upgrade the CLI binary.
 
 .. cli:synopsis::
 
-    edgedb cli upgrade [<options>]
+    gel cli upgrade [<options>]
 
 
 Description
 ===========
 
-``edgedb cli upgrade`` is a terminal command used to upgrade the CLI
+``gel cli upgrade`` is a terminal command used to upgrade the CLI
 tools to keep them up-to-date.
 
 

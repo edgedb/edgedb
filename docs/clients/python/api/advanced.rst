@@ -4,7 +4,7 @@
 Advanced Usage
 ==============
 
-.. py:currentmodule:: edgedb
+.. py:currentmodule:: gel
 
 
 .. _edgedb-python-transaction-options:
@@ -37,18 +37,18 @@ Transactions can be customized with different options:
 
         Repeatable read isolation level (supported in read-only transactions)
 
-:py:class:`TransactionOptions` can be set on :py:class:`~edgedb.Client` or
-:py:class:`~edgedb.AsyncIOClient` using one of these methods:
+:py:class:`TransactionOptions` can be set on :py:class:`~gel.Client` or
+:py:class:`~gel.AsyncIOClient` using one of these methods:
 
-* :py:meth:`edgedb.Client.with_transaction_options`
-* :py:meth:`edgedb.AsyncIOClient.with_transaction_options`
+* :py:meth:`gel.Client.with_transaction_options`
+* :py:meth:`gel.AsyncIOClient.with_transaction_options`
 
 These methods return a "shallow copy" of the current client object with modified
 transaction options. Both ``self`` and the returned object can be used, but
 different transaction options will applied respectively.
 
 Transaction options are used by the future calls to the method
-:py:meth:`edgedb.Client.transaction` or :py:meth:`edgedb.AsyncIOClient.transaction`.
+:py:meth:`gel.Client.transaction` or :py:meth:`gel.AsyncIOClient.transaction`.
 
 
 .. _edgedb-python-retry-options:
@@ -57,7 +57,7 @@ Retry Options
 =============
 
 Individual EdgeQL commands or whole transaction blocks are automatically retried on
-retryable errors. By default, edgedb-python will try at most 3 times, with an
+retryable errors. By default, gel-python will try at most 3 times, with an
 exponential backoff time interval starting from 100ms, plus a random hash under 100ms.
 
 Retry rules can be granularly customized with different retry options:
@@ -94,11 +94,11 @@ Retry rules can be granularly customized with different retry options:
 
         Triggered when a ClientError occurs.
 
-:py:class:`RetryOptions` can be set on :py:class:`~edgedb.Client` or
-:py:class:`~edgedb.AsyncIOClient` using one of these methods:
+:py:class:`RetryOptions` can be set on :py:class:`~gel.Client` or
+:py:class:`~gel.AsyncIOClient` using one of these methods:
 
-* :py:meth:`edgedb.Client.with_retry_options`
-* :py:meth:`edgedb.AsyncIOClient.with_retry_options`
+* :py:meth:`gel.Client.with_retry_options`
+* :py:meth:`gel.AsyncIOClient.with_retry_options`
 
 These methods return a "shallow copy" of the current client object with modified
 retry options. Both ``self`` and the returned object can be used, but different
@@ -256,11 +256,11 @@ different ways: default module, module aliases, session config and global values
 
             If no names were given, all globals will be reset.
 
-:py:class:`State` can be set on :py:class:`~edgedb.Client` or
-:py:class:`~edgedb.AsyncIOClient` using one of these methods:
+:py:class:`State` can be set on :py:class:`~gel.Client` or
+:py:class:`~gel.AsyncIOClient` using one of these methods:
 
-* :py:meth:`edgedb.Client.with_state`
-* :py:meth:`edgedb.AsyncIOClient.with_state`
+* :py:meth:`gel.Client.with_state`
+* :py:meth:`gel.AsyncIOClient.with_state`
 
 These methods return a "shallow copy" of the current client object with
 modified state, affecting all future commands executed using the returned copy.
@@ -269,20 +269,20 @@ applied respectively.
 
 Alternatively, shortcuts are available on client objects:
 
-* :py:meth:`edgedb.Client.with_default_module`
-* :py:meth:`edgedb.Client.with_module_aliases`
-* :py:meth:`edgedb.Client.without_module_aliases`
-* :py:meth:`edgedb.Client.with_config`
-* :py:meth:`edgedb.Client.without_config`
-* :py:meth:`edgedb.Client.with_globals`
-* :py:meth:`edgedb.Client.without_globals`
-* :py:meth:`edgedb.AsyncIOClient.with_default_module`
-* :py:meth:`edgedb.AsyncIOClient.with_module_aliases`
-* :py:meth:`edgedb.AsyncIOClient.without_module_aliases`
-* :py:meth:`edgedb.AsyncIOClient.with_config`
-* :py:meth:`edgedb.AsyncIOClient.without_config`
-* :py:meth:`edgedb.AsyncIOClient.with_globals`
-* :py:meth:`edgedb.AsyncIOClient.without_globals`
+* :py:meth:`gel.Client.with_default_module`
+* :py:meth:`gel.Client.with_module_aliases`
+* :py:meth:`gel.Client.without_module_aliases`
+* :py:meth:`gel.Client.with_config`
+* :py:meth:`gel.Client.without_config`
+* :py:meth:`gel.Client.with_globals`
+* :py:meth:`gel.Client.without_globals`
+* :py:meth:`gel.AsyncIOClient.with_default_module`
+* :py:meth:`gel.AsyncIOClient.with_module_aliases`
+* :py:meth:`gel.AsyncIOClient.without_module_aliases`
+* :py:meth:`gel.AsyncIOClient.with_config`
+* :py:meth:`gel.AsyncIOClient.without_config`
+* :py:meth:`gel.AsyncIOClient.with_globals`
+* :py:meth:`gel.AsyncIOClient.without_globals`
 
 They work the same way as ``with_state``, and adjusts the corresponding state
 values.

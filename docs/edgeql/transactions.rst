@@ -38,13 +38,13 @@ of several commands:
 Client libraries
 ----------------
 
-There is rarely a reason to use these commands directly. All EdgeDB client
+There is rarely a reason to use these commands directly. All Gel client
 libraries provide dedicated transaction APIs that handle transaction creation
 under the hood.
 
 Examples below show a transaction that sends 10 cents from the account
 of a ``BankCustomer`` called ``'Customer1'`` to ``BankCustomer`` called
-``'Customer2'``. The equivalent EdgeDB schema and queries are:
+``'Customer2'``. The equivalent Gel schema and queries are:
 
 .. code-block::
 

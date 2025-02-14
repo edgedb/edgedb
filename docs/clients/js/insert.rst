@@ -86,7 +86,7 @@ builder, this is possible with the ``.unlessConflict`` method (available only
 on ``insert`` expressions).
 
 In the simplest case, adding ``.unlessConflict`` (no arguments) will prevent
-EdgeDB from throwing an error if the insertion would violate an exclusivity
+Gel from throwing an error if the insertion would violate an exclusivity
 contstraint. Instead, the query returns an empty set (``null``).
 
 .. code-block:: typescript

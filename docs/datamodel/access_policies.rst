@@ -113,7 +113,7 @@ execute queries. The exact API depends on which client library you're using:
 
   .. code-tab:: typescript
 
-    import createClient from 'edgedb';
+    import createClient from 'gel';
 
     const client = createClient().withGlobals({
       current_user: '2141a5b4-5634-4ccc-b835-437863534c51',
@@ -123,7 +123,7 @@ execute queries. The exact API depends on which client library you're using:
 
   .. code-tab:: python
 
-    from edgedb import create_client
+    from gel import create_client
 
     client = create_client().with_globals({
         'current_user': '580cc652-8ab8-4a20-8db9-4c79a4b1fd81'
@@ -142,23 +142,23 @@ execute queries. The exact API depends on which client library you're using:
       "fmt"
       "log"
 
-      "github.com/edgedb/edgedb-go"
+      "github.com/geldata/gel-go"
     )
 
     func main() {
       ctx := context.Background()
-      client, err := edgedb.CreateClient(ctx, edgedb.Options{})
+      client, err := gel.CreateClient(ctx, gel.Options{})
       if err != nil {
         log.Fatal(err)
       }
       defer client.Close()
 
-      id, err := edgedb.ParseUUID("2141a5b4-5634-4ccc-b835-437863534c51")
+      id, err := gel.ParseUUID("2141a5b4-5634-4ccc-b835-437863534c51")
       if err != nil {
         log.Fatal(err)
       }
 
-      var result edgedb.UUID
+      var result gel.UUID
       err = client.
         WithGlobals(map[string]interface{}{"current_user": id}).
         QuerySingle(ctx, "SELECT global current_user;", &result)
@@ -171,12 +171,12 @@ execute queries. The exact API depends on which client library you're using:
 
   .. code-tab:: rust
 
-    use edgedb_protocol::{
+    use gel_protocol::{
       model::Uuid,
       value::EnumValue
     };
 
-    let client = edgedb_tokio::create_client()
+    let client = gel_tokio::create_client()
         .await
         .expect("Client should init")
         .with_globals_fn(|c| {
@@ -228,7 +228,7 @@ Let's add two policies to our sample schema.
     +       }
     +      access policy author_has_read_access
     +        allow select
-    +        using (global current_user    ?= .author.id 
+    +        using (global current_user    ?= .author.id
     +          and  global current_country ?= Country.ReadOnly);
         }
 
@@ -256,7 +256,7 @@ Let's add two policies to our sample schema.
     +       }
     +      access policy author_has_read_access
     +        allow select
-    +        using (global current_user    ?= .author.id 
+    +        using (global current_user    ?= .author.id
     +          and  global current_country ?= Country.ReadOnly);
         }
 
@@ -290,9 +290,9 @@ Let's do some experiments.
 
 .. code-block:: edgeql-repl
 
-  db> insert User { email := "test@edgedb.com" };
+  db> insert User { email := "test@geldata.com" };
   {default::User {id: be44b326-03db-11ed-b346-7f1594474966}}
-  db> set global current_user := 
+  db> set global current_user :=
   ...   <uuid>"be44b326-03db-11ed-b346-7f1594474966";
   OK: SET GLOBAL
   db> set global current_country := Country.Full;
@@ -328,7 +328,7 @@ yet been given permission to roll out our service.
   ...    title := "My second post",
   ...    author := (select User filter .id = global current_user)
   ...  };
-  edgedb error: AccessPolicyError: access policy violation on 
+  gel error: AccessPolicyError: access policy violation on
   insert of default::BlogPost (User does not have full access)
   db> set global current_country := Country.None;
   OK: SET GLOBAL
@@ -341,7 +341,7 @@ operation, the operation may or may not work and thus we have provided a
 helpful error message in the access policy to give users a heads up on what
 went wrong.
 
-Now let's move back to a country with full access, but set the 
+Now let's move back to a country with full access, but set the
 ``global current_user`` to some other id: a new user that has yet to write
 any blog posts. Now the number of ``BlogPost`` objects returned via
 the ``count`` function is zero:
@@ -416,7 +416,7 @@ Resolution order
 ^^^^^^^^^^^^^^^^
 
 An object type can contain an arbitrary number of access policies, including
-several conflicting ``allow`` and ``deny`` policies. EdgeDB uses a particular
+several conflicting ``allow`` and ``deny`` policies. |Gel| uses a particular
 algorithm for resolving these policies.
 
 .. figure:: images/ols.png
@@ -426,7 +426,7 @@ algorithm for resolving these policies.
 1. When no policies are defined on a given object type, all objects of that
    type can be read or modified by any appropriately authenticated connection.
 
-2. EdgeDB then applies all ``allow`` policies. Each policy grants a
+2. Gel then applies all ``allow`` policies. Each policy grants a
    *permission* that is scoped to a particular *set of objects* as defined by
    the ``using`` clause. Conceptually, these permissions are merged with
    the ``union`` / ``or`` operator to determine the set of allowable actions.
@@ -508,7 +508,7 @@ making the current user able to see their own ``User`` record.
 
 .. note::
 
-    Starting with EdgeDB 3.0, access policy restrictions will **not** apply to
+    Starting with |EdgeDB| 3.0, access policy restrictions will **not** apply to
     any access policy expression. This means that when reasoning about access
     policies it is no longer necessary to take other policies into account.
     Instead, all data is visible for the purpose of *defining* an access
@@ -521,7 +521,7 @@ making the current user able to see their own ``User`` record.
     other's expressions.
 
     It is possible (and recommended) to enable this :ref:`future
-    <ref_eql_sdl_future>` behavior in EdgeDB 2.6 and later by adding the
+    <ref_eql_sdl_future>` behavior in |EdgeDB| 2.6 and later by adding the
     following to the schema: ``using future nonrecursive_access_policies;``
 
 Custom error messages
@@ -536,7 +536,7 @@ policy, you will get a generic error message.
 
 .. code-block::
 
-    edgedb error: AccessPolicyError: access policy violation on insert of
+    gel error: AccessPolicyError: access policy violation on insert of
     <type>
 
 .. note::
@@ -585,7 +585,7 @@ will receive this error:
 
 .. code-block::
 
-    edgedb error: AccessPolicyError: access policy violation on insert of
+    gel error: AccessPolicyError: access policy violation on insert of
     default::User (Only admins may query Users)
 
 Disabling policies
@@ -597,8 +597,8 @@ You may disable all access policies by setting the ``apply_access_policies``
 :ref:`configuration parameter <ref_std_cfg>` to ``false``.
 
 You may also toggle access policies using the "Disable Access Policies"
-checkbox in the "Config" dropdown in the EdgeDB UI (accessible by running
-the CLI command ``edgedb ui`` from inside your project). This is the most
+checkbox in the "Config" dropdown in the Gel UI (accessible by running
+the CLI command ``gel ui`` from inside your project). This is the most
 convenient way to temporarily disable access policies since it applies only to
 your UI session.
 

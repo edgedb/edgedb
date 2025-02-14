@@ -1,22 +1,22 @@
 .. _ref_cli_edgedb_server_info:
 
 
-==================
-edgedb server info
-==================
+===============
+gel server info
+===============
 
 Show server information.
 
 .. cli:synopsis::
 
-     edgedb server info [<options>]
+     gel server info [<options>]
 
 
 Description
 ===========
 
-``edgedb server info`` is a terminal command for displaying the
-information about installed EdgeDB servers.
+``gel server info`` is a terminal command for displaying the
+information about installed |Gel| servers.
 
 
 Options

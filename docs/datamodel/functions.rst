@@ -8,7 +8,7 @@ Functions
 
 .. note::
 
-  This page documents how to define custom functions, however EdgeDB provides a
+  This page documents how to define custom functions, however |Gel| provides a
   large library of built-in functions and operators. These are documented in
   :ref:`Standard Library <ref_std>`.
 

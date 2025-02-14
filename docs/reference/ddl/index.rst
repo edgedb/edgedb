@@ -29,7 +29,7 @@ DDL
 
 EdgeQL includes a set of *data definition language* (DDL) commands that
 manipulate the database's schema. DDL is the low-level equivalent to
-:ref:`EdgeDB schema definition language <ref_eql_sdl>`. You can execute DDL
+:ref:`Gel schema definition language <ref_eql_sdl>`. You can execute DDL
 commands against your database, just like any other EdgeQL query.
 
 .. code-block:: edgeql-repl
@@ -50,7 +50,7 @@ to ``Person``.
 
 Under the hood, all migrations are represented as DDL scripts: a sequence of
 imperative commands representing the migration. When you :ref:`create a
-migration <ref_cli_edgedb_migrate>` with the CLI, EdgeDB produces a DDL script.
+migration <ref_cli_edgedb_migrate>` with the CLI, Gel produces a DDL script.
 
 
 Comparison to SDL

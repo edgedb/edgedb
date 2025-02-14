@@ -3,13 +3,13 @@
 Generators
 ==========
 
-The ``@edgedb/generate`` package provides a set of code generation tools that
-are useful when developing an EdgeDB-backed applications with
+The ``@gel/generate`` package provides a set of code generation tools that
+are useful when developing an Gel-backed applications with
 TypeScript/JavaScript.
 
-To get started with generators, first initialize an :ref:`EdgeDB project
+To get started with generators, first initialize an :ref:`Gel project
 <ref_guide_using_projects>` in the root of your application. Generators will
-look for an ``edgedb.toml`` file to determine the root of your application. See
+look for an |gel.toml| file to determine the root of your application. See
 the :ref:`Overview <edgedb-js-installation>` page for details on installing.
 
 .. note::
@@ -23,7 +23,7 @@ Run a generator with the following command.
   .. code-tab:: bash
     :caption: npm
 
-    $ npx @edgedb/generate <generator> [options]
+    $ npx @gel/generate <generator> [options]
 
   .. code-tab:: bash
     :caption: yarn
@@ -41,12 +41,12 @@ Run a generator with the following command.
     $ deno run \
       --allow-all \
       --unstable \
-      https://deno.land/x/edgedb/generate.ts <generator> [options]
+      https://deno.land/x/gel/generate.ts <generator> [options]
 
   .. code-tab:: bash
     :caption: bun
 
-    $ bunx @edgedb/generate <generator> [options]
+    $ bunx @gel/generate <generator> [options]
 
 The value of ``<generator>`` should be one of the following:
 
@@ -67,14 +67,14 @@ The value of ``<generator>`` should be one of the following:
    * - ``interfaces``
      - Introspects your schema and generates file containing *TypeScript
        interfaces* that correspond to each object type. This is useful for
-       writing typesafe code to interact with EdgeDB.
+       writing typesafe code to interact with |Gel|.
      - :ref:`docs <edgedb-js-interfaces>`
 
 Connection
 ^^^^^^^^^^
 
-The generators require a connection to an active EdgeDB database. It does
-**not** simply read your local ``.esdl`` schema files. Generators rely on the
+The generators require a connection to an active |Gel| database. It does
+**not** simply read your local |.gel| schema files. Generators rely on the
 database to introspect the schema and analyze queries. Doing so without a
 database connection would require implementing a full EdgeQL parser and static
 analyzer in JavaScript—which we don't intend to do anytime soon.
@@ -84,7 +84,7 @@ analyzer in JavaScript—which we don't intend to do anytime soon.
   Make sure your development database is up-to-date with your latest schema
   before running a generator!
 
-If you're using ``edgedb project init``, the connection is automatically handled
+If you're using ``gel project init``, the connection is automatically handled
 for you. Otherwise, you'll need to explicitly pass connection information via
 environment variables or CLI flags, just like any other CLI command. See
 :ref:`Client Libraries > Connection <edgedb_client_connection>` for guidance.
@@ -115,8 +115,8 @@ modules). You can override this with the ``--target`` flag.
 Help
 ^^^^
 
-To see helptext for the ``@edgedb/generate`` command, run the following.
+To see helptext for the ``@gel/generate`` command, run the following.
 
 .. code-block:: bash
 
-  $ npx @edgedb/generate --help
+  $ npx @gel/generate --help
