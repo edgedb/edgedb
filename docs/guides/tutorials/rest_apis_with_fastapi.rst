@@ -136,7 +136,7 @@ you've worked with SQLAlchemy or Django ORM, you might refer to these
 declarative schema definitions as *models*. In Gel we call them
 "object types".
 
-The schema lives inside ``.esdl`` files in the ``dbschema`` directory. It's
+The schema lives inside |.gel| files in the ``dbschema`` directory. It's
 common to declare the entire schema in a single file
 ``dbschema/default.esdl``. This file is created for you when you run ``edgedb
 project init``, but you'll need to fill it with your schema. This is what our

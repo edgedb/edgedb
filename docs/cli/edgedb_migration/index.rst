@@ -31,9 +31,9 @@ migration information. By default they will look in the ``dbschema``
 directory, but it's also possible to specify any other location by
 using the :cli:synopsis:`schema-dir` option.
 
-Inside this directory, you will find an ``.esdl`` file with an :ref:`SDL
+Inside this directory, you will find an |.gel| file with an :ref:`SDL
 <ref_eql_sdl>` schema description. You may split your schema across multiple
-``.esdl`` files. The migration tools will read all of them and treat them as a
+|.gel| files. The migration tools will read all of them and treat them as a
 single SDL document.
 
 .. list-table::
