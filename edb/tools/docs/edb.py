@@ -19,6 +19,8 @@
 
 from __future__ import annotations
 
+import re
+
 from sphinx import domains as s_domains
 from docutils import nodes as d_nodes
 from docutils.parsers import rst as d_rst
@@ -172,7 +174,19 @@ class GelCmdRole:
     def __call__(
         self, role, rawtext, text, lineno, inliner, options=None, content=None
     ):
-        text = f'gel {text.strip()}'
+        text = text.strip()
+        text = re.sub(r'(\n\s*)+', " ", text)
+        if text.startswith("edgedb"):
+            fn = inliner.document.current_source
+            raise Exception(
+                f"{fn}:{lineno} - :gelcmd:`{text}` - can't start with 'edgedb'"
+            )
+        if text.startswith("gel ") or text == "gel":
+            fn = inliner.document.current_source
+            raise Exception(
+                f"{fn}:{lineno} - :gelcmd:`{text}` - can't start with 'gel'"
+            )
+        text = f'gel {text}'
         node = d_nodes.literal(text, text)
         node["edb-gelcmd"] = "true"
         node["edb-gelcmd-top"] = "false"

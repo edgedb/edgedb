@@ -15,9 +15,9 @@ To use |Gel| Cloud via the CLI, first log in using
     but when interacting with Gel Cloud via a script or in CI, you'll
     instead set the ``EDGEDB_SECRET_KEY`` environment variable to your secret
     key. Generate a secret key in the Gel Cloud UI or by running
-    :ref:`ref_cli_edgedb_cloud_secretkey_create`. The ``edgedb cloud login``
-    and ``edgedb cloud logout`` commands are not intended for use in this
-    context.
+    :ref:`ref_cli_edgedb_cloud_secretkey_create`. The :gelcmd:`cloud
+    login` and :gelcmd:`cloud logout` commands are not intended for use
+    in this context.
 
 Once your login is successful, you will be able to create an instance using
 either :ref:`ref_cli_edgedb_instance_create` or
@@ -39,7 +39,7 @@ create a local project linked to your instance.
       $ edgedb project init \
         --server-instance <org-name>/<instance-name>
 
-  Alternatively, you can run ``edgedb project init`` *without* the
+  Alternatively, you can run :gelcmd:`project init` *without* the
   ``--server-instance`` option and enter an instance name in the
   ``<org-name>/<instance-name>`` format when prompted interactively.
 
@@ -54,19 +54,19 @@ create a local project linked to your instance.
       organization name (i.e., length of organization name + length of instance
       name must be fewer than 62 characters)
 
-To use ``edgedb instance create``:
+To use :gelcmd:`instance create`:
 
 .. code-block:: bash
 
-    $ edgedb instance create <org-name>/<instance-name>
+    $ gel instance create <org-name>/<instance-name>
 
-To use ``edgedb project init``:
+To use :gelcmd:`project init`:
 
 .. code-block:: bash
 
-    $ edgedb project init \
+    $ gel project init \
       --server-instance <org-name>/<instance-name>
 
-Alternatively, you can run ``edgedb project init`` *without* the
+Alternatively, you can run :gelcmd:`project init` *without* the
 ``--server-instance`` option and enter an instance name in the
 ``<org-name>/<instance-name>`` format when prompted interactively.

@@ -964,14 +964,13 @@ class TestOthers(unittest.TestCase, BaseDomainTest):
             '''),
             ['Gel'])
 
-
-        print(x)
-
     def test_sphinx_edb_brand_name_02(self):
         src = '''
         blah |gelcmd|
         blah 2 :gelcmd:`migrate --help`
-
+        blah 3 :gelcmd:`migrate
+        --help
+        --foo`
 
         DONE
         '''
@@ -987,7 +986,8 @@ class TestOthers(unittest.TestCase, BaseDomainTest):
                     [@edb-gelcmd-top="true"]
                     / text()
             '''),
-            ['gel'])
+            ['gel']
+        )
 
         self.assertEqual(
             x.xpath('''
@@ -997,5 +997,6 @@ class TestOthers(unittest.TestCase, BaseDomainTest):
                     [@edb-gelcmd-top="false"]
                     / text()
             '''),
-            ['gel migrate --help'])
+            ['gel migrate --help', 'gel migrate --help --foo']
+        )
 

@@ -38,7 +38,7 @@ Instance URL
 ============
 
 To determine the URL of an |Gel| Cloud instance, find the host by running
-``edgedb instance credentials -I <org-name>/<instance-name>``. Use the
+:gelcmd:`instance credentials -I <org-name>/<instance-name>`. Use the
 ``host`` and ``port`` from that table in the URL format above this note.
 Change the protocol to ``https`` since Gel Cloud instances are secured
 with TLS.
