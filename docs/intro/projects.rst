@@ -137,8 +137,8 @@ Using remote instances
 
 You may want to initialize a project that points to a remote Gel instance.
 This is totally a valid case and Gel fully supports it! Before running
-``edgedb project init``, you just need to create an alias for the remote
-instance using ``edgedb instance link``, like so:
+:gelcmd:`project init`, you just need to create an alias for the remote
+instance using :gelcmd:`instance link`, like so:
 
 .. lint-off
 
@@ -174,7 +174,7 @@ instance name in CLI commands.
   edgedb>
 
 To initialize a project that uses the remote instance, provide this alias when
-prompted for an instance name during the ``edgedb project init`` workflow.
+prompted for an instance name during the :gelcmd:`project init` workflow.
 
 
 Unlinking
@@ -198,7 +198,7 @@ Upgrading
 ^^^^^^^^^
 
 A standalone instance (not linked to a project) can be upgraded with the
-``edgedb instance upgrade`` command.
+:gelcmd:`instance upgrade` command.
 
 .. code-block:: bash
 

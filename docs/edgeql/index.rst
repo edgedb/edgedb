@@ -66,12 +66,6 @@ like code and less like word soup.
 to write deep, performant queries that traverse links, no ``JOINs`` required.
 
 **Composable**. `Unlike SQL
-<https://www.edgedb.com/blog/we-can-do-better-than-sql#lack-of-orthogonality>`_,
+<https://www.geldata.com/blog/we-can-do-better-than-sql#lack-of-orthogonality>`_,
 EdgeQL's syntax is readily composable; queries can be cleanly nested without
 worrying about Cartesian explosion.
-
-.. note::
-
-  For a detailed writeup on the design of SQL, see `We Can Do Better Than SQL
-  <https://www.edgedb.com/blog/we-can-do-better-than-sql#lack-of-orthogonality>`_
-  on the Gel blog.

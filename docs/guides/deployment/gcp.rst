@@ -34,7 +34,7 @@ use. Google Cloud only allow letters, numbers, and hyphens.
 
 .. code-block:: bash
 
-   $ PROJECT=edgedb
+   $ PROJECT=gel
 
 Then create a project with this name. Skip this step if your project already
 exists.
@@ -152,7 +152,7 @@ Ensure the pods are running.
 
    $ kubectl get pods
    NAME                     READY   STATUS              RESTARTS   AGE
-   edgedb-977b8fdf6-jswlw   0/2     ContainerCreating   0          16s
+   gel-977b8fdf6-jswlw      0/2     ContainerCreating   0          16s
 
 The ``READY  0/2`` tells us neither of the two pods have finished booting.
 Re-run the command until ``2/2`` pods are ``READY``.
@@ -161,7 +161,7 @@ If there were errors you can check Gel's logs with:
 
 .. code-block:: bash
 
-   $ kubectl logs deployment/edgedb --container edgedb
+   $ kubectl logs deployment/gel --container gel
 
 Persist TLS Certificate
 =======================
@@ -174,12 +174,12 @@ pass it as a secret into Kubernetes. Then we'll redeploy the pods.
 
    $ kubectl create secret generic cloudsql-tls-credentials \
        --from-literal=tlskey="$(
-           kubectl exec deploy/edgedb -c=edgedb -- \
-               edgedb-show-secrets.sh --format=raw EDGEDB_SERVER_TLS_KEY
+           kubectl exec deploy/gel -c=gel -- \
+               gel-show-secrets.sh --format=raw EDGEDB_SERVER_TLS_KEY
        )" \
        --from-literal=tlscert="$(
-           kubectl exec deploy/edgedb -c=edgedb -- \
-               edgedb-show-secrets.sh --format=raw EDGEDB_SERVER_TLS_CERT
+           kubectl exec deploy/gel -c=gel -- \
+               gel-show-secrets.sh --format=raw EDGEDB_SERVER_TLS_CERT
        )"
 
    $ kubectl delete -f deployment.yaml
@@ -191,7 +191,7 @@ Expose Gel
 
 .. code-block:: bash
 
-   $ kubectl expose deploy/edgedb --type LoadBalancer
+   $ kubectl expose deploy/gel --type LoadBalancer
 
 
 Get your instance's DSN
@@ -203,17 +203,17 @@ Get the public-facing IP address of your database.
 
     $ kubectl get service
     NAME         TYPE           CLUSTER-IP  EXTERNAL-IP   PORT(S)
-    edgedb       LoadBalancer   <ip>        <ip>          5656:30841/TCP
+    gel          LoadBalancer   <ip>        <ip>          5656:30841/TCP
 
 
 Copy and paste the ``EXTERNAL-IP`` associated with the service named
-``edgedb``. With this IP address, you can construct your instance's :ref:`DSN
+``gel``. With this IP address, you can construct your instance's :ref:`DSN
 <ref_dsn>`:
 
 .. code-block:: bash
 
     $ EDGEDB_IP=<copy IP address here>
-    $ EDGEDB_DSN="edgedb://edgedb:${PASSWORD}@${EDGEDB_IP}"
+    $ EDGEDB_DSN="gel://admin:${PASSWORD}@${EDGEDB_IP}"
 
 To print the final DSN, you can ``echo`` it. Note that you should only run
 this command on a computer you trust, like a personal laptop or sandboxed
@@ -228,25 +228,25 @@ To test it, try opening a REPL:
 
 .. code-block:: bash
 
-    $ edgedb --dsn $EDGEDB_DSN --tls-security insecure
+    $ gel --dsn $EDGEDB_DSN --tls-security insecure
     Gel x.x (repl x.x)
     Type \help for help, \quit to quit.
-    edgedb> select "hello world!";
+    gel> select "hello world!";
 
 In development
 --------------
 
 To make this instance easier to work with during local development, create an
-alias using ``edgedb instance link``.
+alias using :gelcmd:`instance link`.
 
 .. note::
 
-   The command groups ``edgedb instance`` and ``edgedb project`` are not
+   The command groups :gelcmd:`instance` and :gelcmd:`project` are not
    intended to manage production instances.
 
 .. code-block:: bash
 
-    $ echo $PASSWORD | edgedb instance link \
+    $ echo $PASSWORD | gel instance link \
         --dsn $EDGEDB_DSN \
         --password-from-stdin \
         --non-interactive \
@@ -259,13 +259,13 @@ name is expected; for instance, you can open a REPL:
 
 .. code-block:: bash
 
-   $ edgedb -I gcp_instance
+   $ gel -I gcp_instance
 
 Or apply migrations:
 
 .. code-block:: bash
 
-   $ edgedb -I gcp_instance migrate
+   $ gel -I gcp_instance migrate
 
 In production
 -------------

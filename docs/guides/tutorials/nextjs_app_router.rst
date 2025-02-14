@@ -530,7 +530,7 @@ Run the following command to migrate the project to the Gel Cloud:
 .. note::
 
   Alternatively, if you want to restore your data from a local instance to
-  the cloud, you can use the ``edgedb dump`` and ``edgedb restore`` commands.
+  the cloud, you can use the :gelcmd:`dump` and :gelcmd:`restore` commands.
 
 .. code-block:: bash
 

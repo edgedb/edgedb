@@ -286,7 +286,7 @@ Now we're ready to run a migration to apply this schema to the database.
 4. Run a migration
 ==================
 
-Generate a migration file with ``edgedb migration create``. This command
+Generate a migration file with :gelcmd:`migration create`. This command
 gathers up our ``*.esdl`` files and sends them to the database. The *database
 itself* parses these files, compares them against its current schema, and
 generates a migration plan! Then the database sends this plan back to the CLI,

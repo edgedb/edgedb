@@ -8,7 +8,7 @@ Projects are the most convenient way to develop applications with Gel. This
 is the recommended approach.
 
 To get started, navigate to the root directory of your codebase in a shell and
-run ``edgedb project init``. You'll see something like this:
+run :gelcmd:`project init`. You'll see something like this:
 
 .. code-block:: bash
 
@@ -108,7 +108,7 @@ Read :ref:`our reference documentation on edgedb.toml
     out `the TOML documentation <https://toml.io/en/v1.0.0>`_.
 
 
-How do I use ``edgedb project`` for existing codebases?
+How do I use :gelcmd:`project` for existing codebases?
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 If you already have an project on your computer that uses Gel, follow these
@@ -116,7 +116,7 @@ steps to convert it into an Gel project:
 
 1. Navigate into the project directory (the one containing you ``dbschema``
    directory).
-2. Run ``edgedb project init``.
+2. Run :gelcmd:`project init`.
 3. When asked for an instance name, enter the name of the existing local
    instance you use for development.
 
@@ -130,11 +130,11 @@ How does this make projects more portable?
 Let's say you just cloned a full-stack application that uses Gel. The
 project directory already contains an |gel.toml| file. What do you do?
 
-Just run ``edgedb project init`` inside the directory! This is the beauty of
-``edgedb project``. You don't need to worry about creating an instance with a
+Just run :gelcmd:`project init` inside the directory! This is the beauty of
+:gelcmd:`project`. You don't need to worry about creating an instance with a
 particular name, running on a particular port, creating users and passwords,
 specifying environment variables, or any of the other things that make setting
-up local databases hard. Running ``edgedb project init`` will install the
+up local databases hard. Running :gelcmd:`project init` will install the
 necessary version of Gel (if you don't already have it installed), create an
 instance, apply all unapplied migrations. Then you can start up the application
 and it should work out of the box.
@@ -163,7 +163,7 @@ project init`` inside project again to create or select a new instance.
   > x.x
 
 
-How do I use ``edgedb project`` with a non-local instance?
+How do I use :gelcmd:`project` with a non-local instance?
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Sometimes you may want to work on an Gel instance that is just not in your
@@ -172,7 +172,7 @@ want to test against a staging database shared by the team.
 
 This is totally a valid case and Gel fully supports it!
 
-Before running ``edgedb project init``, you just need to create a local link to
+Before running :gelcmd:`project init`, you just need to create a local link to
 the remote Gel instance first:
 
 .. TODO: Will need to change this once https://github.com/edgedb/edgedb-cli/issues/1269 is resolved
@@ -200,7 +200,7 @@ the remote Gel instance first:
 
 .. lint-on
 
-Then you could run the normal ``edgedb project init`` and use ``staging_db`` as
+Then you could run the normal :gelcmd:`project init` and use ``staging_db`` as
 the instance name.
 
 .. note::
