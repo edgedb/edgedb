@@ -1,4 +1,4 @@
-.. _gel-go-intro:
+.. _edgedb-go-intro:
 
 =============
 Gel Go Driver
