@@ -83,30 +83,30 @@ Adding shared properties
   Update the ``getDecks`` query to sort the decks by ``updated_at`` in descending order.
 
   .. code-block:: typescript-diff
-      :caption: app/queries.ts
+    :caption: app/queries.ts
 
-        import { client } from "@/lib/gel";
-        import e from "@/dbschema/edgeql-js";
+      import { client } from "@/lib/gel";
+      import e from "@/dbschema/edgeql-js";
 
-        export async function getDecks() {
-          const decks = await e.select(e.Deck, (deck) => ({
+      export async function getDecks() {
+        const decks = await e.select(e.Deck, (deck) => ({
+          id: true,
+          name: true,
+          description: true,
+          cards: e.select(deck.cards, (card) => ({
             id: true,
-            name: true,
-            description: true,
-            cards: e.select(deck.cards, (card) => ({
-              id: true,
-              front: true,
-              back: true,
-              order_by: card.order,
-            })),
-      +     order_by: {
-      +       expression: deck.updated_at,
-      +       direction: e.DESC,
-      +     },
-          })).run(client);
+            front: true,
+            back: true,
+            order_by: card.order,
+          })),
+    +     order_by: {
+    +       expression: deck.updated_at,
+    +       direction: e.DESC,
+    +     },
+        })).run(client);
 
-          return decks;
-        }
+        return decks;
+      }
 
 .. edb:split-section::
 

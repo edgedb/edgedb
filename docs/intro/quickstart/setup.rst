@@ -10,12 +10,12 @@ Setting up your environment
 
   .. code-block:: sh
 
-      $ git clone \
-          git@github.com:geldata/quickstart-nextjs.git \
-          flashcards
-      $ cd flashcards
-      $ npm install
-      $ npx gel project init
+    $ git clone \
+        git@github.com:geldata/quickstart-nextjs.git \
+        flashcards
+    $ cd flashcards
+    $ npm install
+    $ npx gel project init
 
 
 .. edb:split-section::
@@ -24,7 +24,7 @@ Setting up your environment
 
   .. code-block:: sh
 
-      $ npx gel
+    $ npx gel
 
 .. edb:split-section::
 
@@ -32,27 +32,27 @@ Setting up your environment
 
   .. code-block:: edgeql-repl
 
-      db> select 42;
-      {42}
-      db> select sum({1, 2, 3});
-      {6}
-      db> with cards := {
-      ...   (
-      ...     front := "What is the highest mountain in the world?",
-      ...     back := "Mount Everest",
-      ...   ),
-      ...   (
-      ...     front := "Which ocean contains the deepest trench on Earth?",
-      ...     back := "The Pacific Ocean",
-      ...   ),
-      ... }
-      ... select cards order by random() limit 1;
-      {
-        (
-          front := "What is the highest mountain in the world?",
-          back := "Mount Everest",
-        )
-      }
+    db> select 42;
+    {42}
+    db> select sum({1, 2, 3});
+    {6}
+    db> with cards := {
+    ...   (
+    ...     front := "What is the highest mountain in the world?",
+    ...     back := "Mount Everest",
+    ...   ),
+    ...   (
+    ...     front := "Which ocean contains the deepest trench on Earth?",
+    ...     back := "The Pacific Ocean",
+    ...   ),
+    ... }
+    ... select cards order by random() limit 1;
+    {
+      (
+        front := "What is the highest mountain in the world?",
+        back := "Mount Everest",
+      )
+    }
 
 .. edb:split-section::
 
