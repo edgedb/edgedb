@@ -23,7 +23,7 @@ executing queries.
 
 To create a client:
 
-.. code-block:: js
+.. code-block:: javascript
 
     const edgedb = require("edgedb");
 
@@ -33,7 +33,7 @@ To create a client:
 If you're using TypeScript or have ES modules enabled, you can use
 ``import`` syntax instead:
 
-.. code-block:: js
+.. code-block:: javascript
 
     import * as edgedb from "edgedb";
 
@@ -102,7 +102,7 @@ Running queries
 
 To execute a basic query:
 
-.. code-block:: js
+.. code-block:: javascript
 
   const edgedb = require("edgedb");
 
@@ -118,7 +118,7 @@ To execute a basic query:
 
 In TypeScript, you can supply a type hint to receive a strongly typed result.
 
-.. code-block:: js
+.. code-block:: javascript
 
   const result = await client.query<number>(`select 2 + 2;`);
   // number[]
@@ -129,7 +129,7 @@ In TypeScript, you can supply a type hint to receive a strongly typed result.
 The ``.query`` method always returns an array of results. It places no
 constraints on cardinality.
 
-.. code-block:: js
+.. code-block:: javascript
 
   await client.query(`select 2 + 2;`); // [4]
   await client.query(`select [1, 2, 3];`); // [[1, 2, 3]]
@@ -149,7 +149,7 @@ a set with more than one elements, the ``Client`` will throw a runtime error.
   Note that if you're selecting an array or tuple, the returned value may
   still be an array.
 
-.. code-block:: js
+.. code-block:: javascript
 
   await client.querySingle(`select 2 + 2;`); // 4
   await client.querySingle(`select [1, 2, 3];`); // [1, 2, 3]
@@ -163,7 +163,7 @@ Use ``queryRequiredSingle`` for queries that return *exactly one* element. If
 the query returns an empty set or a set with multiple elements, the ``Client``
 will throw a runtime error.
 
-.. code-block:: js
+.. code-block:: javascript
 
   await client.queryRequiredSingle(`select 2 + 2;`); // 4
   await client.queryRequiredSingle(`select [1, 2, 3];`); // [1, 2, 3]
@@ -274,7 +274,7 @@ Client provide additional methods for running queries and retrieving results
 as a *serialized JSON string*. This serialization happens inside the database
 and is typically more performant than running ``JSON.stringify`` yourself.
 
-.. code-block:: js
+.. code-block:: javascript
 
   await client.queryJSON(`select {1, 2, 3};`);
   // "[1, 2, 3]"
@@ -292,7 +292,7 @@ To execute a query without retrieving a result, use the ``.execute`` method.
 This is especially useful for mutations, where there's often no need for the
 query to return a value.
 
-.. code-block:: js
+.. code-block:: javascript
 
   await client.execute(`insert Movie {
     title := "Avengers: Endgame"
@@ -301,7 +301,7 @@ query to return a value.
 With EdgeDB 2.0 or later, you can execute a "script" consisting of multiple
 semicolon-separated statements in a single ``.execute`` call.
 
-.. code-block:: js
+.. code-block:: javascript
 
   await client.execute(`
     insert Person { name := "Robert Downey Jr." };
@@ -323,7 +323,7 @@ Parameters
 If your query contains parameters (e.g. ``$foo``), you can pass in values as
 the second argument. This is true for all ``query*`` methods and ``execute``.
 
-.. code-block:: js
+.. code-block:: javascript
 
   const INSERT_MOVIE = `insert Movie {
     title := <str>$title
@@ -346,7 +346,7 @@ transaction (unless already in an explicit transaction), so the whole script
 remains atomic. For the ``query*`` methods only the result of the final
 statement in the script will be returned.
 
-.. code-block:: js
+.. code-block:: javascript
 
   const result = await client.query(`
     insert Movie {
@@ -374,7 +374,7 @@ established until the first time you execute a query.
 If you want to explicitly ensure that the client is connected without running
 a query, use the ``.ensureConnected()`` method.
 
-.. code-block:: js
+.. code-block:: javascript
 
   const edgedb = require("edgedb");
 
@@ -392,7 +392,7 @@ Transactions
 The most robust way to execute transactional code is to use
 the ``transaction()`` API:
 
-.. code-block:: js
+.. code-block:: javascript
 
     await client.transaction(tx => {
       await tx.execute("insert User {name := 'Don'}");
@@ -419,7 +419,7 @@ The key implication of retrying transactions is that the entire
 nested code block can be re-run, including any non-querying
 JavaScript code. Here is an example:
 
-.. code-block:: js
+.. code-block:: javascript
 
     const email = "timmy@edgedb.com"
 

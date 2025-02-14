@@ -359,6 +359,7 @@ class TestDocSnippets(unittest.TestCase):
                         'typescript',
                         'go',
                         'yaml',
+                        'text',
                         'jsx',
                         'rust',
                         'tsx',
