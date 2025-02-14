@@ -24,7 +24,7 @@ Enable extension in your schema
 ===============================
 
 Auth is an EdgeDB extension. To enable it, you will need to add the extension
-to your app’s schema:
+to your app's schema:
 
 .. code-block:: sdl
 
@@ -99,7 +99,7 @@ To configure via query or script:
 token_time_to_live
 ------------------
 
-This value controls the expiration time on the authentication token’s
+This value controls the expiration time on the authentication token's
 JSON Web Token. This is effectively the “session” time.
 
 To configure via query or script:
@@ -277,7 +277,7 @@ like `Mailpit <https://mailpit.axllent.org/docs/>`__.
 Enabling authentication providers
 =================================
 
-In order to use the auth extension, you’ll need to enable at least one of these
+In order to use the auth extension, you'll need to enable at least one of these
 authentication providers. Providers can be added from the "Providers" section
 of the admin auth UI by clicking "Add Provider." This will add a form to the UI
 allowing for selection of the provider and configuration of the values
@@ -315,7 +315,7 @@ To enable via query or script:
     ``require_verification`` defaults to ``true``.
 
 If you use the Email and Password provider, in addition to the
-``require_verification`` configuration, you’ll need to configure SMTP to allow
+``require_verification`` configuration, you'll need to configure SMTP to allow
 EdgeDB to send email verification and password reset emails on your behalf or
 set up webhooks for the relevant events:
 
@@ -368,8 +368,8 @@ We currently support six different OAuth providers:
 .. lint-on
 
 The instructions for creating an app for each provider can be found on
-each provider’s developer documentation website, which is linked above.
-The important things you’ll need to find and make note of for your
+each provider's developer documentation website, which is linked above.
+The important things you'll need to find and make note of for your
 configuration are the **client ID** and **secret**.
 
 Once you select the OAuth provider in the configuration UI, you will need to
@@ -390,7 +390,7 @@ provide those values and the ``additional_scope``:
         We return this authentication token with this scope from the Identity
         Provider when we return our own authentication token.
 
-You’ll also need to set a callback URL in each provider’s interface. To build
+You'll also need to set a callback URL in each provider's interface. To build
 this callback URL, you will need the hostname, port, and branch name of your
 database. The branch name is ``main`` by default. The hostname and port can
 be found running this CLI command:
@@ -595,7 +595,7 @@ Select your method for detailed configuration:
 Example usage
 =============
 
-Here’s an example schema that we can use to show how you would use the
+Here's an example schema that we can use to show how you would use the
 ``auth_token`` you get back from EdgeDB to make queries against a
 protected resource, in this case being able to insert a ``Post``.
 
@@ -629,7 +629,7 @@ protected resource, in this case being able to insert a ``Post``.
      }
    }
 
-Let’s now insert a ``Post``.
+Let's now insert a ``Post``.
 
 .. lint-off
 

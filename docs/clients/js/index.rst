@@ -27,7 +27,7 @@ EdgeDB TypeScript/JS Client
    group
    reference
 
-This is the official EdgeDB client library for JavaScript and TypeScript. It’s
+This is the official EdgeDB client library for JavaScript and TypeScript. It's
 the easiest way to connect to your database and execute queries from a Node.js
 or Deno backend.
 

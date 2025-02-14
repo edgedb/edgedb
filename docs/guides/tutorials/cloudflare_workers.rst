@@ -87,7 +87,7 @@ It creates an :code:`edgedb.toml` config file and a schema file
 
 It also spins up an EdgeDB instance and associates it with the current
 directory.
-As long as you’re inside the project directory, all CLI commands will
+As long as you're inside the project directory, all CLI commands will
 be executed against this instance.
 
 You can run :code:`edgedb` in your terminal to open an

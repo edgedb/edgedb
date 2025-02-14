@@ -41,7 +41,7 @@ Define the EdgeDB Schema
 
 The previous command generated a schema file in the ``dbschema`` directory.
 
-Here’s an example schema that defines a ``User`` model:
+Here's an example schema that defines a ``User`` model:
 
 .. code-block:: sdl
    :caption: dbschema/default.esdl
@@ -124,7 +124,7 @@ install a wrapper around the `@tanstack/react-query <https://tanstack.com/query/
 Define the tRPC Router
 -----------------------
 
-Here’s how to define a simple tRPC query that interacts with **EdgeDB**:
+Here's how to define a simple tRPC query that interacts with **EdgeDB**:
 
 .. code-block:: typescript
    :caption: server/routers/_app.ts
@@ -156,7 +156,7 @@ the API from the frontend. We will demonstrate how to integrate tRPC with
 With Next.js
 ------------
 
-If you're working with **Next.js**, here’s how to integrate **tRPC**:
+If you're working with **Next.js**, here's how to integrate **tRPC**:
 
 Create a tRPC API Handler
 ~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -222,7 +222,7 @@ If you're not using **Next.js**, here's how you can integrate **tRPC** with
 Set up Express server with tRPC
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Here’s how you can create an Express server and integrate **tRPC**:
+Here's how you can create an Express server and integrate **tRPC**:
 
 .. code-block:: typescript
 
@@ -272,7 +272,7 @@ Step 5: Set up authentication with EdgeDB Auth
 In this section, we will cover how to integrate **EdgeDB Auth** with **tRPC**
 and context in both **Next.js** and **Express** environments. This will ensure
 that user authentication is handled securely and that both server-side and
-client-side tRPC calls can access the user’s session.
+client-side tRPC calls can access the user's session.
 
 EdgeDB Auth with tRPC and tRPC context in Next.js
 -------------------------------------------------
