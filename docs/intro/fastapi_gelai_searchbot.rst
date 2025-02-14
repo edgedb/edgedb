@@ -198,16 +198,14 @@ to it by implementing web search capabilities.
 
 .. edb:split-section::
 
-  There're many powerful feature-rich products for LLM-driven web search. But in
-  this tutorial we're going to use a much more reliable source of real-world
-  information that is comment threads on Hacker News. Their web API is free of
-  charge and doesn't require an account. Below is a simple function that requests
-  a full-text search for a string query and extracts a nice sampling of comment
-  threads from each of the stories that came up in the result.
-
-  .. note::
-
-      Link to HN
+  There're many powerful feature-rich products for LLM-driven web search. But
+  in this tutorial we're going to use a much more reliable source of real-world
+  information that is comment threads on `Hacker News
+  <https://news.ycombinator.com/>`_. Their `web API
+  <https://hn.algolia.com/api>`_ is free of charge and doesn't require an
+  account. Below is a simple function that requests a full-text search for a
+  string query and extracts a nice sampling of comment threads from each of the
+  stories that came up in the result.
 
   We are not going to cover this code sample in too much depth. Feel free to grab
   it save it to ``app/web.py``, or make your own.
@@ -227,6 +225,8 @@ to it by implementing web search capabilities.
 
 
       class WebSource(BaseModel):
+          """Type that stores search results."""
+
           url: str | None = None
           title: str | None = None
           text: str | None = None
@@ -247,12 +247,18 @@ to it by implementing web search capabilities.
 
           results = []
 
+          # Get timestamp, author and the body of the comment,
+          # then pad it with spaces so that it's offset appropriately for its depth
+
           if comment["text"]:
               timestamp = datetime.fromisoformat(comment["created_at"].replace("Z", "+00:00"))
               author = comment["author"]
               text = html.unescape(comment["text"])
               formatted_comment = f"[{timestamp.strftime('%Y-%m-%d %H:%M')}] {author}: {text}"
               results.append(("  " * current_depth) + formatted_comment)
+
+          # If there're children comments, we are going to extract them too,
+          # and add them to the list.
 
           if comment.get("children"):
               for child in comment["children"][:max_children]:
@@ -263,8 +269,14 @@ to it by implementing web search capabilities.
 
 
       def fetch_web_sources(query: str, limit: int = 5) -> list[WebSource]:
-          search_url = "http://hn.algolia.com/api/v1/search_by_date"
+          """
+          For a given query perform a full-text search for stories on Hacker News.
+          From each of the matched stories extract the comment thread and format it into a single string.
+          For each story return its title, url and comment thread.
+          """
+          search_url = "http://hn.algolia.com/api/v1/search_by_date?numericFilters=num_comments>0"
 
+          # Search for stories
           response = requests.get(
               search_url,
               params={
@@ -278,6 +290,7 @@ to it by implementing web search capabilities.
           response.raise_for_status()
           search_result = response.json()
 
+          # For each search hit fetch and process the story
           web_sources = []
           for hit in search_result.get("hits", []):
               item_url = f"https://hn.algolia.com/api/v1/items/{hit['story_id']}"
@@ -326,8 +339,7 @@ to it by implementing web search capabilities.
 
 .. edb:split-section::
 
-  It's time to reflect the new capabilities in our web app. We're going to hack
-  our way around the fact that many stories on HN come with no comment threads.
+  It's time to reflect the new capabilities in our web app.
 
   .. code-block:: python
        :caption: app/main.py
@@ -335,8 +347,8 @@ to it by implementing web search capabilities.
        from .web import fetch_web_sources, WebSource
 
        async def search_web(query: str) -> list[WebSource]:
-           raw_sources = fetch_web_sources(query, limit=30)
-           return [s for s in raw_sources if s.text is not None][:5]
+           raw_sources = fetch_web_sources(query, limit=5)
+           return [s for s in raw_sources if s.text is not None]
 
 
 .. edb:split-section::
@@ -368,13 +380,16 @@ those results to the LLM to get a nice-looking summary.
 
 .. edb:split-section::
 
-  There's a million different LLMs accessible via a web API, feel free to choose
-  whichever you prefer. In this tutorial we will roll with OpenAI, primarily for
-  how ubiquitous it is. To keep things somewhat provider-agnostic, we're going to
-  get completions via raw HTTP requests. Let's grab API descriptions from
-  OpenAI's `API documentation
-  <https://platform.openai.com/docs/api-reference/chat/create>`_, and set up LLM
-  generation like this:
+  There's a million different LLMs accessible via a web API (`one
+  <https://docs.anthropic.com/en/api/getting-started>`_, `two
+  <https://ai.google.dev/gemini-api/docs>`_, `three
+  <https://ollama.com/search>`_, `four <https://docs.mistral.ai/api/>`_ to name
+  a few), feel free to choose whichever you prefer. In this tutorial we will
+  roll with OpenAI, primarily for how ubiquitous it is. To keep things somewhat
+  provider-agnostic, we're going to get completions via raw HTTP requests.
+  Let's grab API descriptions from OpenAI's `API documentation
+  <https://platform.openai.com/docs/api-reference/chat/create>`_, and set up
+  LLM generation like this:
 
   .. code-block:: python
       :caption: app/main.py
@@ -408,13 +423,13 @@ those results to the LLM to get a nice-looking summary.
 
 .. edb:split-section::
 
-  Note that this cloud LLM API (and many others) requires a secret key to be set
-  as an environment variable. A common way to manage those is to use the
+  Note that this cloud LLM API (and many others) requires a secret key to be
+  set as an environment variable. A common way to manage those is to use the
   ``python-dotenv`` library in combinations with a ``.env`` file. Feel free to
   browse `the readme
   <https://github.com/theskumar/python-dotenv?tab=readme-ov-file#getting-started>`_,
-  although it's also quite simple to use. Create a file called ``.env`` in the
-  root directory and put your api key in there:
+  to learn more. Create a file called ``.env`` in the root directory and put
+  your api key in there:
 
   .. code-block:: .env
       :caption: .env
@@ -434,7 +449,7 @@ those results to the LLM to get a nice-looking summary.
 .. edb:split-section::
 
   And now we can integrate this LLM-related code with the rest of the app. First,
-  let's set up the function that prepares LLM inputs:
+  let's set up a function that prepares LLM inputs:
 
 
   .. code-block:: python
@@ -446,7 +461,7 @@ those results to the LLM to get a nice-looking summary.
       ) -> SearchResult:
           system_prompt = (
               "You are a helpful assistant that answers user's questions"
-              + " by finding relevant information in HackerNews threads."
+              + " by finding relevant information in Hacker News threads."
               + " When answering the question, describe conversations that people have around the subject,"
               + " provided to you as a context, or say i don't know if they are completely irrelevant."
           )
@@ -509,9 +524,9 @@ So far we've built an application that can take in a query, fetch some Hacker
 News threads for it, sift through them using an LLM, and generate a nice
 summary.
 
-However, right now it's hardly user-friendly, since you have to speak in
+However, right now it's hardly user-friendly since you have to speak in
 keywords and basically start over every time you want to refine the query. To
-enable more organic multi-turn interaction we need to add chat history and
+enable a more organic multi-turn interaction, we need to add chat history and
 infer the query from the context of the entire conversation.
 
 Now's a good time to introduce Gel.
@@ -989,6 +1004,7 @@ basics before proceeding.
   below if you are in rush.
 
   .. code-block:: bash
+      :class: collapsible
 
       $ echo 'select Chat {
           messages: { role, body, sources },
@@ -1035,6 +1051,7 @@ basics before proceeding.
 
   .. code-block:: python
       :caption: app/main.py
+      :class: collapsible
 
       from .queries.get_chats_async_edgeql import get_chats as get_chats_query, GetChatsResult
       from .queries.get_chat_by_id_async_edgeql import (
