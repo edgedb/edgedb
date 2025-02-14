@@ -137,7 +137,7 @@ of data; in Gel the absence of data is just an empty set.
   permeates all of SQL and is often handled inconsistently in different
   circumstances. A number of specific inconsistencies are documented in detail
   in the `We Can Do Better Than SQL
-  <https://www.edgedb.com/blog/we-can-do-better-than-sql#null-a-bag-of-surprises>`_
+  <https://www.geldata.com/blog/we-can-do-better-than-sql#null-a-bag-of-surprises>`_
   post on the Gel blog. For broader context, see Tony Hoare's talk
   `"The Billion Dollar Mistake" <https://bit.ly/3H238oG>`_.
 

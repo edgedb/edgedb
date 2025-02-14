@@ -38,7 +38,7 @@ for the database.
         $ psql -h localhost -p 10701 -U edgedb -d main
 
     You'll then be prompted for a password. If you don't have it, you can run
-    ``edgedb instance credentials --insecure-dsn`` and grab it out of the DSN
+    :gelcmd:`instance credentials --insecure-dsn` and grab it out of the DSN
     the command returns. (It's the string between the second colon and the "at"
     symbol: ``edgedb://edgedb:PASSWORD_IS_HERE@<host>:<port>/<branch>``)
 

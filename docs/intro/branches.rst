@@ -60,7 +60,7 @@ fast-forward. The next two steps take care of that.
 Switch back to your ``main`` code branch. Run ``git pull`` to pull down any new
 changes. If any of these are schema changes, use ``edgedb branch switch main``
 to switch back to your ``main`` database branch and apply the new schema with
-``edgedb migrate``.
+:gelcmd:`migrate`.
 
 Once this is done, you can switch back to your feature branches in your VCS and
 EdgeDB.
