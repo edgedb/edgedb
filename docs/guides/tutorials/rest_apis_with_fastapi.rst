@@ -1274,7 +1274,7 @@ it with the following query:
     addresses before they can log in.
 
 If you use the Email and Password provider, in addition to the
-``require_verification`` configuration, you’ll need to configure SMTP to allow
+``require_verification`` configuration, you'll need to configure SMTP to allow
 EdgeDB to send email verification and password reset emails on your behalf.
 
 Here is an example of setting a local SMTP server, in this case using a

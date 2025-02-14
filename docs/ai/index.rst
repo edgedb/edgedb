@@ -23,7 +23,7 @@ Enable extension in your schema
 ===============================
 
 AI is an EdgeDB extension. To enable it, you will need to add the extension
-to your app’s schema:
+to your app's schema:
 
 .. code-block:: sdl
 
