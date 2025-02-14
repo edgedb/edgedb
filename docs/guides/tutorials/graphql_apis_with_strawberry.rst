@@ -12,7 +12,7 @@ with the database. You can learn more about that in the
 :ref:`GraphQL <ref_graphql_index>` section of the docs.
 
 However, as of now, EdgeDB is not ready to be used as a standalone backend. You
-shouldn't expose your EdgeDB instance directly to the application’s frontend;
+shouldn't expose your EdgeDB instance directly to the application's frontend;
 this is insecure and will give all users full read/write access to your
 database. So, in this tutorial, we'll see how you can quickly create a simple
 GraphQL API without using the built-in extension, which will give the users

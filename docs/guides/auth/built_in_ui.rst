@@ -11,15 +11,15 @@ the "Enable UI" button under "Login UI" in the configuration section of the
 EdgeDB UI. Set these configuration values:
 
 -  ``redirect_to``: Once the authentication flow is complete, EdgeDB will
-   redirect the user’s browser back to this URL in your application’s
+   redirect the user's browser back to this URL in your application's
    backend.
 -  ``redirect_to_on_signup``: If this is a new user, EdgeDB will redirect
-   the user’s browser back to this URL in your application’s backend.
+   the user's browser back to this URL in your application's backend.
 -  ``app_name``: Used in the built-in UI to show the user the
-   application’s name in a few important places.
+   application's name in a few important places.
 -  ``logo_url``: If provided, will show in the built-in UI as part of the
    page design.
--  ``dark_logo_url``: If provided and the user’s system has indicated
+-  ``dark_logo_url``: If provided and the user's system has indicated
    that they prefer a dark UI, this will show instead of ``logo_url`` in
    the built-in UI as part of the page design.
 -  ``brand_color``: If provided, used in the built-in UI as part of the
