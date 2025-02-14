@@ -75,11 +75,3 @@ worrying about Cartesian explosion.
   For a detailed writeup on the design of SQL, see `We Can Do Better Than SQL
   <https://www.edgedb.com/blog/we-can-do-better-than-sql#lack-of-orthogonality>`_
   on the Gel blog.
-
-Follow along
-------------
-
-The best way to learn EdgeQL is to play with it! Use the `online EdgeQL shell
-</tutorial>`_ to execute any and all EdgeQL snippets in the following pages. Or
-follow the :ref:`Quickstart <ref_quickstart>` to spin up an Gel instance on
-your computer, then open an :ref:`interactive shell <ref_cli_edgedb>`.

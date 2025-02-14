@@ -202,6 +202,4 @@ Introspection
 The entire type system of Gel is *stored inside Gel*. All types are
 introspectable as instances of the ``schema::Type`` type. For a set of
 introspection examples, see :ref:`Guides > Introspection
-<ref_datamodel_introspection>`. To try introspection for yourself, see `our
-interactive introspection tutorial
-</tutorial/advanced-edgeql/introspection>`_.
+<ref_datamodel_introspection>`.

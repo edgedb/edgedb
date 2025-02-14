@@ -121,5 +121,3 @@ permanently deleted.
   * - **See also**
   * - :ref:`Reference > Commands > Delete <ref_eql_statements_delete>`
   * - :ref:`Cheatsheets > Deleting data <ref_cheatsheet_delete>`
-  * - `Tutorial > Data Mutations > Delete
-      </tutorial/data-mutations/delete>`_
