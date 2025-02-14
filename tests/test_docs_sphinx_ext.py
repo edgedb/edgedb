@@ -964,7 +964,6 @@ class TestOthers(unittest.TestCase, BaseDomainTest):
             '''),
             ['Gel'])
 
-
         print(x)
 
     def test_sphinx_edb_brand_name_02(self):
@@ -998,4 +997,3 @@ class TestOthers(unittest.TestCase, BaseDomainTest):
                     / text()
             '''),
             ['gel migrate --help'])
-

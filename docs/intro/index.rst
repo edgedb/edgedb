@@ -9,7 +9,7 @@ Get Started
     :maxdepth: 3
     :hidden:
 
-    quickstart
+    quickstart/index
     cli
     instances
     projects
