@@ -15,12 +15,12 @@ Reset password for a user in the |Gel| instance.
 Description
 ===========
 
-``gel instance reset-password`` is a terminal command for resetting
+:gelcmd:`instance reset-password` is a terminal command for resetting
 or updating the password for a user of an |Gel| instance.
 
 .. note::
 
-    The ``gel instance reset-password`` command is not intended for use with
+    The :gelcmd:`instance reset-password` command is not intended for use with
     self-hosted instances.
 
 
