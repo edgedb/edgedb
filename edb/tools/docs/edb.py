@@ -167,6 +167,7 @@ class GelSubstitutionTransform(transforms.SphinxTransform):
                 else:
                     node.replace_self(d_nodes.Text(nt))
 
+
 class GelCmdRole:
 
     def __call__(
