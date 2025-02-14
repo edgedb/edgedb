@@ -47,9 +47,9 @@ a casual migration user into one with a lot more tools at hand, along
 with a deeper understanding of the internals of Gel at the same
 time.
 
-EdgeDB's built-in tools are what make schema migrations easy, and
+|Gel's| built-in tools are what make schema migrations easy, and
 the way they work is through a pretty interesting interaction between
-EdgeDB's SDL (Schema Definition Language) and DDL (Data Definition
+Gel's SDL (Schema Definition Language) and DDL (Data Definition
 Language). The first thing to understand about migrations is the difference
 between SDL and DDL, and how they are used.
 
@@ -927,7 +927,7 @@ made during dev mode that were made by ``edgedb watch``.
 Branches
 ========
 
-EdgeDB's branches can be a useful part of your schema migrations, especially
+|Gel's| branches can be a useful part of your schema migrations, especially
 when you're developing new features or prototyping experimental features. By
 creating a new branch, you can isolate schema changes from your other branches.
 

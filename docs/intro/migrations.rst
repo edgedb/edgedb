@@ -6,7 +6,7 @@ Migrations
 
 :index: migrations fill_expr cast_expr
 
-EdgeDB's baked-in migration system lets you painlessly evolve your schema
+|Gel's| baked-in migration system lets you painlessly evolve your schema
 throughout the development process. If you want to work along with this guide,
 start a new project with :ref:`ref_cli_edgedb_project_init`. This will create a
 new instance and some empty schema files to get you started.
