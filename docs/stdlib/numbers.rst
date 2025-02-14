@@ -778,7 +778,7 @@ Definitions
                   std::bit_count(bytes: bytes) -> int64
 
     Return the number of bits set in the :eql:type:`bytes` value.
-    
+
     This is also known as the population count.
 
     .. code-block:: edgeql-repl

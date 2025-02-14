@@ -652,10 +652,10 @@ starred in. (Note the ability to :ref:`cast from a uuid <ref_uuid_casting>`
 to an object type, which was added in EdgeDB 3.0!)
 
 .. code-block:: edgeql-repl
-    
-    db> select Villain filter .<characters = 
-    ...   <Movie><uuid>'6c60c28a-5c03-11ee-99ff-dfa425012a05' { 
-    ...     name := .name ++ ', who got to see Spider-Man!' 
+
+    db> select Villain filter .<characters =
+    ...   <Movie><uuid>'6c60c28a-5c03-11ee-99ff-dfa425012a05' {
+    ...     name := .name ++ ', who got to see Spider-Man!'
     ...   };
     {
       'Obadiah Stane',
@@ -673,7 +673,7 @@ traversing a backlink would look like this:
 
 .. code-block:: edgeql-repl
 
-    db> with movie := 
+    db> with movie :=
     ...   <Movie><uuid>'6c60c28a-5c03-11ee-99ff-dfa425012a05',
     ...     select movie.characters[is Villain] {
     ...       name := .name ++ ', who got to see Spider-Man!'
@@ -1218,7 +1218,7 @@ internals of EdgeDB.
 Free objects
 ------------
 
-.. index:: ad hoc type 
+.. index:: ad hoc type
 
 To select several values simultaneously, you can "bundle" them into a "free
 object". Free objects are a set of key-value pairs that can contain any

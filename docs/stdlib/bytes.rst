@@ -175,8 +175,8 @@ Bytes
 ---------
 
 
-.. eql:operator:: bytesplus: bytes ++ bytes -> 
-  
+.. eql:operator:: bytesplus: bytes ++ bytes ->
+
     :index: ++, bytes, concatenate, join, add
 
     Concatenates two bytes values into one.

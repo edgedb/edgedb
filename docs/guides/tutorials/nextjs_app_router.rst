@@ -11,9 +11,9 @@ We're going to build a simple blog application with
 `Next.js <https://nextjs.org/>`_ and EdgeDB. Let's start by scaffolding our
 app with Next.js's ``create-next-app`` tool.
 
-You'll be prompted to provide a name (we'll use ``nextjs-blog``) for your 
-app and choose project options. For this tutorial, we'll go with the 
-recommended settings including TypeScript, App Router, and 
+You'll be prompted to provide a name (we'll use ``nextjs-blog``) for your
+app and choose project options. For this tutorial, we'll go with the
+recommended settings including TypeScript, App Router, and
 **opt-ing out** of the ``src/`` directory.
 
 .. code-block:: bash
@@ -26,8 +26,8 @@ recommended settings including TypeScript, App Router, and
     ✔ Would you like to use App Router? (recommended) Yes
     ✔ Would you like to customize the default import alias (@/*) Yes
 
-The scaffolding tool will create a simple Next.js app and install its 
-dependencies. Once it's done, you can navigate to the app's directory and 
+The scaffolding tool will create a simple Next.js app and install its
+dependencies. Once it's done, you can navigate to the app's directory and
 start the development server.
 
 .. code-block:: bash
@@ -35,8 +35,8 @@ start the development server.
   $ cd nextjs-blog
   $ npm dev # or yarn dev or pnpm dev or bun run dev
 
-When the dev server starts, it will log out a local URL. 
-Visit that URL to see the default Next.js homepage. At this 
+When the dev server starts, it will log out a local URL.
+Visit that URL to see the default Next.js homepage. At this
 point the app's file structure looks like this:
 
 .. code-block::
@@ -57,13 +57,13 @@ point the app's file structure looks like this:
   ├── next.tsx
   └── vercel.svg
 
-There's an async function ``Home`` defined in ``app/page.tsx`` that renders 
-the homepage. It's a 
+There's an async function ``Home`` defined in ``app/page.tsx`` that renders
+the homepage. It's a
 `Server Component <https://nextjs.org/docs/app/building-your-application/
-rendering/server-components>`_  
-which lets you integrate server-side logic directly 
-into your React components. Server Components are executed on the server and 
-can fetch data from a database or an API. We'll use this feature to load blog 
+rendering/server-components>`_
+which lets you integrate server-side logic directly
+into your React components. Server Components are executed on the server and
+can fetch data from a database or an API. We'll use this feature to load blog
 posts from an EdgeDB database.
 
 Updating the homepage
@@ -127,11 +127,11 @@ page later in the tutorial.
 Initializing EdgeDB
 -------------------
 
-Now let's spin up a database for the app. You have two options to initialize 
-an EdgeDB project: using ``npx edgedb`` without installing the CLI, or 
+Now let's spin up a database for the app. You have two options to initialize
+an EdgeDB project: using ``npx edgedb`` without installing the CLI, or
 installing the edgedb CLI directly. In this tutorial, we'll use the first
-option. If you prefer to install the CLI, see the 
-`EdgeDB CLI installation guide <https://docs.edgedb.com/cli>`_ 
+option. If you prefer to install the CLI, see the
+`EdgeDB CLI installation guide <https://docs.edgedb.com/cli>`_
 for more information.
 
 From the application's root directory, run the following command:
@@ -262,21 +262,21 @@ Then execute the following ``insert`` statements.
 Loading posts with React Server Components
 ------------------------------------------
 
-Now that we have a couple posts in the database, let's load them into our 
+Now that we have a couple posts in the database, let's load them into our
 Next.js app.
 To do that, we'll need the ``edgedb`` client library. Let's install that from
 NPM:
 
 .. code-block:: bash
 
-  $ npm install edgedb 
+  $ npm install edgedb
   # or yarn add edgedb or pnpm add edgedb or bun add edgedb
 
 Then go to the ``app/page.tsx`` file to replace the static data with
 the blogposts fetched from the database.
 
 To fetch these from the homepage, we'll create an EdgeDB client and use the
-``.query()`` method to fetch all the posts in the database with a 
+``.query()`` method to fetch all the posts in the database with a
 ``select`` statement.
 
 .. code-block:: tsx-diff
@@ -411,7 +411,7 @@ instead.
   +     content: true,
   +   }));
   +   const posts = await selectPosts.run(client);
-    
+
       return (
         <div className="container mx-auto p-4 bg-black text-white">
           <h1 className="text-3xl font-bold mb-4">Posts</h1>
@@ -458,7 +458,7 @@ Add the following code in ``app/post/[id]/page.tsx``:
 
 .. code-block:: tsx
   :caption: app/post/[id]/page.tsx
-  
+
   import { createClient } from 'edgedb'
   import e from '@/dbschema/edgeql-js'
   import Link from 'next/link'
@@ -496,9 +496,9 @@ Add the following code in ``app/post/[id]/page.tsx``:
     )
   }
 
-We are again using a Server Component to fetch the post from the database. 
-This time, we're using the ``filter_single`` method to filter the 
-``BlogPost`` type by its ``id``. We're also using the ``uuid`` function 
+We are again using a Server Component to fetch the post from the database.
+This time, we're using the ``filter_single`` method to filter the
+``BlogPost`` type by its ``id``. We're also using the ``uuid`` function
 from the query builder to convert the ``id`` parameter to a UUID.
 
 Now, click on one of the blog post links on the homepage. This should bring
@@ -507,7 +507,7 @@ you to ``/post/<uuid>``.
 Deploying to Vercel
 -------------------
 
-You can deploy an EdgeDB instance on the EdgeDB Cloud or 
+You can deploy an EdgeDB instance on the EdgeDB Cloud or
 on your preferred cloud provider. We'll cover both options here.
 
 With EdgeDB Cloud
@@ -515,10 +515,10 @@ With EdgeDB Cloud
 
 **#1 Deploy EdgeDB**
 
-First, sign up for an account at 
-`cloud.edgedb.com <https://cloud.edgedb.com>`_ and create a new instance. 
-Create and make note of a secret key for your EdgeDB Cloud instance. You 
-can create a new secret key from the "Secret Keys" tab in the EdgeDB Cloud 
+First, sign up for an account at
+`cloud.edgedb.com <https://cloud.edgedb.com>`_ and create a new instance.
+Create and make note of a secret key for your EdgeDB Cloud instance. You
+can create a new secret key from the "Secret Keys" tab in the EdgeDB Cloud
 console. We'll need this later to connect to the database from Vercel.
 
 Run the following command to migrate the project to the EdgeDB Cloud:
@@ -529,7 +529,7 @@ Run the following command to migrate the project to the EdgeDB Cloud:
 
 .. note::
 
-  Alternatively, if you want to restore your data from a local instance to 
+  Alternatively, if you want to restore your data from a local instance to
   the cloud, you can use the ``edgedb dump`` and ``edgedb restore`` commands.
 
 .. code-block:: bash
@@ -537,7 +537,7 @@ Run the following command to migrate the project to the EdgeDB Cloud:
   $ npx edgedb dump <your-dump.dump>
   $ npx edgedb restore -I <org>/<instance-name> <your-dump.dump>
 
-The migrations and schema will be automatically applied to the 
+The migrations and schema will be automatically applied to the
 cloud instance.
 
 **#2 Set up a `prebuild` script**
@@ -545,8 +545,8 @@ cloud instance.
 Add the following ``prebuild`` script to your ``package.json``. When Vercel
 initializes the build, it will trigger this script which will generate the
 query builder. The ``npx @edgedb/generate edgeql-js`` command will read the
-value of the ``EDGEDB_SECRET_KEY`` and ``EDGEDB_INSTANCE`` variables, 
-connect to the database, and generate the query builder before Vercel 
+value of the ``EDGEDB_SECRET_KEY`` and ``EDGEDB_INSTANCE`` variables,
+connect to the database, and generate the query builder before Vercel
 starts building the project.
 
 .. code-block:: javascript-diff
@@ -562,7 +562,7 @@ starts building the project.
 
 **#3 Deploy to Vercel**
 
-Push your project to GitHub or some other Git remote repository. Then deploy 
+Push your project to GitHub or some other Git remote repository. Then deploy
 this app to Vercel with the button below.
 
 .. lint-off
@@ -590,7 +590,7 @@ With other cloud providers
 
 **#1 Deploy EdgeDB**
 
-Check out the following guides for deploying EdgeDB to your preferred cloud 
+Check out the following guides for deploying EdgeDB to your preferred cloud
 provider:
 
 - `AWS <https://www.edgedb.com/docs/guides/deployment/aws_aurora_ecs>`_
@@ -638,7 +638,7 @@ database. Open a REPL and ``insert`` some blog posts:
 Add the following ``prebuild`` script to your ``package.json``. When Vercel
 initializes the build, it will trigger this script which will generate the
 query builder. The ``npx @edgedb/generate edgeql-js`` command will read the
-value of the ``EDGEDB_DSN`` variable, connect to the database, and generate 
+value of the ``EDGEDB_DSN`` variable, connect to the database, and generate
 the query builder before Vercel starts building the project.
 
 .. code-block:: javascript-diff
@@ -686,15 +686,15 @@ Wrapping up
 -----------
 
 This tutorial demonstrates how to work with EdgeDB in a
-Next.js app, using the App Router. We've created a simple blog application 
-that loads posts from a database and displays them on the homepage. 
-We've also created a dynamic route that fetches a single post from the 
+Next.js app, using the App Router. We've created a simple blog application
+that loads posts from a database and displays them on the homepage.
+We've also created a dynamic route that fetches a single post from the
 database and displays it on a separate page.
 
 The next step is to add a ``/newpost`` page with a form for writing new blog
 posts and saving them into EdgeDB. That's left as an exercise for the reader.
 
-To see the final code for this tutorial, refer to 
+To see the final code for this tutorial, refer to
 `github.com/edgedb/edgedb-examples/tree/main/nextjs-blog
 <https://github.com/edgedb/edgedb-examples/tree/main/
 nextjs-blog-app-router>`_.
