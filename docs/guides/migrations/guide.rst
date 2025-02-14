@@ -87,7 +87,7 @@ file inside the ``/dbschema`` folder it creates. Then save the file.
 
     While schema is usually contained inside the ``default.esdl`` file,
     you can divide a schema over multiple files if you like. Gel will
-    combine all ``.esdl`` files inside the ``/dbschema`` folder into a
+    combine all |.gel| files inside the ``/dbschema`` folder into a
     single schema.
 
 Type ``edgedb`` to start the Gel REPL, and, into the REPL,  type
@@ -503,7 +503,7 @@ The following two keys will stop the migration, but in different ways:
 This is also known as a 'split'. Pressing ``s`` will complete the
 migration at the current point. Any statements that you have applied
 will be applied, but the schema will not yet match the schema in your
-``.esdl`` file(s). You can easily start another migration to complete
+|.gel| file(s). You can easily start another migration to complete
 the remaining changes once you have applied the migration that was
 just created. This effectively splits the migration into two or more
 files.
@@ -809,7 +809,7 @@ EdgeDB Watch
 
 Another option when quickly iterating over schema changes is ``edgedb watch``.
 This will create a long-running process that keeps track of every time you
-save an ``.esdl`` file inside your ``/migrations`` folder, letting you know
+save an |.gel| file inside your ``/migrations`` folder, letting you know
 if your changes have successfully compiled or not. The ``edgedb watch``
 command itself will show the following input when the process starts up:
 
@@ -1098,7 +1098,7 @@ created using DDL and assign each of them a proper file name and hash
 inside the ``/dbschema/migrations`` folder, effectively giving them a proper
 position inside the migration flow.
 
-Note that at this point your ``.esdl`` schema will still not match
+Note that at this point your |.gel| schema will still not match
 the database schema, so if you were to type ``edgedb migration create``
 the CLI would then ask you if you want to drop the type that you just
 created - because it doesn't exist inside there. So be sure to change
@@ -1106,7 +1106,7 @@ your schema to match the schema inside the database that you have
 manually changed via DDL. If in doubt, use ``describe schema as sdl``
 to compare or use ``edgedb migration create`` and check the output.
 If the CLI is asking you if you want to drop a type, that means that
-you forgot to add it to the schema inside your ``.esdl`` file(s).
+you forgot to add it to the schema inside your |.gel| file(s).
 
 
 Multiple migrations to keep data
