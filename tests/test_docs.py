@@ -509,6 +509,7 @@ class TestDocSnippets(unittest.TestCase):
                     '-b', 'xml',
                     '-q',
                     '-D', 'master_doc=index',
+                    '-W',
                     docs_root,
                     td,
                 ],
