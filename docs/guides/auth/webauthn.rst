@@ -4,7 +4,7 @@
 WebAuthn
 ========
 
-:edb-alt-title: Integrating EdgeDB Auth's WebAuthn provider
+:edb-alt-title: Integrating Gel Auth's WebAuthn provider
 
 WebAuthn, short for Web Authentication, is a web standard published by the
 World Wide Web Consortium (W3C) for secure and passwordless authentication on

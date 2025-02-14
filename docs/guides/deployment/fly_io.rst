@@ -4,7 +4,7 @@
 Fly.io
 ======
 
-:edb-alt-title: Deploying EdgeDB to Fly.io
+:edb-alt-title: Deploying Gel to Fly.io
 
 In this guide we show how to deploy EdgeDB using a `Fly.io <https://fly.io>`_
 PostgreSQL cluster as the backend. The deployment consists of two apps: one

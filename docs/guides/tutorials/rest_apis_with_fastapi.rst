@@ -4,7 +4,7 @@
 FastAPI
 =======
 
-:edb-alt-title: Building a REST API with EdgeDB and FastAPI
+:edb-alt-title: Building a REST API with Gel and FastAPI
 
 Because FastAPI encourages and facilitates strong typing, it's a natural
 pairing with EdgeDB. Our Python code generation generates not only typed
@@ -29,10 +29,10 @@ Prerequisites
 =============
 
 Before we start, make sure you've :ref:`installed <ref_admin_install>` the
-``edgedb`` command line tool. For this tutorial, we'll use Python 3.10 to 
-take advantage of the asynchronous I/O paradigm to communicate with the 
-database more efficiently. You can use newer versions of Python if you prefer, 
-but you may need to adjust the code accordingly. If you want to skip ahead, 
+``edgedb`` command line tool. For this tutorial, we'll use Python 3.10 to
+take advantage of the asynchronous I/O paradigm to communicate with the
+database more efficiently. You can use newer versions of Python if you prefer,
+but you may need to adjust the code accordingly. If you want to skip ahead,
 the completed source code for this API can be found `in our examples repo
 <https://github.com/edgedb/edgedb-examples/tree/main/fastapi-crud>`_. If you
 want to check out an example with EdgeDB Auth, you can find that in the same
@@ -1186,7 +1186,7 @@ following to your schema definition:
 
 .. code-block:: sdl
 
-    using extension auth;   
+    using extension auth;
 
 Once added, make sure to apply the schema changes by migrating your database
 schema.
@@ -1202,8 +1202,8 @@ Configuring EdgeDB Auth
 
 The configuration of EdgeDB Auth involves setting various parameters to secure
 and tailor authentication to your needs. For now, we'll focus on the essential
-parameters to get started. You can configure these settings through a Python 
-script, which is recommended for scalability, or you can use the EdgeDB UI for 
+parameters to get started. You can configure these settings through a Python
+script, which is recommended for scalability, or you can use the EdgeDB UI for
 a more user-friendly approach.
 
 **Auth Signing Key**
@@ -1256,7 +1256,7 @@ Enabling authentication providers
 You need to configure at least one authentication provider to use EdgeDB Auth.
 This can be done via the EdgeDB UI or directly through queries.
 
-In this example, we'll configure a email and password provider. You can add 
+In this example, we'll configure a email and password provider. You can add
 it with the following query:
 
 .. code-block:: edgeql
@@ -1268,9 +1268,9 @@ it with the following query:
 
 .. note::
 
-    ``require_verification`` defaults to ``true``. In this example, we're 
-    setting it to ``false`` to simplify the setup. In a production environment, 
-    you should set it to ``true`` to ensure that users verify their email 
+    ``require_verification`` defaults to ``true``. In this example, we're
+    setting it to ``false`` to simplify the setup. In a production environment,
+    you should set it to ``true`` to ensure that users verify their email
     addresses before they can log in.
 
 If you use the Email and Password provider, in addition to the
@@ -1298,7 +1298,7 @@ great for testing in development:
     CONFIGURE CURRENT BRANCH SET
     ext::auth::SMTPConfig::validate_certs := false;
 
-You can query the database configuration to discover which providers are 
+You can query the database configuration to discover which providers are
 configured with the following query:
 
 .. code-block:: edgeql
@@ -1356,7 +1356,7 @@ Next, we're going to create endpoints in FastAPI to handle user registration
     import httpx
 
     router = APIRouter()
-    
+
     # Value should be:
     # {protocol}://${host}:${port}/branch/${branch}/ext/auth/
     EDGEDB_AUTH_BASE_URL = os.getenv('EDGEDB_AUTH_BASE_URL')
@@ -1439,7 +1439,7 @@ a new user. It also sets the auth token as an HttpOnly cookie in the response.
         return response
 
 The sign-in endpoint sends a POST request to the EdgeDB Auth server to authenticate
-a user. It then retrieves the code from the response and exchanges it for an auth 
+a user. It then retrieves the code from the response and exchanges it for an auth
 token. The token is set as an HttpOnly cookie in the response.
 
 **Add the auth endpoints to the FastAPI application**
@@ -1455,7 +1455,7 @@ Creating a new user in the sign-up endpoint
 -------------------------------------------
 
 Now, let's automatically create a new user in the database when a user signs up.
-We'll use the ``create_user_async_edgeql`` query we generated earlier 
+We'll use the ``create_user_async_edgeql`` query we generated earlier
 to achieve this, but we'll need to modify it slightly to link it to the
 EdgeDB Auth identity.
 
@@ -1464,14 +1464,14 @@ to store the EdgeDB Auth identity and a new ``current_user`` type.
 
 .. code-block:: sdl-diff
     :caption: dbschema/default.esdl
-    
+
     + global current_user := assert_single(
     +     ((
     +         select User
     +         filter .identity = global ext::auth::ClientTokenIdentity
     +     ))
     + );
-      
+
       type User extending Auditable {
     +    required identity: ext::auth::Identity;
          required name: str {
@@ -1530,7 +1530,7 @@ endpoint to create a new user in the database. We need to do a few things:
     +     if not email or not password or not name:
     -         raise HTTPException(status_code=400, detail="Missing email or password.")
     +         raise HTTPException(status_code=400, detail="Missing email, password, or name.")
-      
+
           verifier, challenge = generate_pkce()
           register_url = f"{EDGEDB_AUTH_BASE_URL}/register"
           register_response = httpx.post(register_url, json={
@@ -1540,14 +1540,14 @@ endpoint to create a new user in the database. We need to do a few things:
               "provider": "builtin::local_emailpassword",
               "verify_url": "http://localhost:8000/auth/verify",
           })
-      
+
           if register_response.status_code != 200 and register_response.status_code != 201:
               return JSONResponse(status_code=400, content={"message": "Registration failed"})
-          
+
           code = register_response.json().get("code")
           token_url = f"{EDGEDB_AUTH_BASE_URL}/token"
           token_response = httpx.get(token_url, params={"code": code, "verifier": verifier})
-      
+
           if token_response.status_code != 200:
               return JSONResponse(status_code=400, content={"message": "Token exchange failed"})
 
@@ -1560,7 +1560,7 @@ endpoint to create a new user in the database. We need to do a few things:
     +             status_code=400,
     +             detail={"error": f"User with email '{email}' already exists."},
     +         )
-              
+
           response = JSONResponse(content={"message": "User registered"})
           response.set_cookie(key="edgedb-auth-token", value=auth_token, httponly=True, secure=True, samesite='strict')
           return response
@@ -1578,7 +1578,7 @@ You can now test the sign-up endpoint by sending a POST request to
 
 If the request is successful, you should see a response with the message
 ``User registered``.
- 
+
 
 Wrapping up
 ===========
@@ -1586,13 +1586,13 @@ Wrapping up
 Now you have a fully functioning events API in FastAPI backed by EdgeDB. If you
 want to see all the source code for the completed project, you'll find it in
 `our examples repo
-<https://github.com/edgedb/edgedb-examples/tree/main/fastapi-crud>`_. We also 
+<https://github.com/edgedb/edgedb-examples/tree/main/fastapi-crud>`_. We also
 have a separate example that demonstrates how to integrate EdgeDB Auth with
-FastAPI in the same repo. Check it out 
+FastAPI in the same repo. Check it out
 `here <https://github.com/edgedb/edgedb-examples/tree/main/fastapi-crud-auth>`_.
-If you're stuck or if you just want to show off what you've built, come talk 
-to us `on Discord <https://discord.gg/umUueND6ag>`_. It's a great community of 
-helpful folks, all passionate about being part of the next generation of 
+If you're stuck or if you just want to show off what you've built, come talk
+to us `on Discord <https://discord.gg/umUueND6ag>`_. It's a great community of
+helpful folks, all passionate about being part of the next generation of
 databases.
 
 If you like what you see and want to dive deeper into EdgeDB and what it can

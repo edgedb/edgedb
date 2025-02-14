@@ -4,7 +4,7 @@
 HTTP & GraphQL APIs
 ===================
 
-:edb-alt-title: Querying EdgeDB Cloud over HTTP and GraphQL
+:edb-alt-title: Querying Gel Cloud over HTTP and GraphQL
 
 Using EdgeDB Cloud via HTTP and GraphQL works the same as :ref:`using any other
 EdgeDB instance <ref_edgeql_http>`. The two differences are in **how to

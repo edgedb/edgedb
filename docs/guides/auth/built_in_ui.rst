@@ -4,7 +4,7 @@
 Built-in UI
 ===========
 
-:edb-alt-title: Integrating EdgeDB Auth's built-in UI
+:edb-alt-title: Integrating Gel Auth's built-in UI
 
 To use the built-in UI for EdgeDB Auth, enable the built-in Auth UI by clicking
 the "Enable UI" button under "Login UI" in the configuration section of the

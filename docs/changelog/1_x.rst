@@ -2,7 +2,7 @@
 v1.0
 ====
 
-:edb-alt-title: EdgeDB v1 (Nova)
+:edb-alt-title: Gel v1 (Nova)
 
 .. image:: images/v1_nova.jpg
     :width: 100%

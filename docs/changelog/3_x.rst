@@ -2,7 +2,7 @@
 v3.0
 ====
 
-:edb-alt-title: EdgeDB v3
+:edb-alt-title: Gel v3
 
 .. image:: images/v3_betelgeuse.jpg
     :width: 100%

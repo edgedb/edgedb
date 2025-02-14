@@ -4,11 +4,11 @@
 Cloudflare Workers
 ==================
 
-:edb-alt-title: Using EdgeDB in Cloudflare Workers
+:edb-alt-title: Using Gel in Cloudflare Workers
 
 
-This guide demonstrates how to integrate EdgeDB with Cloudflare Workers to 
-build serverless applications that can interact with EdgeDB. 
+This guide demonstrates how to integrate EdgeDB with Cloudflare Workers to
+build serverless applications that can interact with EdgeDB.
 
 It covers the following:
 
@@ -51,16 +51,16 @@ Use the `create-cloudflare`_ package to create a new Cloudflare Worker project.
 
 Answer the prompts to create a new project. Pick the *"Hello World" Worker*
 template to get started.
-   
+
 You'll be asked if you want to put your project on Cloudflare.
-If you say yes, you'll need to sign in (if you haven't already). 
-If you don't want to deploy right away, switch to the project folder 
-you just made to start writing your code. When you're ready to deploy your 
+If you say yes, you'll need to sign in (if you haven't already).
+If you don't want to deploy right away, switch to the project folder
+you just made to start writing your code. When you're ready to deploy your
 project on Cloudflare, you can run ``npx wrangler deploy`` to push it.
 
 .. note:: Using Wrangler CLI
 
-    If you prefer using `Wrangler`_ to set up your worker, you can use the 
+    If you prefer using `Wrangler`_ to set up your worker, you can use the
     :code:`wrangler generate` command to create a new project.
 
 .. _Wrangler: https://developers.cloudflare.com/workers/cli-wrangler
@@ -75,23 +75,23 @@ You can use `EdgeDB Cloud`_ for a managed service or run EdgeDB locally.
 
 **Local EdgeDB Setup (Optional for EdgeDB Cloud Users)**
 
-If you're running EdgeDB locally, you can use the following command 
+If you're running EdgeDB locally, you can use the following command
 to create a new instance:
 
 .. code-block:: bash
 
     $ edgedb project init
 
-It creates an :code:`edgedb.toml` config file and a schema file 
+It creates an :code:`edgedb.toml` config file and a schema file
 :code:`dbschema/default.esdl`.
 
 It also spins up an EdgeDB instance and associates it with the current
 directory.
-As long as you’re inside the project directory, all CLI commands will 
+As long as you’re inside the project directory, all CLI commands will
 be executed against this instance.
 
-You can run :code:`edgedb` in your terminal to open an 
-interactive REPL to your instance. 
+You can run :code:`edgedb` in your terminal to open an
+interactive REPL to your instance.
 
 .. code-block:: bash
 
@@ -105,7 +105,7 @@ interactive REPL to your instance.
 
 **Extend The Default Schema (Optional)**
 
-You can extend the default schema, :code:`dbschema/default.esdl`, to define 
+You can extend the default schema, :code:`dbschema/default.esdl`, to define
 your data model, and then try it out in the Cloudflare Worker code.
 
 Add new types to the schema file:
@@ -135,7 +135,7 @@ Then apply the schema schema to your EdgeDB instance:
 Using EdgeDB in a Cloudflare Worker
 ====================================
 
-Open the :code:`index.ts` file from the :code:`src` directory in your project, 
+Open the :code:`index.ts` file from the :code:`src` directory in your project,
 and remove the default code.
 
 To interact with your **local EdgeDB instance**, use the following code:
@@ -175,13 +175,13 @@ To interact with your **local EdgeDB instance**, use the following code:
 
 .. note:: tlsSecurity
 
-    The :code:`tlsSecurity` option is set to :code:`insecure` to allow 
+    The :code:`tlsSecurity` option is set to :code:`insecure` to allow
     connections to a local EdgeDB instance. This lets you test your
     Cloudflare Worker locally. **Don't use this option in production.**
 
 **Client Setup with EdgeDB Cloud**
 
-If you're using EdgeDB Cloud, you can instead use the following code to 
+If you're using EdgeDB Cloud, you can instead use the following code to
 set up the client:
 
 .. code-block:: typescript
@@ -193,10 +193,10 @@ set up the client:
 
 .. note:: Environment variables
 
-    You can obtain :code:`EDGEDB_INSTANCE` and :code:`EDGEDB_SECRET_KEY` 
+    You can obtain :code:`EDGEDB_INSTANCE` and :code:`EDGEDB_SECRET_KEY`
     values from the EdgeDB Cloud dashboard.
 
-You will need to set the :code:`EDGEDB_INSTANCE` and :code:`EDGEDB_SECRET` 
+You will need to set the :code:`EDGEDB_INSTANCE` and :code:`EDGEDB_SECRET`
 environment variables in your Cloudflare Worker project.
 
 Add the following to your :code:`wrangler.toml` file:
@@ -212,11 +212,11 @@ environment variables.
 
 **Running the Worker**
 
-.. note:: Adding polyfills for Node.js 
+.. note:: Adding polyfills for Node.js
 
-    The :code:`edgedb` package currently uses Node.js built-in modules 
-    that are not available in the Cloudflare Worker environment. 
-    You have to add the following line to your :code:`wrangler.toml` file 
+    The :code:`edgedb` package currently uses Node.js built-in modules
+    that are not available in the Cloudflare Worker environment.
+    You have to add the following line to your :code:`wrangler.toml` file
     to include the polyfills:
 
     .. code-block:: toml
@@ -229,7 +229,7 @@ To run the worker locally, use the following command:
 
     $ npm run dev # or pnpm, yarn, bun
 
-This will start a local server at :code:`http://localhost:8787`. 
+This will start a local server at :code:`http://localhost:8787`.
 Run :code:`curl http://localhost:8787` to see the response.
 
 **Deploying the Worker to Cloudflare**
@@ -240,19 +240,19 @@ To deploy the worker to Cloudflare, use the following command:
 
     $ npm run deploy # or pnpm, yarn, bun
 
-This will deploy the worker to Cloudflare and provide you with a URL 
+This will deploy the worker to Cloudflare and provide you with a URL
 to access your worker.
 
 Wrapping up
 ===========
 
-Congratulations! You have successfully integrated EdgeDB with 
+Congratulations! You have successfully integrated EdgeDB with
 Cloudflare Workers.
 
-Here's a minimal starter project that you can use as a 
+Here's a minimal starter project that you can use as a
 reference: `EdgeDB Cloudflare Workers Example`_.
 
-Check out the `Cloudflare Workers documentation`_ for more information and 
+Check out the `Cloudflare Workers documentation`_ for more information and
 to learn about the various features and capabilities of Cloudflare Workers.
 
 .. _`EdgeDB Cloudflare Workers Example`:

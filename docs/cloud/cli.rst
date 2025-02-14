@@ -4,7 +4,7 @@
 CLI
 ===
 
-:edb-alt-title: Using EdgeDB Cloud via the CLI
+:edb-alt-title: Using Gel Cloud via the CLI
 
 To use EdgeDB Cloud via the CLI, first log in using
 :ref:`ref_cli_edgedb_cloud_login`.

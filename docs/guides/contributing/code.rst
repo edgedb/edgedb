@@ -4,7 +4,7 @@
 Code
 ====
 
-:edb-alt-title: Developing EdgeDB
+:edb-alt-title: Developing Gel
 
 This section describes how to build EdgeDB locally, how to use its
 internal tools, and how to contribute to it.

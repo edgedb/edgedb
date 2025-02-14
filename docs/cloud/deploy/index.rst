@@ -4,7 +4,7 @@
 Deploy an app
 =============
 
-:edb-alt-title: Deploying applications built on EdgeDB Cloud
+:edb-alt-title: Deploying applications built on Gel Cloud
 
 For your production deployment, generate a dedicated secret key for your
 instance with :ref:`ref_cli_edgedb_cloud_secretkey_create` or via the web UI's

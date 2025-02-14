@@ -4,7 +4,7 @@
 Azure
 =====
 
-:edb-alt-title: Deploying EdgeDB to Azure
+:edb-alt-title: Deploying Gel to Azure
 
 In this guide we show how to deploy EdgeDB using Azure's `Postgres
 Flexible Server
