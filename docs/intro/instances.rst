@@ -4,6 +4,11 @@
 Instances
 =========
 
+test |gelcmd|
+
+test2 :gelcmd:`migrate --help`
+
+
 Let's get to the good stuff. You can spin up an Gel instance with a single
 command.
 
