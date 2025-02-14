@@ -60,7 +60,7 @@ in the root of your project.
 
 .. important::
 
-  Syntax highlighter packages/extensions for ``.esdl`` files are available for
+  Syntax highlighter packages/extensions for |.gel| files are available for
   `Visual Studio Code <https://marketplace.visualstudio.com/
   itemdetails?itemName=magicstack.edgedb>`_,
   `Sublime Text <https://packagecontrol.io/packages/EdgeDB>`_,
@@ -71,7 +71,7 @@ Migrations
 ----------
 
 Gel's baked-in migration system lets you painlessly evolve your schema over
-time. Just update the contents of your ``.esdl`` file(s) and use the |Gel| CLI
+time. Just update the contents of your |.gel| file(s) and use the |Gel| CLI
 to *create* and *apply* migrations.
 
 .. code-block:: bash

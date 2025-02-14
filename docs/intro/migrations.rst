@@ -32,7 +32,7 @@ If you get output similar to the output above, you're ready to get started!
 2. Write an initial schema
 --------------------------
 
-By convention, your Gel schema is defined inside one or more ``.esdl``
+By convention, your Gel schema is defined inside one or more |.gel|
 files that live in a directory called ``dbschema`` in the root directory of
 your codebase.
 
@@ -61,7 +61,7 @@ your ``dbschema/default.esdl`` and add the following schema inside your
 
 It's common to keep your entire schema in a single file, and many users use
 this ``default.esdl`` that is created when you start a project. However it's
-also possible to split their schemas across a number of ``.esdl`` files.
+also possible to split their schemas across a number of |.gel| files.
 
 Once you save your initial schema, assuming it is valid, the ``watch`` command
 will pick it up and apply it to your database.

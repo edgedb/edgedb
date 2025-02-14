@@ -118,7 +118,7 @@ create a GraphQL API suite that'll allow us to fetch, create, update, and
 delete the objects while maintaining their relationships.
 
 EdgeDB allows us to declaratively define the structure of the objects. The
-schema lives inside ``.esdl`` file in the ``dbschema`` directory. It's
+schema lives inside |.gel| file in the ``dbschema`` directory. It's
 common to declare the entire schema in a single file ``dbschema/default.esdl``.
 This is how our datatypes look:
 
