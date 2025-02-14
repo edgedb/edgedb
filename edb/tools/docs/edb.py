@@ -24,6 +24,8 @@ from docutils import nodes as d_nodes
 from docutils.parsers import rst as d_rst
 from docutils.parsers.rst import directives as d_directives  # type: ignore
 
+from sphinx import transforms
+
 
 class EDBYoutubeEmbed(d_rst.Directive):
 
@@ -132,8 +134,31 @@ class GelDomain(s_domains.Domain):
     }
 
 
+class GelSubstitutionTransform(transforms.SphinxTransform):
+    default_priority = 0
+
+    def apply(self):
+        builder_name = "html"
+        if hasattr(self.document.settings, 'env'):
+            env = self.document.settings.env
+            if env and hasattr(env, "app"):
+                builder_name = env.app.builder.name
+
+        # Traverse all substitution_reference nodes.
+        for node in self.document.traverse(d_nodes.substitution_reference):
+            if node.astext() == "Gel":
+                if builder_name in {"xml", "edge-xml"}:
+                    sub = d_nodes.inline(
+                        "Gel", "Gel", **{"edb-substitution": "true"}
+                    )
+                    node.replace_self(sub)
+                else:
+                    node.replace_self(d_nodes.Text("Gel"))
+
+
 def setup_domain(app):
     app.add_domain(GelDomain)
+    app.add_transform(GelSubstitutionTransform)
 
 
 def setup(app):
