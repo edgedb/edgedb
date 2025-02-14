@@ -85,7 +85,7 @@ building your application.
   documentation for Gel's :ref:`GraphQL <ref_graphql_overview>` endpoint.
 
 - **CLI**
-  Complete reference for the ``edgedb`` command-line tool. The CLI is
+  Complete reference for the |gelcmd| command-line tool. The CLI is
   self-documenting—add the ``--help`` flag after any command to print the
   relevant documentation—so you shouldn't need to reference this section often.
 

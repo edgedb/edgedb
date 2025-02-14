@@ -8,7 +8,7 @@ CLI
 
 :edb-alt-title: The Gel CLI
 
-The ``edgedb`` command-line interface (CLI) provides an idiomatic way to
+The |gelcmd| command-line interface (CLI) provides an idiomatic way to
 install |Gel|, spin up local instances, open a REPL, execute queries,
 manage auth roles, introspect schema, create migrations, and more.
 
@@ -34,7 +34,7 @@ For Windows, the installation script is:
 * The `script <https://sh.edgedb.com>`_, inspired by ``rustup``, will
   detect the OS and download the appropriate build of the Gel CLI
   tool, ``gel``.
-* The ``edgedb`` command is a single executable (it's `open source!
+* The |gelcmd| command is a single executable (it's `open source!
   <https://github.com/edgedb/edgedb-cli/>`_)
 * Once installed, the ``gel`` command can be used to install,
   uninstall, upgrade, and interact with |Gel| server instances.

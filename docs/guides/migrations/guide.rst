@@ -90,7 +90,7 @@ file inside the ``/dbschema`` folder it creates. Then save the file.
     combine all |.gel| files inside the ``/dbschema`` folder into a
     single schema.
 
-Type ``edgedb`` to start the Gel REPL, and, into the REPL,  type
+Type |gelcmd| to start the Gel REPL, and, into the REPL,  type
 ``describe schema as sdl``. The output will be ``{'module default{};'}``
 — nothing more than the empty ``default`` module. What happened?
 Our ``type User`` is nowhere to be found.

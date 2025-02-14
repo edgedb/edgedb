@@ -165,7 +165,7 @@ This process has spun up an Gel instance called ``nextjs-blog`` and
 directory, CLI commands and client libraries will be able to connect to the
 linked instance automatically, without additional configuration.
 
-To test this, run the ``edgedb`` command to open a REPL to the linked instance.
+To test this, run the |gelcmd| command to open a REPL to the linked instance.
 
 .. code-block:: bash
 
@@ -231,7 +231,7 @@ our database. Let's do that.
   Applied m1fee6oypqpjrreleos5hmivgfqg6zfkgbrowx7sw5jvnicm73hqdq (00001.edgeql)
 
 Our database now has a schema consisting of the ``BlogPost`` type. We can
-create some sample data from the REPL. Run the ``edgedb`` command to re-open
+create some sample data from the REPL. Run the |gelcmd| command to re-open
 the REPL.
 
 .. code-block:: bash
@@ -263,12 +263,12 @@ Loading posts with an API route
 
 Now that we have a couple posts in the database, let's load them dynamically
 with a Next.js `API route <https://nextjs.org/docs/api-routes/introduction>`_.
-To do that, we'll need the ``edgedb`` client library. Let's install that from
+To do that, we'll need the ``gel`` client library. Let's install that from
 NPM:
 
 .. code-block:: bash
 
-  $ npm install edgedb
+  $ npm install gel
 
 Then create a new file at ``pages/api/post.ts`` and copy in the following code.
 
@@ -277,7 +277,7 @@ Then create a new file at ``pages/api/post.ts`` and copy in the following code.
   // pages/api/post.ts
 
   import type {NextApiRequest, NextApiResponse} from 'next';
-  import {createClient} from 'edgedb';
+  import {createClient} from 'gel';
 
   export const client = createClient();
 
