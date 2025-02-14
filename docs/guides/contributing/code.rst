@@ -147,7 +147,7 @@ Python "venv" with all dependencies and commands installed into it.
       $ pip install -v -e ".[test]"
 
    In addition to compiling Gel and all dependencies, this will also
-   install the ``edb`` and ``edgedb`` command line tools into the current
+   install the ``edb`` and |gelcmd| command line tools into the current
    Python virtual environment.
 
    It will also install libraries used during development.

@@ -246,8 +246,8 @@ that instance.
   you're following along) and check the status. (Don't worry if the status is
   "inactive"; the status will change to "running" automatically when you
   connect to the instance.)
-- Confirm you can connect to the created instance by running ``edgedb`` in the
-  terminal to connect to it via REPL or by running ``edgedb ui`` to connect
+- Confirm you can connect to the created instance by running |gelcmd| in the
+  terminal to connect to it via REPL or by running ``gel ui`` to connect
   using the UI.
 
 

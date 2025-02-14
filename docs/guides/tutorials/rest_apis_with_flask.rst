@@ -19,7 +19,7 @@ Prerequisites
 =============
 
 Before we start, make sure you've :ref:`installed <ref_admin_install>` the
-``edgedb`` command-line tool. Here, we'll use Python 3.10 and a few of its
+|gelcmd| command-line tool. Here, we'll use Python 3.10 and a few of its
 latest features while building the APIs. A working version of this tutorial can
 be found `on Github
 <https://github.com/edgedb/edgedb-examples/tree/main/flask-crud>`_.
@@ -236,7 +236,7 @@ default, this API will return a list of actors, but you can also filter the
 objects by name.
 
 In the ``get_actors`` function, we perform the database query via the
-``edgedb`` client. Here, the ``client.query_json`` method conveniently returns
+``gel`` client. Here, the ``client.query_json`` method conveniently returns
 ``JSON`` serialized objects. We deserialize the returned data in the
 ``response_payload`` dictionary and then return it. Afterward, the final JSON
 serialization part is taken care of by Flask. This endpoint is exposed to the

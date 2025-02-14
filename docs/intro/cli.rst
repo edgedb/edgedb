@@ -6,13 +6,13 @@
 The CLI
 =======
 
-The ``edgedb`` command line tool is an integral part of the developer workflow
+The |gelcmd| command line tool is an integral part of the developer workflow
 of building with Gel. Below are instructions for installing it.
 
 Installation
 ------------
 
-To get started with Gel, the first step is install the ``edgedb`` CLI.
+To get started with Gel, the first step is install the |gelcmd| CLI.
 
 **Linux or macOS**
 
@@ -31,7 +31,7 @@ To get started with Gel, the first step is install the ``edgedb`` CLI.
     PS> iwr https://ps1.edgedb.com -useb | iex
 
 Follow the prompts on screen to complete the installation. The script will
-download the ``edgedb`` command built for your OS and add a path to it to your
+download the |gelcmd| command built for your OS and add a path to it to your
 shell environment. Then test the installation:
 
 .. code-block:: bash

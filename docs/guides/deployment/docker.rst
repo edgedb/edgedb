@@ -80,7 +80,7 @@ Note that on Windows you must use a Docker volume instead:
        -v edgedb-data:/var/lib/edgedb/data \
        -d edgedb/edgedb
 
-It is also possible to run an ``edgedb`` container on a remote PostgreSQL
+It is also possible to run an ``gel`` container on a remote PostgreSQL
 cluster specified by ``EDGEDB_SERVER_BACKEND_DSN``. See below for details.
 
 
