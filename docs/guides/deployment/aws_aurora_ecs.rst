@@ -36,9 +36,9 @@ Click `here <cf-deploy_>`_ to start the deployment process using CloudFormation
 portal and follow the prompts. You'll be prompted to provide a value for the
 following parameters:
 
-- ``DockerImage``: defaults to the latest version (``edgedb/edgedb``), or you
+- ``DockerImage``: defaults to the latest version (``geldata/gel``), or you
   can specify a particular tag from the ones published to `Docker Hub
-  <https://hub.docker.com/r/edgedb/edgedb/tags>`_.
+  <https://hub.docker.com/r/geldata/gel/tags>`_.
 - ``InstanceName``: ⚠️ Due to limitations with AWS, this must be 22 characters
   or less!
 - ``SuperUserPassword``: this will be used as the password for the new Gel
@@ -61,21 +61,21 @@ has been assigned to your Gel instance:
 
    .. code-block:: bash
 
-     $ edgedb --dsn edgedb://edgedb:<password>@<hostname> --tls-security insecure
+     $ gel --dsn gel://admin:<password>@<hostname> --tls-security insecure
      Gel x.x
      Type \help for help, \quit to quit.
-     edgedb>
+     gel>
 
 .. lint-on
 
 It's often convenient to create an alias for the remote instance using
-``edgedb instance link``.
+:gelcmd:`instance link`.
 
 .. code-block:: bash
 
-   $ edgedb instance link \
+   $ gel instance link \
         --trust-tls-cert \
-        --dsn edgedb://edgedb:<password>@<hostname>
+        --dsn gel://admin:<password>@<hostname>
         my_aws_instance
 
 This aliases the remote instance to ``my_aws_instance`` (this name can be
@@ -84,15 +84,15 @@ against this instance, as with local instances.
 
 .. note::
 
-   The command groups ``edgedb instance`` and ``edgedb project`` are not
+   The command groups :gelcmd:`instance` and :gelcmd:`project` are not
    intended to manage production instances.
 
 .. code-block:: bash
 
-  $ edgedb -I my_aws_instance
+  $ gel -I my_aws_instance
   Gel x.x
   Type \help for help, \quit to quit.
-  edgedb>
+  gel>
 
 To make changes to your Gel deployment like upgrading the Gel version or
 enabling the UI you can follow the CloudFormation
@@ -100,7 +100,7 @@ enabling the UI you can follow the CloudFormation
 ``ContainerDefinitions`` in the template and you will find where Gel's
 :ref:`environment variables <ref_guides_deployment_docker_customization>` are
 defined. To upgrade the Gel version specify a
-`docker image tag <docker-tags_>`_ with the image name ``edgedb/edgedb`` in the
+`docker image tag <docker-tags_>`_ with the image name ``geldata/gel`` in the
 second step of the update workflow.
 
 CloudFormation CLI
@@ -130,7 +130,7 @@ your terminal:
 .. _stack-update:
    https://docs.aws.amazon.com
    /AWSCloudFormation/latest/UserGuide/cfn-whatis-howdoesitwork.html
-.. _docker-tags: https://hub.docker.com/r/edgedb/edgedb/tags
+.. _docker-tags: https://hub.docker.com/r/geldata/gel/tags
 
 
 Manual Install with CLI
@@ -745,7 +745,7 @@ container in it.
             }" \
       )"
 
-    $ LOG_GROUP_NAME="/ecs/edgedb/$NAME"
+    $ LOG_GROUP_NAME="/ecs/gel/$NAME"
 
     $ aws logs create-log-group \
         --region $REGION \
@@ -780,9 +780,9 @@ container in it.
           --container-definitions \
             "[{ \
               \"name\": \"$NAME\", \
-              \"image\": \"edgedb/edgedb\", \
+              \"image\": \"geldata/gel\", \
               \"portMappings\": [{\"containerPort\": 5656}], \
-              \"command\": [\"edgedb-server\"], \
+              \"command\": [\"gel-server\"], \
               \"environment\": [{ \
                 \"name\": \"EDGEDB_SERVER_GENERATE_SELF_SIGNED_CERT\", \
                 \"value\": \"1\" \
@@ -832,12 +832,11 @@ container in it.
 Create a local link to the new Gel instance
 -------------------------------------------
 
-Create an local alias to the remote Gel instance with ``edgedb instance
-link``:
+Create an local alias to the remote Gel instance with :gelcmd:`instance link`:
 
 .. code-block:: bash
 
-    $ printf $PASSWORD | edgedb instance link \
+    $ printf $PASSWORD | gel instance link \
         --password-from-stdin \
         --trust-tls-cert \
         --non-interactive \
@@ -853,7 +852,7 @@ link``:
 
 .. note::
 
-   The command groups ``edgedb instance`` and ``edgedb project`` are not
+   The command groups :gelcmd:`instance` and :gelcmd:`project` are not
    intended to manage production instances.
 
 You can now open a REPL to this instance
