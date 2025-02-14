@@ -36,7 +36,7 @@ edgedb = "edb.cli:rustcli"
 gel-server = "edb.server.main:main"
 gel-load-ext = "edb.load_ext.main:main"
 gel-ls = "edb.language_server.main:main"
-gel = "edb.cli:rustcli"
+gel-dev = "edb.cli:rustcli"
 
 [project.optional-dependencies]
 test = [
