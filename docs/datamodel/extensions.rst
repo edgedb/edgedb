@@ -42,7 +42,7 @@ To enable these extensions, add a ``using`` statement at the top level of your s
 .. code-block:: sdl
 
     using extension auth;
-    
+
 
 
 Standalone extensions

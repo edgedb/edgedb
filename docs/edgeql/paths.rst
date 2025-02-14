@@ -70,8 +70,8 @@ The first user reciprocates, adding the new user as a friend:
 
 .. code-block:: edgeql-repl
 
-    db> update User filter .email = "user1@me.com" 
-    ... set { 
+    db> update User filter .email = "user1@me.com"
+    ... set {
     ... friends += (select detached User filter .email = "user2@me.com")
     ... };
 
@@ -153,7 +153,7 @@ database. However, we can't impose a shape on it:
 As written, EdgeDB infers the *type* of this expression to be
 :eql:type:`BaseObject`. Why? Because in theory, there may be
 several links named ``author`` from different object types
-that point to ``User``. And there is no guarantee that each 
+that point to ``User``. And there is no guarantee that each
 of these types will have a property called ``text``.
 
 .. note::
@@ -161,14 +161,14 @@ of these types will have a property called ``text``.
   a single property, ``id``.
 
 As such, commonly you'll want to narrow the results to a particular type.
-To do so, use the :eql:op:`type intersection <isintersect>` operator: 
+To do so, use the :eql:op:`type intersection <isintersect>` operator:
 ``[is Foo]``:
 
 .. code-block:: edgeql
-    
+
     # BlogPost objects that link to the user via a link named author
     select User.<author[is BlogPost];
-    
+
     # Comment objects that link to the user via a link named author
     select User.<author[is Comment];
 
@@ -205,7 +205,7 @@ that the type name (in this case ``User``) doesn't need to be specified.
 
 .. code-block:: sdl-diff
     :version-lt: 3.0
-    
+
       type User {
         required property email -> str;
         multi link friends -> User;

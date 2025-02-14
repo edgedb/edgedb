@@ -402,6 +402,29 @@ class TestDocSnippets(unittest.TestCase):
             for block in blocks:
                 self.run_block_test(block)
 
+    def test_cqa_doc_trailing_whitespace(self):
+        edgepath = find_edgedb_root()
+        docspath = os.path.join(edgepath, 'docs')
+
+        ws_errors = collections.defaultdict(set)
+
+        for filename in self.find_rest_files(docspath):
+            with open(filename, 'rt') as f:
+                source = f.readlines()
+
+            for lineno, line in enumerate(source):
+                if re.match(r'\s+\n$', line):
+                    ws_errors[filename].add(lineno)
+
+        if ws_errors:
+            raise AssertionError(
+                'trailing whitespace:\n\n' +
+                '\n'.join(
+                    f'{filename}:{linenos!r}'
+                    for filename, linenos in ws_errors.items()
+                )
+            )
+
     @unittest.skipIf(docutils is None, 'docutils is missing')
     def test_doc_test_broken_code_block_01(self):
         source = '''
