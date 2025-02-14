@@ -24,14 +24,14 @@ Typical client usage looks like this:
 .. code-block:: go
 
     package main
-    
+
     import (
         "context"
         "log"
-    
+
         "github.com/edgedb/edgedb-go"
     )
-    
+
     func main() {
         ctx := context.Background()
         client, err := edgedb.CreateClient(ctx, edgedb.Options{})
@@ -39,7 +39,7 @@ Typical client usage looks like this:
             log.Fatal(err)
         }
         defer client.Close()
-    
+
         var (
             age   int64 = 21
             users []struct {
@@ -47,12 +47,12 @@ Typical client usage looks like this:
                 Name string      `edgedb:"name"`
             }
         )
-    
+
         query := "SELECT User{name} FILTER .age = <int64>$0"
         err = client.Query(ctx, query, &users, age)
         ...
     }
-    
+
 We recommend using environment variables for connection parameters. See the
 `client connection docs <https://www.edgedb.com/docs/clients/connection>`_ for more information.
 
@@ -62,7 +62,7 @@ You may also connect to a database using a DSN:
 
     url := "edgedb://edgedb@localhost/edgedb"
     client, err := edgedb.CreateClientDSN(ctx, url, opts)
-    
+
 Or you can use Option fields.
 
 .. code-block:: go
@@ -72,9 +72,9 @@ Or you can use Option fields.
         User:        "edgedb",
         Concurrency: 4,
     }
-    
+
     client, err := edgedb.CreateClient(ctx, opts)
-    
+
 
 Errors
 ------
@@ -87,19 +87,19 @@ use errors.Is() or errors.As().
 
     err := client.Query(...)
     if errors.Is(err, context.Canceled) { ... }
-    
+
 Most errors returned by the edgedb package will satisfy the edgedb.Error
 interface which has methods for introspecting.
 
 .. code-block:: go
 
     err := client.Query(...)
-    
+
     var edbErr edgedb.Error
     if errors.As(err, &edbErr) && edbErr.Category(edgedb.NoDataError){
         ...
     }
-    
+
 
 Datatypes
 ---------
@@ -136,9 +136,9 @@ mapping between EdgeDB types and go types:
     uuid                     edgedb.UUID, edgedb.OptionalUUID
     json                     []byte, edgedb.OptionalBytes
     bigint                   *big.Int, edgedb.OptionalBigInt
-    
+
     decimal                  user defined (see Custom Marshalers)
-    
+
 Note that EdgeDB's std::duration type is represented in int64 microseconds
 while go's time.Duration type is int64 nanoseconds. It is incorrect to cast
 one directly to the other.
@@ -153,16 +153,16 @@ optional.
         edgedb.Optional
         Email string `edgedb:"email"`
     }
-    
+
     var result User
     err := client.QuerySingle(ctx, `SELECT User { email } LIMIT 0`, $result)
     fmt.Println(result.Missing())
     // Output: true
-    
+
     err := client.QuerySingle(ctx, `SELECT User { email } LIMIT 1`, $result)
     fmt.Println(result.Missing())
     // Output: false
-    
+
 Not all types listed above are valid query parameters.  To pass a slice of
 scalar values use array in your query. EdgeDB doesn't currently support
 using sets as parameters.
@@ -171,7 +171,7 @@ using sets as parameters.
 
     query := `select User filter .id in array_unpack(<array<uuid>>$1)`
     client.QuerySingle(ctx, query, $user, []edgedb.UUID{...})
-    
+
 Nested structures are also not directly allowed but you can use `json <https://www.edgedb.com/docs/edgeql/insert#bulk-inserts>`_
 instead.
 
@@ -184,12 +184,12 @@ tag the embedded struct with \`edgedb:"$inline"\`.
     type Object struct {
         ID edgedb.UUID
     }
-    
+
     type User struct {
         Object `edgedb:"$inline"`
         Name string
     }
-    
+
 
 Custom Marshalers
 -----------------
@@ -203,24 +203,24 @@ Usage Example
 -------------
 
 .. code-block:: go
-    
+
     package edgedb_test
-    
+
     import (
         "context"
         "fmt"
         "log"
         "time"
-    
+
         edgedb "github.com/edgedb/edgedb-go"
     )
-    
+
     type User struct {
         ID   edgedb.UUID `edgedb:"id"`
         Name string      `edgedb:"name"`
         DOB  time.Time   `edgedb:"dob"`
     }
-    
+
     func Example() {
         opts := edgedb.Options{Concurrency: 4}
         ctx := context.Background()
@@ -229,7 +229,7 @@ Usage Example
             log.Fatal(err)
         }
         defer db.Close()
-    
+
         // create a user object type.
         err = db.Execute(ctx, `
             CREATE TYPE User {
@@ -240,7 +240,7 @@ Usage Example
         if err != nil {
             log.Fatal(err)
         }
-    
+
         // Insert a new user.
         var inserted struct{ id edgedb.UUID }
         err = db.QuerySingle(ctx, `
@@ -252,7 +252,7 @@ Usage Example
         if err != nil {
             log.Fatal(err)
         }
-    
+
         // Select users.
         var users []User
         args := map[string]interface{}{"name": "Bob"}
@@ -261,7 +261,7 @@ Usage Example
         if err != nil {
             log.Fatal(err)
         }
-    
+
         fmt.Println(users)
     }
-    
+
