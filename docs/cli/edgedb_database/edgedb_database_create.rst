@@ -22,7 +22,7 @@ Create a new :ref:`database <ref_datamodel_databases>`.
 Description
 ===========
 
-``edgedb database create`` is a terminal command equivalent to
+:gelcmd:`database create` is a terminal command equivalent to
 :eql:stmt:`create database`.
 
 

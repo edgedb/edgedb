@@ -25,8 +25,9 @@ Connection flags
     Specifies the named instance to connect to. The actual connection
     parameters for local and self-hosted instances are stored in
     ``<edgedb_config_dir>/credentials`` and are usually created by
-    :ref:`ref_cli_edgedb_instance_create` or similar commands. Run ``edgedb
-    info`` to see the location of ``<edgedb_config_dir>`` on your machine.
+    :ref:`ref_cli_edgedb_instance_create` or similar commands. Run
+    :gelcmd:`info` to see the location of ``<edgedb_config_dir>`` on your
+    machine.
 
     |Gel| Cloud instance names are in the format
     ``<org-name>/<instance-name>``.
@@ -62,14 +63,15 @@ Connection flags
 :cli:synopsis:`-u <username>, --user=<username>`
     Connect to the database as the user :cli:synopsis:`<username>`.
     Defaults to the value of the ``EDGEDB_USER`` environment variable, or,
-    if not set, ``edgedb``.
+    if not set, ``admin``.
 
 :cli:synopsis:`-d <dbname>, --database=<dbname>`
     Specifies the name of the database to connect to. Defaults to the value of
     the ``EDGEDB_DATABASE`` environment variable. If that variable isn't set,
-    local instances will default to ``edgedb`` while remote instances will
-    default to the name provided when the link was created. This also includes
-    |Gel| Cloud instance links created via :ref:`ref_cli_edgedb_project_init`.
+    local instances will default to ``main`` (``edgedb`` for |EdgeDB| <= 50)
+    while remote instances will default to the name provided when the link
+    was created. This also includes |Gel| Cloud instance links created via
+    :ref:`ref_cli_edgedb_project_init`.
 
     .. note::
 
