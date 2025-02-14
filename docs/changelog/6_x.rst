@@ -21,7 +21,7 @@ Upgrading
 **Local instances**
 
 To upgrade a local project, first ensure that your CLI is up to date with
-``gel cli upgrade``. Then run the following command inside the project
+:gelcmd:`cli upgrade`. Then run the following command inside the project
 directory.
 
 .. code-block:: bash
