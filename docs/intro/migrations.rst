@@ -24,7 +24,7 @@ automatically apply schema changes in your database as you work.
 .. code-block:: bash
 
     $ gel watch
-    Initialized. Monitoring "/projects/my-edgedb-project".
+    Initialized. Monitoring "/projects/my-gel-project".
 
 If you get output similar to the output above, you're ready to get started!
 
@@ -40,7 +40,7 @@ your codebase.
 
   .
   ├── dbschema
-  │   └── default.esdl          # schema file (written by you)
+  │   └── default.gel          # schema file (written by you)
   └── gel.toml
 
 The schema itself is written using Gel's schema definition language. Edit
@@ -300,5 +300,5 @@ Further reading
 
 Further information can be found in the :ref:`CLI
 reference <ref_cli_gel_migration>` or the `Beta 1 blog post
-<https://www.geldata.com/blog/edgedb-1-0-beta-1-sirius#built-in-database-migrations-in-use>`_,
+<https://www.geldata.com/blog/geldata-1-0-beta-1-sirius#built-in-database-migrations-in-use>`_,
 which describes the design of the migration system.

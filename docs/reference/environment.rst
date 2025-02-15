@@ -197,7 +197,7 @@ Specifies the ID of the user which should run the server binary. Default is
 EDGEDB_SERVER_USER
 ..................
 
-If set to anything other than the default username (``edgedb``), the username
+If set to anything other than the default username |admin|, the username
 specified will be created. The user defined here will be the one assigned the
 password set in ``EDGEDB_SERVER_PASSWORD`` or the hash set in
 ``EDGEDB_SERVER_PASSWORD_HASH``.
@@ -307,42 +307,26 @@ EDGEDB_SERVER_BOOTSTRAP_COMMAND
 
 Useful to fine-tune initial user creation and other initial setup.
 
-.. versionchanged:: _default
 
-    .. note::
+.. note::
 
-        A :eql:stmt:`create database` statement cannot be combined in a block with
-        any other statements. Since all statements in
-        ``EDGEDB_SERVER_BOOTSTRAP_COMMAND`` run in a single block, it cannot be
-        used to create a database and, for example, create a user for that
-        database.
+    A create branch statement (i.e., :eql:stmt:`create empty branch`,
+    :eql:stmt:`create schema branch`, or :eql:stmt:`create data branch`)
+    cannot be combined in a block with any other statements. Since all
+    statements in ``EDGEDB_SERVER_BOOTSTRAP_COMMAND`` run in a single
+    block, it cannot be used to create a branch and, for example, create a
+    user on that branch.
 
-        For Docker deployments, you can instead write :ref:`custom scripts to run
-        before migrations <ref_guide_deployment_docker_custom_bootstrap_scripts>`.
-        These are placed in ``/edgedb-bootstrap.d/``. By writing your ``create
-        database`` statements in one ``.edgeql`` file each placed in
-        ``/edgedb-bootstrap.d/`` and other statements in their own file, you can
-        create databases and still run other EdgeQL statements to bootstrap your
-        instance.
+    For Docker deployments, you can instead write :ref:`custom scripts to run
+    before migrations <ref_guide_deployment_docker_custom_bootstrap_scripts>`.
+    These are placed in ``/gel-bootstrap.d/``. By writing your ``create
+    branch`` statements in one ``.edgeql`` file each placed in
+    ``/gel-bootstrap.d/`` and other statements in their own file, you can
+    create branches and still run other EdgeQL statements to bootstrap your
+    instance.
 
-.. versionchanged:: 5.0
-
-    .. note::
-
-        A create branch statement (i.e., :eql:stmt:`create empty branch`,
-        :eql:stmt:`create schema branch`, or :eql:stmt:`create data branch`)
-        cannot be combined in a block with any other statements. Since all
-        statements in ``EDGEDB_SERVER_BOOTSTRAP_COMMAND`` run in a single
-        block, it cannot be used to create a branch and, for example, create a
-        user on that branch.
-
-        For Docker deployments, you can instead write :ref:`custom scripts to run
-        before migrations <ref_guide_deployment_docker_custom_bootstrap_scripts>`.
-        These are placed in ``/edgedb-bootstrap.d/``. By writing your ``create
-        branch`` statements in one ``.edgeql`` file each placed in
-        ``/edgedb-bootstrap.d/`` and other statements in their own file, you can
-        create branches and still run other EdgeQL statements to bootstrap your
-        instance.
+    Note that for |EdgeDB| versions prior to 5.0, paths contain "edgedb"
+    instead of "gel", so ``/gel-bootstrap.d/`` becomes ``/edgedb-bootstrap.d/``.
 
 Maps directly to the |gel-server| flag ``--bootstrap-command``. The
 ``*_FILE`` and ``*_ENV`` variants are also supported.
@@ -360,7 +344,7 @@ EDGEDB_SERVER_DATADIR
 .....................
 
 Specifies a path where the database files are located.  Default is
-``/var/lib/edgedb/data``.  Cannot be specified alongside
+``/var/lib/gel/data``.  Cannot be specified alongside
 ``EDGEDB_SERVER_BACKEND_DSN``.
 
 Maps directly to the |gel-server| flag ``--data-dir``.
@@ -490,7 +474,7 @@ or are missing.
   Otherwise, the generated certificate and key are stored as ``edbtlscert.pem``
   and ``edbprivkey.pem`` in ``EDGEDB_SERVER_DATADIR``, or, if
   ``EDGEDB_SERVER_DATADIR`` is not set, they will be placed in
-  ``/etc/ssl/edgedb``.
+  ``/etc/ssl/gel``.
 
 Default is ``generate_self_signed`` when
 ``EDGEDB_SERVER_SECURITY=insecure_dev_mode``. Otherwise, the default is

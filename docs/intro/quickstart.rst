@@ -223,7 +223,7 @@ see the following file structure.
   /path/to/quickstart
   ├── gel.toml
   ├── dbschema
-  │   ├── default.esdl
+  │   ├── default.gel
   │   ├── migrations
 
 |Gel| schemas are defined with a dedicated schema definition language called

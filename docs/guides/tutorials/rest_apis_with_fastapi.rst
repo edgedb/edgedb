@@ -143,7 +143,7 @@ common to declare the entire schema in a single file
 This is what our datatypes look like:
 
 .. code-block:: sdl
-    :caption: dbschema/default.esdl
+    :caption: dbschema/default.gel
 
     module default {
       abstract type Auditable {
@@ -1463,7 +1463,7 @@ First, let's update the Gel schema to include a new field in the User type
 to store the Gel Auth identity and a new ``current_user`` type.
 
 .. code-block:: sdl-diff
-    :caption: dbschema/default.esdl
+    :caption: dbschema/default.gel
 
     + global current_user := assert_single(
     +     ((

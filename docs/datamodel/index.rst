@@ -47,7 +47,7 @@ in the root of your project.
 
 .. code-block:: sdl
 
-    # dbschema/default.esdl
+    # dbschema/default.gel
 
     type Movie {
       required title: str;
@@ -77,9 +77,9 @@ to *create* and *apply* migrations.
 .. code-block:: bash
 
   $ gel migration create
-  Created dbschema/migrations/00001.esdl
+  Created dbschema/migrations/00001.edgeql
   $ gel migrate
-  Applied dbschema/migrations/00001.esdl.
+  Applied dbschema/migrations/00001.edgeql
 
 For a full guide on migrations, refer to the :ref:`Creating and applying
 migrations <ref_intro_migrations>` guide.

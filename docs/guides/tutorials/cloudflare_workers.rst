@@ -83,7 +83,7 @@ to create a new instance:
     $ gel project init
 
 It creates an |gel.toml| config file and a schema file
-:code:`dbschema/default.esdl`.
+:code:`dbschema/default.gel`.
 
 It also spins up an Gel instance and associates it with the current
 directory.
@@ -105,7 +105,7 @@ interactive REPL to your instance.
 
 **Extend The Default Schema (Optional)**
 
-You can extend the default schema, :code:`dbschema/default.esdl`, to define
+You can extend the default schema, :code:`dbschema/default.gel`, to define
 your data model, and then try it out in the Cloudflare Worker code.
 
 Add new types to the schema file:
