@@ -17,8 +17,8 @@ Description
 
 :gelcmd:`instance create` is a terminal command for making a new Gel
 instance and creating a corresponding credentials file in
-``<edgedb_config_dir>/credentials``. Run :gelcmd:`info` to see the path to
-``<edgedb_config_dir>`` on your machine.
+``<gel_config_dir>/credentials``. Run :gelcmd:`info` to see the path to
+``<gel_config_dir>`` on your machine.
 
 .. note::
 

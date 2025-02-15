@@ -24,9 +24,9 @@ Connection flags
 :cli:synopsis:`-I <name>, --instance=<name>`
     Specifies the named instance to connect to. The actual connection
     parameters for local and self-hosted instances are stored in
-    ``<edgedb_config_dir>/credentials`` and are usually created by
+    ``<gel_config_dir>/credentials`` and are usually created by
     :ref:`ref_cli_gel_instance_create` or similar commands. Run
-    :gelcmd:`info` to see the location of ``<edgedb_config_dir>`` on your
+    :gelcmd:`info` to see the location of ``<gel_config_dir>`` on your
     machine.
 
     |Gel| Cloud instance names are in the format

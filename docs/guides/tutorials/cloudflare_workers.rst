@@ -101,7 +101,7 @@ interactive REPL to your instance.
 
 .. code-block:: bash
 
-    $ npm install edgedb # or pnpm, yarn, bun
+    $ npm install gel # or pnpm, yarn, bun
 
 **Extend The Default Schema (Optional)**
 

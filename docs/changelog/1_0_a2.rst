@@ -24,7 +24,7 @@ Install it with ``npm`` or ``yarn``:
 
 .. code-block:: bash
 
-   $ npm install edgedb
+   $ npm install gel
 
 and it is ready for use:
 
