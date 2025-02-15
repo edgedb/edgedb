@@ -49,5 +49,5 @@ more fine-grained performance metrics on the previously analyzed query.
   :class: seealso
 
   * - **See also**
-  * - :ref:`CLI > edgedb analyze <ref_cli_gel_analyze>`
+  * - :ref:`CLI > gel analyze <ref_cli_gel_analyze>`
   * - :ref:`Reference > EdgeQL > analyze <ref_eql_statements_analyze>`

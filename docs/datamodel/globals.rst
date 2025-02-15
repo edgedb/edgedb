@@ -44,10 +44,10 @@ which client library you're using.
 
   .. code-tab:: typescript
 
-    import createClient from 'edgedb';
+    import createClient from 'gel';
 
     const baseClient = createClient();
-    // returns a new Client instance that stores the provided 
+    // returns a new Client instance that stores the provided
     // globals and sends them along with all future queries:
     const clientWithGlobals = baseClient.withGlobals({
       current_user_id: '2141a5b4-5634-4ccc-b835-437863534c51',
@@ -57,7 +57,7 @@ which client library you're using.
 
   .. code-tab:: python
 
-    from edgedb import create_client
+    from gel import create_client
 
     client = create_client().with_globals({
         'current_user_id': '580cc652-8ab8-4a20-8db9-4c79a4b1fd81'
@@ -77,23 +77,23 @@ which client library you're using.
       "fmt"
       "log"
 
-      "github.com/edgedb/edgedb-go"
+      "github.com/geldata/gel-go"
     )
 
     func main() {
       ctx := context.Background()
-      client, err := edgedb.CreateClient(ctx, edgedb.Options{})
+      client, err := gel.CreateClient(ctx, gel.Options{})
       if err != nil {
         log.Fatal(err)
       }
       defer client.Close()
 
-      id, err := edgedb.ParseUUID("2141a5b4-5634-4ccc-b835-437863534c51")
+      id, err := gel.ParseUUID("2141a5b4-5634-4ccc-b835-437863534c51")
       if err != nil {
         log.Fatal(err)
       }
 
-      var result edgedb.UUID
+      var result gel.UUID
       err = client.
         WithGlobals(map[string]interface{}{"current_user": id}).
         QuerySingle(ctx, "SELECT global current_user;", &result)
@@ -108,7 +108,7 @@ which client library you're using.
 
     use uuid::Uuid;
 
-    let client = edgedb_tokio::create_client().await.expect("Client init");
+    let client = gel_tokio::create_client().await.expect("Client init");
 
     let client_with_globals = client.with_globals_fn(|c| {
         c.set(
@@ -127,7 +127,7 @@ which client library you're using.
 
   .. code-tab:: edgeql
 
-    set global current_user_id := 
+    set global current_user_id :=
       <uuid>'2141a5b4-5634-4ccc-b835-437863534c51';
 
 
