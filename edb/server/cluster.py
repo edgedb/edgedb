@@ -30,8 +30,6 @@ import sys
 import tempfile
 import time
 
-from jwcrypto import jwk
-
 from edb import buildmeta
 from edb.common import devmode
 from edb.edgeql import quote
@@ -39,6 +37,7 @@ from edb.edgeql import quote
 from edb.server import args as edgedb_args
 from edb.server import defines as edgedb_defines
 from edb.server import pgconnparams
+from edb.server import auth
 
 from . import pgcluster
 
@@ -428,7 +427,7 @@ class Cluster(BaseCluster):
         self._edgedb_cmd.extend(['-D', str(self._data_dir)])
         self._pg_connect_args['user'] = pg_superuser
         self._pg_connect_args['database'] = 'template1'
-        self._jws_key: Optional[jwk.JWK] = None
+        self._jws_key: Optional[auth.JWKSet] = None
 
     async def _new_pg_cluster(self) -> pgcluster.Cluster:
         return await pgcluster.get_local_pg_cluster(

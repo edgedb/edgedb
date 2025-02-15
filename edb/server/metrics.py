@@ -234,6 +234,30 @@ auth_successful_logins = registry.new_labeled_counter(
     labels=("tenant",),
 )
 
+auth_provider_jwkset_fetch_success = registry.new_labeled_counter(
+    "auth_provider_jwkset_fetch_success_total",
+    "Number of successful Auth extension JWK Set fetches.",
+    labels=("provider",),
+)
+
+auth_provider_jwkset_fetch_errors = registry.new_labeled_counter(
+    "auth_provider_jwkset_fetch_errors_total",
+    "Number of failed Auth extension JWK Set fetches.",
+    labels=("provider",),
+)
+
+auth_provider_token_validation_success = registry.new_labeled_counter(
+    "auth_provider_token_validation_success_total",
+    "Number of successful Auth extension provider token validations.",
+    labels=("provider",),
+)
+
+auth_provider_token_validation_errors = registry.new_labeled_counter(
+    "auth_provider_token_validation_errors_total",
+    "Number of failed Auth extension provider token validations.",
+    labels=("provider",),
+)
+
 mt_tenants_total = registry.new_gauge(
     'mt_tenants_current',
     'Total number of currently-registered tenants.',

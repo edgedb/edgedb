@@ -17,83 +17,12 @@
 #
 
 from __future__ import annotations
-from typing import Optional, AbstractSet, Iterable
+from typing import Iterable
 
 import pathlib
 import uuid
 
-from datetime import datetime, timedelta, timezone
-
-from jwcrypto import jwk, jwt
-
-from . import uuidgen
-
-
-class SecretKeyReadError(Exception):
-    pass
-
-
-def generate_secret_key(
-    skey: jwk.JWK,
-    *,
-    instances: Optional[list[str] | AbstractSet[str]] = None,
-    roles: Optional[list[str] | AbstractSet[str]] = None,
-    databases: Optional[list[str] | AbstractSet[str]] = None,
-    subject: Optional[str] = None,
-    key_id: Optional[str] = None,
-) -> str:
-    claims = {
-        "iat": int(datetime.now(timezone.utc).timestamp()),
-        "iss": "edgedb-server",
-    }
-
-    if instances is None:
-        claims["edb.i.all"] = True
-    else:
-        claims["edb.i"] = list(instances)
-
-    if roles is None:
-        claims["edb.r.all"] = True
-    else:
-        claims["edb.r"] = list(roles)
-
-    if databases is None:
-        claims["edb.d.all"] = True
-    else:
-        claims["edb.d"] = list(databases)
-
-    if subject is not None:
-        claims["sub"] = subject
-
-    if key_id is None:
-        key_id = str(uuidgen.uuid4())
-
-    claims["jti"] = key_id
-
-    token = jwt.JWT(
-        header={"alg": "ES256" if skey["kty"] == "EC" else "RS256"},
-        claims=claims,
-    )
-    token.make_signed_token(skey)
-    return "edbt1_" + token.serialize()
-
-
-def load_secret_key(key_file: pathlib.Path) -> jwk.JWK:
-    try:
-        with open(key_file, 'rb') as kf:
-            jws_key = jwk.JWK.from_pem(kf.read())
-    except Exception as e:
-        raise SecretKeyReadError(f"cannot load JWS key: {e}") from e
-
-    if (
-        not jws_key.has_public
-        or jws_key['kty'] not in {"RSA", "EC"}
-    ):
-        raise SecretKeyReadError(
-            f"the cluster JWS key file does not "
-            f"contain a valid RSA or EC public key")
-
-    return jws_key
+from datetime import datetime, timedelta
 
 
 def generate_tls_cert(
@@ -154,11 +83,3 @@ def generate_tls_cert(
             )
         )
     tls_key_file.chmod(0o600)
-
-
-def generate_jwk(keys_file: pathlib.Path) -> None:
-    key = jwk.JWK(generate='EC')
-    with keys_file.open("wb") as f:
-        f.write(key.export_to_pem(private_key=True, password=None))
-
-    keys_file.chmod(0o600)

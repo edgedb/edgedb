@@ -70,6 +70,7 @@ from edb.server import args as edgedb_args
 from edb.server import cluster as edgedb_cluster
 from edb.server import pgcluster
 from edb.server import defines as edgedb_defines
+from edb.server import auth
 from edb.server.pgconnparams import ConnectionParams
 
 from edb.common import assert_data_shape
@@ -131,7 +132,7 @@ def get_test_cases(tests):
 
 bag = assert_data_shape.bag
 
-generate_jwk = secretkey.generate_jwk
+generate_jwk = auth.generate_jwk
 generate_tls_cert = secretkey.generate_tls_cert
 
 

@@ -35,7 +35,6 @@ import dataclasses
 from typing import (
     Any,
     Optional,
-    Tuple,
     FrozenSet,
     cast,
     TYPE_CHECKING,
@@ -43,14 +42,13 @@ from typing import (
 )
 
 import aiosmtplib
-from jwcrypto import jwk, jwt
 
 from edb import errors as edb_errors
 from edb.common import debug
 from edb.common import markup
-from edb.ir import statypes
 from edb.server import tenant as edbtenant, metrics
 from edb.server.config.types import CompositeConfigType
+from edb.ir import statypes
 
 from . import (
     email_password,
@@ -64,6 +62,7 @@ from . import (
     webauthn,
     magic_link,
     webhook,
+    jwt,
 )
 from .data import EmailFactor
 
@@ -88,6 +87,12 @@ class Router:
         self.base_path = base_path
         self.tenant = tenant
         self.test_mode = tenant.server.in_test_mode()
+        self.signing_key = jwt.SigningKey(
+            lambda: util.get_config(
+                self.db, "ext::auth::AuthConfig::auth_signing_key"
+            ),
+            self.base_path,
+        )
 
     def _get_url_munger(
         self, request: protocol.HttpRequest
@@ -319,16 +324,16 @@ class Router:
                 if allowed_callback_url
                 else self._get_callback_url()
             ),
-            state=self._make_state_claims(
-                provider_name,
-                allowed_redirect_to.url,
-                (
+            state=jwt.OAuthStateToken(
+                provider=provider_name,
+                redirect_to=allowed_redirect_to.url,
+                redirect_to_on_signup=(
                     allowed_redirect_to_on_signup.url
                     if allowed_redirect_to_on_signup
                     else None
                 ),
-                challenge,
-            ),
+                challenge=challenge,
+            ).sign(self.signing_key),
         )
         # n.b. Explicitly allow authorization URL to be outside of allowed
         # URLs because it is a trusted URL from the identity provider.
@@ -372,8 +377,8 @@ class Router:
 
         if error is not None:
             try:
-                claims = self._verify_and_extract_claims(state)
-                redirect_to = cast(str, claims["redirect_to"])
+                claims = jwt.OAuthStateToken.verify(state, self.signing_key)
+                redirect_to = claims.redirect_to
             except Exception:
                 raise errors.InvalidData("Invalid state token")
 
@@ -397,15 +402,15 @@ class Router:
             )
 
         try:
-            claims = self._verify_and_extract_claims(state)
-            provider_name = cast(str, claims["provider"])
+            claims = jwt.OAuthStateToken.verify(state, self.signing_key)
+            provider_name = claims.provider
             allowed_redirect_to = self._make_allowed_url(
-                cast(str, claims["redirect_to"])
+                claims.redirect_to
             )
             allowed_redirect_to_on_signup = self._maybe_make_allowed_url(
-                cast(Optional[str], claims.get("redirect_to_on_signup"))
+                claims.redirect_to_on_signup
             )
-            challenge = cast(str, claims["challenge"])
+            challenge = claims.challenge
         except Exception:
             raise errors.InvalidData("Invalid state token")
         oauth_client = oauth.Client(
@@ -494,7 +499,20 @@ class Router:
                     identity_id=identity_id,
                 )
             )
-            session_token = self._make_session_token(identity_id)
+            auth_expiration_time = util.get_config(
+                self.db,
+                "ext::auth::AuthConfig::token_time_to_live",
+                statypes.Duration,
+            )
+            session_token = jwt.SessionToken(
+                subject=identity_id,
+            ).sign(
+                self.signing_key,
+                expires_in=auth_expiration_time.to_timedelta(),
+            )
+            metrics.auth_successful_logins.inc(
+                1.0, self.tenant.get_instance_name()
+            )
             logger.info(f"Token exchange successful: identity_id={identity_id}")
             response.status = http.HTTPStatus.OK
             response.content_type = b"application/json"
@@ -721,25 +739,21 @@ class Router:
 
         _check_keyset(data, {"verification_token", "provider"})
 
-        (
-            identity_id,
-            issued_at,
-            _,
-            maybe_challenge,
-            maybe_redirect_to,
-        ) = self._get_data_from_verification_token(data["verification_token"])
+        token = jwt.VerificationToken.verify(
+            data["verification_token"],
+            self.signing_key,
+        )
 
         try:
             email_factor = await self._try_verify_email(
                 provider=data["provider"],
-                issued_at=issued_at,
-                identity_id=identity_id,
+                identity_id=token.subject,
             )
             await self._maybe_send_webhook(
                 webhook.EmailVerified(
                     event_id=str(uuid.uuid4()),
                     timestamp=datetime.datetime.now(datetime.timezone.utc),
-                    identity_id=identity_id,
+                    identity_id=token.subject,
                     email_factor_id=email_factor.id,
                 )
             )
@@ -754,15 +768,15 @@ class Router:
             return
 
         logger.info(
-            f"Email verified: identity_id={identity_id}, "
+            f"Email verified: identity_id={token.subject}, "
             f"email_factor_id={email_factor.id}, "
             f"email={email_factor.email}"
         )
-        match (maybe_challenge, maybe_redirect_to):
+        match (token.maybe_challenge, token.maybe_redirect_to):
             case (str(challenge), str(redirect_to)):
                 await pkce.create(self.db, challenge)
                 code = await pkce.link_identity_challenge(
-                    self.db, identity_id, challenge
+                    self.db, token.subject, challenge
                 )
                 return self._try_redirect(
                     response,
@@ -771,7 +785,7 @@ class Router:
             case (str(challenge), _):
                 await pkce.create(self.db, challenge)
                 code = await pkce.link_identity_challenge(
-                    self.db, identity_id, challenge
+                    self.db, token.subject, challenge
                 )
                 response.status = http.HTTPStatus.OK
                 response.content_type = b"application/json"
@@ -808,15 +822,15 @@ class Router:
         )
         email_factor: Optional[EmailFactor] = None
         if "verification_token" in request_data:
-            (
-                identity_id,
-                _,
-                verify_url,
-                maybe_challenge,
-                maybe_redirect_to,
-            ) = self._get_data_from_verification_token(
-                request_data["verification_token"]
+            token = jwt.VerificationToken.verify(
+                request_data["verification_token"],
+                self.signing_key,
+                skip_expiration_check=True,
             )
+            identity_id = token.subject
+            verify_url = token.verify_url
+            maybe_challenge = token.maybe_challenge
+            maybe_redirect_to = token.maybe_redirect_to
             email_factor = await local_client.get_email_factor_by_identity_id(
                 identity_id
             )
@@ -922,12 +936,11 @@ class Router:
                 )
                 identity_id = email_factor.identity.id
 
-                new_reset_token = self._make_secret_token(
-                    identity_id,
-                    secret,
-                    "reset",
-                    {"challenge": data["challenge"]},
-                )
+                new_reset_token = jwt.ResetToken(
+                    subject=identity_id,
+                    secret=secret,
+                    challenge=data["challenge"],
+                ).sign(self.signing_key)
 
                 reset_token_params = {"reset_token": new_reset_token}
                 reset_url = util.join_url_params(
@@ -1020,21 +1033,21 @@ class Router:
         )
 
         try:
-
-            identity_id, secret, challenge = self._get_data_from_reset_token(
-                reset_token
+            token = jwt.ResetToken.verify(
+                reset_token,
+                self.signing_key,
             )
 
             await email_password_client.update_password(
-                identity_id, secret, password
+                token.subject, token.secret, password
             )
-            await pkce.create(self.db, challenge)
+            await pkce.create(self.db, token.challenge)
             code = await pkce.link_identity_challenge(
-                self.db, identity_id, challenge
+                self.db, token.subject, token.challenge
             )
             response_dict = {"code": code}
             logger.info(
-                f"Reset password: identity_id={identity_id}, pkce_id={code}"
+                f"Reset password: identity_id={token.subject}, pkce_id={code}"
             )
 
             if allowed_redirect_to:
@@ -1115,6 +1128,7 @@ class Router:
             issuer=self.base_path,
             tenant=self.tenant,
             test_mode=self.test_mode,
+            signing_key=self.signing_key,
         )
 
         request_accepts_json: bool = request.accept == b"application/json"
@@ -1260,6 +1274,7 @@ class Router:
                 issuer=self.base_path,
                 tenant=self.tenant,
                 test_mode=self.test_mode,
+                signing_key=self.signing_key,
             )
             email_factor = await magic_link_client.get_email_factor_by_email(
                 email
@@ -1342,29 +1357,28 @@ class Router:
         query = urllib.parse.parse_qs(
             request.url.query.decode("ascii") if request.url.query else ""
         )
-        token = _get_search_param(query, "token")
+        token_str = _get_search_param(query, "token")
 
         try:
-            (identity_id, challenge, callback_url) = (
-                self._get_data_from_magic_link_token(token)
-            )
-            await pkce.create(self.db, challenge)
+            token = jwt.MagicLinkToken.verify(token_str, self.signing_key)
+            await pkce.create(self.db, token.challenge)
             code = await pkce.link_identity_challenge(
-                self.db, identity_id, challenge
+                self.db, token.subject, token.challenge
             )
             local_client = magic_link.Client(
                 db=self.db,
                 tenant=self.tenant,
                 test_mode=self.test_mode,
                 issuer=self.base_path,
+                signing_key=self.signing_key,
             )
             await local_client.verify_email(
-                identity_id, datetime.datetime.now(datetime.timezone.utc)
+                token.subject, datetime.datetime.now(datetime.timezone.utc)
             )
 
             return self._try_redirect(
                 response,
-                util.join_url_params(callback_url, {"code": code}),
+                util.join_url_params(token.callback_url, {"code": code}),
             )
 
         except Exception as ex:
@@ -1792,11 +1806,7 @@ class Router:
 
             if reset_token is not None:
                 try:
-                    (
-                        identity_id,
-                        secret,
-                        challenge,
-                    ) = self._get_data_from_reset_token(reset_token)
+                    token = jwt.ResetToken.verify(reset_token, self.signing_key)
 
                     email_password_client = email_password.Client(
                         db=self.db,
@@ -1804,7 +1814,7 @@ class Router:
 
                     is_valid = (
                         await email_password_client.validate_reset_secret(
-                            identity_id, secret
+                            token.subject, token.secret
                         )
                         is not None
                     )
@@ -1869,35 +1879,29 @@ class Router:
                 is_valid = False
             case (str(provider_name), str(verification_token)):
                 try:
-                    (
-                        identity_id,
-                        issued_at,
-                        _,
-                        maybe_challenge,
-                        maybe_redirect_to,
-                    ) = self._get_data_from_verification_token(
-                        verification_token
+                    token = jwt.VerificationToken.verify(
+                        verification_token,
+                        self.signing_key,
                     )
                     await self._try_verify_email(
                         provider=provider_name,
-                        issued_at=issued_at,
-                        identity_id=identity_id,
+                        identity_id=token.subject,
                     )
 
-                    match maybe_challenge:
+                    match token.maybe_challenge:
                         case str(ch):
                             await pkce.create(self.db, ch)
                             maybe_pkce_code = (
                                 await pkce.link_identity_challenge(
                                     self.db,
-                                    identity_id,
+                                    token.subject,
                                     ch,
                                 )
                             )
                         case _:
                             maybe_pkce_code = None
 
-                    redirect_to = maybe_redirect_to or redirect_to
+                    redirect_to = token.maybe_redirect_to or redirect_to
                     redirect_to = (
                         util.join_url_params(
                             redirect_to,
@@ -1964,17 +1968,15 @@ class Router:
         try:
             _check_keyset(query, {"verification_token"})
             verification_token = query["verification_token"][0]
-            (
-                identity_id,
-                _,
-                _,
-                maybe_challenge,
-                maybe_redirect_to,
-            ) = self._get_data_from_verification_token(verification_token)
+            token = jwt.VerificationToken.verify(
+                verification_token,
+                self.signing_key,
+                skip_expiration_check=True,
+            )
             email_password_client = email_password.Client(self.db)
             email_factor = (
                 await email_password_client.get_email_factor_by_identity_id(
-                    identity_id=identity_id
+                    token.subject
                 )
             )
             if email_factor is None:
@@ -1984,10 +1986,10 @@ class Router:
 
             verify_url = f"{self.base_path}/ui/verify"
             verification_token = self._make_verification_token(
-                identity_id=identity_id,
+                identity_id=token.subject,
                 verify_url=verify_url,
-                maybe_challenge=maybe_challenge,
-                maybe_redirect_to=maybe_redirect_to,
+                maybe_challenge=token.maybe_challenge,
+                maybe_redirect_to=token.maybe_redirect_to,
             )
 
             await self._send_verification_email(
@@ -2064,209 +2066,6 @@ class Router:
 
     def _get_callback_url(self) -> str:
         return f"{self.base_path}/callback"
-
-    def _get_auth_signing_key(self) -> jwk.JWK:
-        auth_signing_key = util.get_config(
-            self.db, "ext::auth::AuthConfig::auth_signing_key"
-        )
-        key_bytes = base64.b64encode(auth_signing_key.encode())
-
-        return jwk.JWK(kty="oct", k=key_bytes.decode())
-
-    def _make_state_claims(
-        self,
-        provider: str,
-        redirect_to: str,
-        redirect_to_on_signup: Optional[str],
-        challenge: str,
-    ) -> str:
-        signing_key = self._get_auth_signing_key()
-        expires_at = datetime.datetime.now(
-            datetime.timezone.utc
-        ) + datetime.timedelta(minutes=5)
-
-        state_claims = {
-            "iss": self.base_path,
-            "provider": provider,
-            "exp": expires_at.timestamp(),
-            "redirect_to": redirect_to,
-            "challenge": challenge,
-        }
-        if redirect_to_on_signup:
-            state_claims['redirect_to_on_signup'] = redirect_to_on_signup
-        state_token = jwt.JWT(
-            header={"alg": "HS256"},
-            claims=state_claims,
-        )
-        state_token.make_signed_token(signing_key)
-        return cast(str, state_token.serialize())
-
-    def _make_session_token(self, identity_id: str) -> str:
-        signing_key = self._get_auth_signing_key()
-        auth_expiration_time = util.get_config(
-            self.db,
-            "ext::auth::AuthConfig::token_time_to_live",
-            statypes.Duration,
-        )
-        expires_in = auth_expiration_time.to_timedelta()
-        expires_at = datetime.datetime.now(datetime.timezone.utc) + expires_in
-
-        claims: dict[str, Any] = {
-            "iss": self.base_path,
-            "sub": identity_id,
-        }
-        if expires_in.total_seconds() != 0:
-            claims["exp"] = expires_at.timestamp()
-        session_token = jwt.JWT(
-            header={"alg": "HS256"},
-            claims=claims,
-        )
-        session_token.make_signed_token(signing_key)
-        metrics.auth_successful_logins.inc(1.0, self.tenant.get_instance_name())
-        return cast(str, session_token.serialize())
-
-    def _get_from_claims(self, state: str, key: str) -> str:
-        signing_key = self._get_auth_signing_key()
-        try:
-            state_token = jwt.JWT(key=signing_key, jwt=state)
-        except Exception:
-            raise errors.InvalidData("Invalid state token")
-        state_claims: dict[str, str] = json.loads(state_token.claims)
-        value = state_claims.get(key)
-        if value is None:
-            raise errors.InvalidData("Invalid state token")
-        return value
-
-    def _make_secret_token(
-        self,
-        identity_id: str,
-        secret: str,
-        derive_for_info: str,
-        additional_claims: (
-            dict[str, str | int | float | bool | None] | None
-        ) = None,
-        expires_in: datetime.timedelta | None = None,
-    ) -> str:
-        input_key_material = self._get_auth_signing_key()
-        signing_key = util.derive_key(input_key_material, derive_for_info)
-        expires_in = (
-            datetime.timedelta(minutes=10) if expires_in is None else expires_in
-        )
-        return util.make_token(
-            signing_key=signing_key,
-            subject=identity_id,
-            issuer=self.base_path,
-            expires_in=expires_in,
-            additional_claims={
-                "jti": secret,
-                **(additional_claims or {}),
-            },
-        )
-
-    def _verify_and_extract_claims(
-        self, jwtStr: str, key_info: str | None = None
-    ) -> dict[str, str | int | float | bool]:
-        input_key_material = self._get_auth_signing_key()
-        if key_info is None:
-            signing_key = input_key_material
-        else:
-            signing_key = util.derive_key(input_key_material, key_info)
-        verified = jwt.JWT(key=signing_key, jwt=jwtStr)
-        return cast(
-            dict[str, str | int | float | bool], json.loads(verified.claims)
-        )
-
-    def _get_data_from_magic_link_token(
-        self, token: str
-    ) -> tuple[str, str, str]:
-        try:
-            claims = self._verify_and_extract_claims(token, "magic_link")
-        except Exception:
-            raise errors.InvalidData("Invalid 'magic_link_token'")
-
-        identity_id = cast(Optional[str], claims.get('sub'))
-        challenge = cast(Optional[str], claims.get('challenge'))
-        callback_url = cast(Optional[str], claims.get('callback_url'))
-        if identity_id is None or challenge is None or callback_url is None:
-            raise errors.InvalidData("Invalid 'magic_link_token'")
-
-        return (identity_id, challenge, callback_url)
-
-    def _get_data_from_reset_token(self, token: str) -> Tuple[str, str, str]:
-        try:
-            claims = self._verify_and_extract_claims(token, "reset")
-        except Exception:
-            raise errors.InvalidData("Invalid 'reset_token'")
-
-        identity_id = cast(Optional[str], claims.get('sub'))
-        secret = cast(Optional[str], claims.get('jti'))
-        challenge = cast(Optional[str], claims.get("challenge"))
-
-        if identity_id is None or secret is None or challenge is None:
-            raise errors.InvalidData("Invalid 'reset_token'")
-
-        return (identity_id, secret, challenge)
-
-    def _get_data_from_verification_token(
-        self, token: str
-    ) -> Tuple[str, float, str, Optional[str], Optional[str]]:
-        try:
-            claims = self._verify_and_extract_claims(token, "verify")
-        except Exception:
-            raise errors.InvalidData("Invalid 'verification_token'")
-
-        identity_id = claims["sub"]
-        maybe_challenge = claims.get("challenge")
-        if maybe_challenge is not None and not isinstance(maybe_challenge, str):
-            raise errors.InvalidData(
-                "Invalid 'challenge' in 'verification_token'"
-            )
-
-        verify_url = claims.get("verify_url")
-        if not isinstance(verify_url, str):
-            raise errors.InvalidData(
-                "Invalid 'verify_url' in 'verification_token'"
-            )
-
-        maybe_redirect_to = claims.get("redirect_to")
-        if maybe_redirect_to is not None and not isinstance(
-            maybe_redirect_to, str
-        ):
-            raise errors.InvalidData(
-                "Invalid 'redirect_to' in 'verification_token'"
-            )
-
-        maybe_issued_at = claims.get("iat")
-        if maybe_issued_at is None:
-            raise errors.InvalidData("Missing 'iat' in 'verification_token'")
-
-        return_value: Tuple[str, float, str, Optional[str], Optional[str]]
-        match (
-            identity_id,
-            maybe_issued_at,
-            verify_url,
-            maybe_challenge,
-            maybe_redirect_to,
-        ):
-            case (
-                str(id),
-                float(issued_at),
-                verify_url,
-                challenge,
-                redirect_to,
-            ):
-                return_value = (
-                    id,
-                    issued_at,
-                    verify_url,
-                    challenge,
-                    redirect_to,
-                )
-            case (_, _, _, _, _):
-                raise errors.InvalidData(
-                    "Invalid claims in 'verification_token'"
-                )
-        return return_value
 
     def _get_data_from_request(
         self,
@@ -2355,19 +2154,12 @@ class Router:
                 "Verify URL does not match any allowed URLs.",
             )
 
-        issued_at = datetime.datetime.now(datetime.timezone.utc).timestamp()
-        return self._make_secret_token(
-            identity_id=identity_id,
-            secret=str(uuid.uuid4()),
-            derive_for_info="verify",
-            additional_claims={
-                "iat": issued_at,
-                "challenge": maybe_challenge,
-                "redirect_to": maybe_redirect_to,
-                "verify_url": verify_url,
-            },
-            expires_in=datetime.timedelta(seconds=0),
-        )
+        return jwt.VerificationToken(
+            subject=identity_id,
+            verify_url=verify_url,
+            maybe_challenge=maybe_challenge,
+            maybe_redirect_to=maybe_redirect_to,
+        ).sign(self.signing_key)
 
     async def _send_verification_email(
         self,
@@ -2388,15 +2180,9 @@ class Router:
         )
 
     async def _try_verify_email(
-        self, provider: str, issued_at: float, identity_id: str
+        self, provider: str, identity_id: str
     ) -> EmailFactor:
         current_time = datetime.datetime.now(datetime.timezone.utc)
-        issued_at_datetime = datetime.datetime.fromtimestamp(
-            issued_at, datetime.timezone.utc
-        )
-        token_age = current_time - issued_at_datetime
-        if token_age > datetime.timedelta(hours=24):
-            raise errors.VerificationTokenExpired()
 
         client: email_password.Client | webauthn.Client
         match provider:
