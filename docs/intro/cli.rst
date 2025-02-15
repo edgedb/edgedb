@@ -48,7 +48,7 @@ shell environment. Then test the installation:
 See ``help`` commands
 ---------------------
 
-The entire CLI is self-documenting. Once it's installed, run ``edgedb --help``
+The entire CLI is self-documenting. Once it's installed, run :gelcmd:`--help`
 to see a breakdown of all the commands and options.
 
 .. code-block:: bash

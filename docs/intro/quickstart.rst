@@ -311,7 +311,7 @@ database. Let's do that.
   $ edgedb migrate
   Applied m1k54jubcs62wlzfebn3pxwwngajvlbf6c6qfslsuagkylg2fzv2lq (00001.edgeql)
 
-Looking good! Let's make sure that worked by running ``edgedb list types`` on
+Looking good! Let's make sure that worked by running :gelcmd:`list types` on
 the command line. This will print a table containing all currently-defined
 object types.
 

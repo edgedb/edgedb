@@ -26,7 +26,7 @@ already.) Alternatively you can specify a specific version with
   $ edgedb instance create my_instance --version 6.1
   $ edgedb instance create my_instance --version nightly
 
-We can execute a query against our new instance with ``edgedb query``. Specify
+We can execute a query against our new instance with :gelcmd:`query`. Specify
 which instance to connect to by passing an instance name into the ``-I`` flag.
 
 .. code-block:: bash
