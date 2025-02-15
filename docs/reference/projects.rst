@@ -36,8 +36,8 @@ Let's unpack that.
    name, it will be created (using the method you specified in #2).
 4. Then it **links** the current directory to that instance. A "link" is
    represented as some metadata stored in Gel's :ref:`config directory
-   <ref_cli_edgedb_paths>`—feel free to peek inside to see how it's stored.
-5. Then it creates an :ref:`ref_reference_edgedb_toml` file, which marks this
+   <ref_cli_gel_paths>`—feel free to peek inside to see how it's stored.
+5. Then it creates an :ref:`ref_reference_gel_toml` file, which marks this
    directory as an Gel project.
 6. Finally, it creates a ``dbschema`` directory and a ``dbschema/default.esdl``
    schema file (if they don't already exist).
@@ -55,7 +55,7 @@ flags. For instance, :gelcmd:`-I my_instance migrate` becomes simply ``edgedb
 migrate``. The CLI detects the existence of the |gel.toml| file, reads the
 current directory, and checks if it's associated with an existing project. If
 it is, it looks up the credentials of the linked instance (they're stored in a
-:ref:`standardized location <ref_cli_edgedb_paths>`), uses that information to
+:ref:`standardized location <ref_cli_gel_paths>`), uses that information to
 connect to the instance, and applies the command.
 
 Similarly, all :ref:`client libraries <ref_clients_index>` will use the same
@@ -74,7 +74,7 @@ What do you mean *link*?
 
 The "link" is just metaphor that makes projects easier to think about; in
 practice, it's just a bit of metadata we store in the Gel :ref:`config
-directory <ref_cli_edgedb_paths>`. When the CLI or client libraries try to
+directory <ref_cli_gel_paths>`. When the CLI or client libraries try to
 connect to an instance, they read the currect directory and cross-reference it
 against the list of initialized projects. If there's a match, it reads the
 credentials of the project's associated instance and auto-connects.
@@ -96,10 +96,10 @@ The most important role of |gel.toml| is to mark a directory as an
 instance-linked project, but it can also specify the server version and the
 schema directory for a project. The server version value in the generated
 |gel.toml| is determined by the Gel version you selected when you ran
-:ref:`ref_cli_edgedb_project_init`.
+:ref:`ref_cli_gel_project_init`.
 
 Read :ref:`our reference documentation on edgedb.toml
-<ref_reference_edgedb_toml>` to learn more.
+<ref_reference_gel_toml>` to learn more.
 
 .. note::
 

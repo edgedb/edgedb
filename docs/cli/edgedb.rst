@@ -41,7 +41,7 @@ Options
     Show help about the command and exit.
 
 :cli:synopsis:`--help-connect`
-    Show all available :ref:`connection options <ref_cli_edgedb_connopts>`
+    Show all available :ref:`connection options <ref_cli_gel_connopts>`
 
 :cli:synopsis:`-V, --version`
     Print version.
@@ -52,7 +52,7 @@ Options
 :cli:synopsis:`-I <name>, --instance=<name>`
     Specifies the named instance to connect to. The actual connection
     parameters are stored in ``<edgedb_config_dir>/credentials`` and are
-    usually created by :ref:`ref_cli_edgedb_instance_create` or similar
+    usually created by :ref:`ref_cli_gel_instance_create` or similar
     commands. Run :gelcmd:`info` to see the location of
     ``<edgedb_config_dir>`` on your machine.
 
@@ -211,11 +211,11 @@ Branch
 
 :cli:synopsis:`\\branch create NAME`
   Create a new branch. The backslash command mirrors the options of the CLI's
-  :ref:`ref_cli_edgedb_branch_create`.
+  :ref:`ref_cli_gel_branch_create`.
 
 :cli:synopsis:`\\branch switch NAME`
   Switch to a different branch. The backslash command mirrors the options of
-  the CLI's :ref:`ref_cli_edgedb_branch_switch`.
+  the CLI's :ref:`ref_cli_gel_branch_switch`.
 
 Query Analysis
 --------------
@@ -275,24 +275,24 @@ and linked in their descriptions if you want more detail.
 :cli:synopsis:`\\migration create`
   Create a migration script based on differences between the current branch (or
   database for pre-v5) and the schema file, just like running
-  :ref:`ref_cli_edgedb_migration_create`.
+  :ref:`ref_cli_gel_migration_create`.
 
 :cli:synopsis:`\\migrate, \\migration apply`
   Apply your migration, just like running the
-  :ref:`ref_cli_edgedb_migrate`.
+  :ref:`ref_cli_gel_migrate`.
 
 :cli:synopsis:`\\migration edit`
   Spawn ``$EDITOR`` on the last migration file and fixes the migration ID after
-  the editor exits, just like :ref:`ref_cli_edgedb_migration_edit`. This is
+  the editor exits, just like :ref:`ref_cli_gel_migration_edit`. This is
   typically used only on migrations that have not yet been applied.
 
 :cli:synopsis:`\\migration log`
-  Show the migration history, just like :ref:`ref_cli_edgedb_migration_log`.
+  Show the migration history, just like :ref:`ref_cli_gel_migration_log`.
 
 :cli:synopsis:`\\migration status`
   Show how the state of the schema in the |Gel| instance compares to the
   migration stored in the schema directory, just like
-  :ref:`ref_cli_edgedb_migration_status`.
+  :ref:`ref_cli_gel_migration_status`.
 
 Help
 ----

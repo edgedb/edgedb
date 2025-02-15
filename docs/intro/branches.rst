@@ -7,8 +7,8 @@ Branches
 |Gel's| branches make it easy to prototype app features that impact your
 database schema, even in cases where those features are never released. You can
 create a branch in your Gel database that corresponds to a feature branch in
-your VCS. When you're done, either :ref:`merge <ref_cli_edgedb_branch_merge>`
-that branch into your main branch or :ref:`drop <ref_cli_edgedb_branch_drop>`
+your VCS. When you're done, either :ref:`merge <ref_cli_gel_branch_merge>`
+that branch into your main branch or :ref:`drop <ref_cli_gel_branch_drop>`
 it leaving your original schema intact.
 
 .. note::
@@ -112,7 +112,7 @@ Now, your feature and its schema have been successfully merged! 🎉
 Further reading
 ^^^^^^^^^^^^^^^
 
-- :ref:`Branches CLI <ref_cli_edgedb_branch>`
+- :ref:`Branches CLI <ref_cli_gel_branch>`
 
 Further information can be found in the `branches RFC
 <https://github.com/edgedb/rfcs/blob/master/text/1025-branches.rst#rebasing-branches>`_,

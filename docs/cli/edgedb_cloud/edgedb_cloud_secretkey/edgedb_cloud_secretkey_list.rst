@@ -1,4 +1,4 @@
-.. _ref_cli_edgedb_cloud_secretkey_list:
+.. _ref_cli_gel_cloud_secretkey_list:
 
 
 ========================
@@ -15,7 +15,7 @@ List existing secret keys
 .. note::
 
     This command works only if you have already authenticated using
-    :ref:`ref_cli_edgedb_cloud_login`.
+    :ref:`ref_cli_gel_cloud_login`.
 
 Options
 =======

@@ -1,4 +1,4 @@
-.. _ref_cli_edgedb_instance_restart:
+.. _ref_cli_gel_instance_restart:
 
 
 ====================

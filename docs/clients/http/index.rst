@@ -25,8 +25,8 @@ the schema:
     using extension edgeql_http;
 
 Then create a new migration and apply it using
-:ref:`ref_cli_edgedb_migration_create` and
-:ref:`ref_cli_edgedb_migrate`, respectively.
+:ref:`ref_cli_gel_migration_create` and
+:ref:`ref_cli_gel_migrate`, respectively.
 
 Your instance can now receive EdgeQL queries over HTTP at
 ``https://<hostname>:<port>/branch/<branch-name>/edgeql``.
@@ -97,7 +97,7 @@ behavior::
     OK: CONFIGURE INSTANCE
 
 To authenticate to your |Gel| Cloud instance, first create a secret key using
-the Gel Cloud UI or :ref:`ref_cli_edgedb_cloud_secretkey_create`. Use the
+the Gel Cloud UI or :ref:`ref_cli_gel_cloud_secretkey_create`. Use the
 secret key as your token with the bearer authentication method. Here is an
 example showing how you might send the query ``select Person {*};`` using cURL:
 

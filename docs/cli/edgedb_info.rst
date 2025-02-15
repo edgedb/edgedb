@@ -1,4 +1,4 @@
-.. _ref_cli_edgedb_info:
+.. _ref_cli_gel_info:
 
 
 ========
@@ -13,7 +13,7 @@ displays the filesystem paths used by Gel.
 	gel info [<options>]
 
 
-.. _ref_cli_edgedb_paths:
+.. _ref_cli_gel_paths:
 
 Paths
 -----

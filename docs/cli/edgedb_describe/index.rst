@@ -1,4 +1,4 @@
-.. _ref_cli_edgedb_describe:
+.. _ref_cli_gel_describe:
 
 
 ============
@@ -18,7 +18,7 @@ introspection tools.
 .. list-table::
     :class: funcoptable
 
-    * - :ref:`ref_cli_edgedb_describe_object`
+    * - :ref:`ref_cli_gel_describe_object`
       - Describe a named schema object
-    * - :ref:`ref_cli_edgedb_describe_schema`
+    * - :ref:`ref_cli_gel_describe_schema`
       - Describe schema of the current database branch (or database pre-v5)

@@ -57,16 +57,16 @@ Let's dig into each of these a bit more.
   are associated with a name. This name is what's needed to connect; under the
   hood, the CLI stores the instance credentials (username, password, etc) on
   your file system in the Gel :ref:`config directory
-  <ref_cli_edgedb_paths>`. The CLI and client libraries look up these
+  <ref_cli_gel_paths>`. The CLI and client libraries look up these
   credentials to connect.
 
   You can also assign names to remote instances using :ref:`edgedb instance
-  link <ref_cli_edgedb_instance_link>`. The CLI will save the credentials
+  link <ref_cli_gel_instance_link>`. The CLI will save the credentials
   locally, so you can connect to a remote instance using just its name, just
   like a local instance.
 
   If you have authenticated with Gel Cloud in the CLI using the
-  :ref:`ref_cli_edgedb_cloud_login` command, you can address your own Gel
+  :ref:`ref_cli_gel_cloud_login` command, you can address your own Gel
   Cloud instances using the instance name format
   ``<org-name>/<instance-name>``. If you are not authenticated,
 
@@ -82,7 +82,7 @@ Let's dig into each of these a bit more.
 
   you will need to provide a secret key in addition to the instance name.
   Generate a dedicated secret key for the instance via the CLI with
-  :ref:`ref_cli_edgedb_cloud_secretkey_create` or via the web UI's "Secret
+  :ref:`ref_cli_gel_cloud_secretkey_create` or via the web UI's "Secret
   Keys" pane in your instance dashboard.
 
 **DSN**

@@ -171,7 +171,7 @@ up your first Gel instance. You should see something like this:
 This did a couple things.
 
 1. First, it scaffolded your project by creating an
-   :ref:`ref_reference_edgedb_toml` config file and a schema file
+   :ref:`ref_reference_gel_toml` config file and a schema file
    ``dbschema/default.gel``. In the next section, you'll define a schema in
    ``default.gel``.
 

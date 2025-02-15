@@ -1,4 +1,4 @@
-.. _ref_cli_edgedb_instance_credentials:
+.. _ref_cli_gel_instance_credentials:
 
 
 ========================
@@ -36,4 +36,4 @@ Connection Options
 By default, the |gel.toml| connection is used.
 
 :cli:synopsis:`<connection-options>`
-    See :ref:`connection options <ref_cli_edgedb_connopts>`.
+    See :ref:`connection options <ref_cli_gel_connopts>`.

@@ -360,10 +360,10 @@ type. In the end we end up with a schema that looks something like this:
 Copying the data
 ----------------
 
-Now that we have a schema, we can use :ref:`ref_cli_edgedb_project_init` to
+Now that we have a schema, we can use :ref:`ref_cli_gel_project_init` to
 set up our new Gel database. A new schema migration is added via
-:ref:`ref_cli_edgedb_migration_create` and then :ref:`edgedb migrate
-<ref_cli_edgedb_migration_apply>` applies the schema changes to the database.
+:ref:`ref_cli_gel_migration_create` and then :ref:`edgedb migrate
+<ref_cli_gel_migration_apply>` applies the schema changes to the database.
 After the schema migration, we'll still need to copy the existing data from
 Postgres. JSON is a pretty good intermediate format for this operation. Gel
 can cast data from :eql:type:`json` to all of the built-in scalar types, so we

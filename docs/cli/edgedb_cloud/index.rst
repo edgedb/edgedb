@@ -1,4 +1,4 @@
-.. _ref_cli_edgedb_cloud:
+.. _ref_cli_gel_cloud:
 
 
 =========
@@ -20,11 +20,11 @@ offers tools to manage your instances running on our Gel Cloud.
 .. list-table::
     :class: funcoptable
 
-    * - :ref:`ref_cli_edgedb_cloud_login`
+    * - :ref:`ref_cli_gel_cloud_login`
       - Authenticate to the |Gel| Cloud and remember the access token locally
-    * - :ref:`ref_cli_edgedb_cloud_logout`
+    * - :ref:`ref_cli_gel_cloud_logout`
       - Forget the stored access token
-    * - :ref:`ref_cli_edgedb_cloud_secretkey`
+    * - :ref:`ref_cli_gel_cloud_secretkey`
       - Manage your secret keys
 
 .. warning:: CI users and scripters
@@ -32,7 +32,7 @@ offers tools to manage your instances running on our Gel Cloud.
     The :gelcmd:`cloud login` and :gelcmd:`cloud logout` commands are not
     intended for use in scripting and CI. Instead, you should generate a secret
     key in the |Gel| Cloud UI or by running
-    :ref:`ref_cli_edgedb_cloud_secretkey_create` and set the
+    :ref:`ref_cli_gel_cloud_secretkey_create` and set the
     ``EDGEDB_SECRET_KEY`` environment variable to your secret key. Once this
     variable is set to your secret key, logging in and out are no longer
     required.

@@ -66,7 +66,7 @@ nested in their respective modules.
 Since SDL is declarative in nature, the specific order of
 declarations of module blocks or individual items does not matter.
 
-The built-in :ref:`migration tools<ref_cli_edgedb_migration>` expect
+The built-in :ref:`migration tools<ref_cli_gel_migration>` expect
 the schema to be given in SDL format. For example:
 
 .. code-block:: sdl

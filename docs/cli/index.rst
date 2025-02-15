@@ -14,7 +14,7 @@ manage auth roles, introspect schema, create migrations, and more.
 
 You can install it with one shell command.
 
-.. _ref_cli_edgedb_install:
+.. _ref_cli_gel_install:
 
 .. rubric:: Installation
 
@@ -45,12 +45,12 @@ For Windows, the installation script is:
 .. rubric:: Connection options
 
 All commands respect a common set of
-:ref:`connection options <ref_cli_edgedb_connopts>`, which let you specify
+:ref:`connection options <ref_cli_gel_connopts>`, which let you specify
 a target instance. This instance can be local to your machine or hosted
 remotely.
 
 
-.. _ref_cli_edgedb_nightly:
+.. _ref_cli_gel_nightly:
 
 .. rubric:: Nightly version
 
@@ -63,7 +63,7 @@ version of |Gel| itself!) use this command:
       sh -s -- --nightly
 
 
-.. _ref_cli_edgedb_uninstall:
+.. _ref_cli_gel_uninstall:
 
 .. rubric:: Uninstallation
 
@@ -82,8 +82,8 @@ If the command-line tool was installed by the user (recommended) then it
 will also remove the binary.
 
 If you've used ``gel`` commands you can also delete
-:ref:`instances <ref_cli_edgedb_instance_destroy>` and :ref:`server
-<ref_cli_edgedb_server_uninstall>` packages, prior to removing the
+:ref:`instances <ref_cli_gel_instance_destroy>` and :ref:`server
+<ref_cli_gel_server_uninstall>` packages, prior to removing the
 tool:
 
 .. code-block:: bash
@@ -99,14 +99,14 @@ respectively:
    $ gel server list-versions --installed-only
 
 
-.. _ref_cli_edgedb_config:
+.. _ref_cli_gel_config:
 
 .. rubric:: Configure CLI and REPL
 
 You can customize the behavior of the |gelcmd| CLI and REPL with a
 global configuration file. The file is called ``cli.toml`` and its
 location differs between operating systems. Use
-:ref:`ref_cli_edgedb_info` to find the "Config" directory on your
+:ref:`ref_cli_gel_info` to find the "Config" directory on your
 system.
 
 The ``cli.toml`` has the following structure. All fields are optional:
@@ -128,7 +128,7 @@ The ``cli.toml`` has the following structure. All fields are optional:
     verbose-errors = false        # Print all errors with maximum verbosity
 
 
-:ref:`Notes on network usage <ref_cli_edgedb_network>`
+:ref:`Notes on network usage <ref_cli_gel_network>`
 
 
 .. toctree::

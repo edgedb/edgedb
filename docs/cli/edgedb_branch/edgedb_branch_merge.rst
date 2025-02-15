@@ -1,4 +1,4 @@
-.. _ref_cli_edgedb_branch_merge:
+.. _ref_cli_gel_branch_merge:
 
 
 ================
@@ -22,7 +22,7 @@ applying any new migrations from the target branch on the current branch.
 
     This is a fast-forward merge, so no conflict resolution will be applied to
     the new migrations. If you want to merge but may have conflicts, you should
-    first use :ref:`ref_cli_edgedb_branch_rebase` from the target branch before
+    first use :ref:`ref_cli_gel_branch_rebase` from the target branch before
     merging.
 
 .. note::
@@ -38,7 +38,7 @@ Options
 
 The ``branch merge`` command runs in the |Gel| instance it is
 connected to. For specifying the connection target see
-:ref:`connection options <ref_cli_edgedb_connopts>`.
+:ref:`connection options <ref_cli_gel_connopts>`.
 
 :cli:synopsis:`<name>`
     The name of the branch to merge into the current branch.

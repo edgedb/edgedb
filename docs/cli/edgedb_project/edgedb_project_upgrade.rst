@@ -1,4 +1,4 @@
-.. _ref_cli_edgedb_project_upgrade:
+.. _ref_cli_gel_project_upgrade:
 
 
 ===================
@@ -17,7 +17,7 @@ Description
 
 This command has two modes of operation.
 
-1) Upgrade instance to a version specified in :ref:`ref_reference_edgedb_toml`.
+1) Upgrade instance to a version specified in :ref:`ref_reference_gel_toml`.
    This happens when the command is invoked without any explicit target
    version.
 2) Update |gel.toml| to a new version and upgrade the instance.

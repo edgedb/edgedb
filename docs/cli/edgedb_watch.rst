@@ -1,4 +1,4 @@
-.. _ref_cli_edgedb_watch:
+.. _ref_cli_gel_watch:
 
 
 =========
@@ -26,7 +26,7 @@ To learn about our recommended development migration workflow using
 
     If you want to apply a migration in the same manner as ``watch`` but
     without the long-running process, use :gelcmd:`migrate --dev-mode`. See
-    :ref:`ref_cli_edgedb_migration_apply` for more details.
+    :ref:`ref_cli_gel_migration_apply` for more details.
 
 Demo
 ====

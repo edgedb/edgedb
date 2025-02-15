@@ -1,4 +1,4 @@
-.. _ref_cli_edgedb_branch_rebase:
+.. _ref_cli_gel_branch_rebase:
 
 
 =================
@@ -35,7 +35,7 @@ Options
 
 The ``branch rebase`` command runs in the |Gel| instance it is
 connected to. For specifying the connection target see
-:ref:`connection options <ref_cli_edgedb_connopts>`.
+:ref:`connection options <ref_cli_gel_connopts>`.
 
 :cli:synopsis:`<name>`
     The name of the target branch.

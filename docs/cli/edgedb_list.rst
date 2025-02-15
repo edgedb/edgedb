@@ -1,4 +1,4 @@
-.. _ref_cli_edgedb_list:
+.. _ref_cli_gel_list:
 
 
 ========
@@ -54,7 +54,7 @@ Options
 
 The ``list`` command runs in the database it is connected to. For
 specifying the connection target see :ref:`connection options
-<ref_cli_edgedb_connopts>`.
+<ref_cli_gel_connopts>`.
 
 :cli:synopsis:`-c, --case-sensitive`
     Indicates that the pattern should be treated in a case-sensitive

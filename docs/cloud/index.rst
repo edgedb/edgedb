@@ -8,7 +8,7 @@ Cloud
 
 |Gel| Cloud is the easiest way to host your Gel instance. We offer two ways
 to interact with Gel Cloud: via our CLI or through a graphical web
-interface nearly identical to the :ref:`Gel UI <ref_cli_edgedb_ui>`.
+interface nearly identical to the :ref:`Gel UI <ref_cli_gel_ui>`.
 
 .. edb:youtube-embed:: IG1MggUzzH4
 

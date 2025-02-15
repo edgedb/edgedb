@@ -1,4 +1,4 @@
-.. _ref_cli_edgedb_project_info:
+.. _ref_cli_gel_project_info:
 
 
 ================

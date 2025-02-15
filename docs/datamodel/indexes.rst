@@ -62,7 +62,7 @@ database can look up a name in the index instead of scanning through all
 ultimately up to the Postgres query planner.
 
 To see if an index can help your query, try adding the :ref:`analyze
-<ref_cli_edgedb_analyze>` keyword before a query with an index compared to one
+<ref_cli_gel_analyze>` keyword before a query with an index compared to one
 without.
 
 .. note::
