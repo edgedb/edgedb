@@ -102,17 +102,9 @@ Create a new migration using an explicit EdgeQL script.
 Parameters
 ----------
 
-.. versionchanged:: _default
-
-    :eql:synopsis:`<edgeql-statement>`
-        Any valid EdgeQL statement, except ``database``, ``role``, ``configure``,
-        ``migration``, or ``transaction`` statements.
-
-.. versionchanged:: 5.0
-
-    :eql:synopsis:`<edgeql-statement>`
-        Any valid EdgeQL statement, except ``database``, ``branch``, ``role``,
-        ``configure``, ``migration``, or ``transaction`` statements.
+:eql:synopsis:`<edgeql-statement>`
+    Any valid EdgeQL statement, except ``database``, ``branch``, ``role``,
+    ``configure``, ``migration``, or ``transaction`` statements.
 
 
 Description

@@ -218,17 +218,9 @@ Making a query request
 
 Make a query to your Gel database using this URL:
 
-.. versionchanged:: _default
+.. code-block::
 
-    .. code-block::
-
-        http://<hostname>:<port>/db/<database-name>/edgeql
-
-.. versionchanged:: 5.0
-
-    .. code-block::
-
-        http://<hostname>:<port>/branch/<branch-name>/edgeql
+    http://<hostname>:<port>/branch/<branch-name>/edgeql
 
 You may make queries via either the POST or GET HTTP method. Query requests can
 take the following fields:
