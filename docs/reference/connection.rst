@@ -279,17 +279,20 @@ instance-level configuration object.
   * - :gelenv:`CLIENT_SECURITY`
     - N/A
 
-**EDGEDB_BRANCH**
+* :gelenv:`BRANCH`
+
   Each Gel *instance* can be branched multiple times. When an instance is
   created, a default branch named |main| is created. For CLI-managed
   instances, connections are made to the currently active branch. In other
   cases, incoming connections connect to the |main| branch by default.
 
-**EDGEDB_USER/EDGEDB_PASSWORD**
+* :gelenv:`USER` / :gelenv:`PASSWORD`
+
   These are the credentials of the database user account to connect to the
   Gel instance.
 
-**EDGEDB_TLS_CA_FILE**
+* :gelenv:`TLS_CA_FILE`
+
   TLS is required to connect to any Gel instance. To do so, the client needs
   a reference to the root certificate of your instance's certificate chain.
   Typically this will be handled for you when you create a local instance or
@@ -304,29 +307,32 @@ instance-level configuration object.
   and provide a path to its location on the filesystem. Otherwise TLS will fail
   to connect.
 
-**EDGEDB_TLS_SERVER_NAME (SNI)**
+* :gelenv:`TLS_SERVER_NAME` (SNI)
+
   If for some reason target instance IP address can't be resolved from the
   hostname, you can provide SNI.
 
-**EDGEDB_CLIENT_TLS_SECURITY**
+* :gelenv:`CLIENT_TLS_SECURITY`
+
   Sets the TLS security mode. Determines whether certificate and hostname
   verification is enabled. Possible values:
 
   - ``"strict"`` (**default**) — certificates and hostnames will be verified
   - ``"no_host_verification"`` — verify certificates but not hostnames
-  - ``"insecure"`` — client libraries will trust self-signed TLS certificates.
+  - ``"insecure"`` — client libraries will trust self-signed TLS certificates.
     Useful for self-signed or custom certificates.
 
   This setting defaults to ``"strict"`` unless a custom certificate is
   supplied, in which case it is set to ``"no_host_verification"``.
 
-**EDGEDB_CLIENT_SECURITY**
+* :gelenv:`CLIENT_SECURITY`
+
   Provides some simple "security presets".
 
   Currently there is only one valid value: ``insecure_dev_mode``. Setting
-  ``EDGEDB_CLIENT_SECURITY=insecure_dev_mode`` disables all TLS security
+  :gelenv:`CLIENT_SECURITY=insecure_dev_mode` disables all TLS security
   measures. Currently it is equivalent to setting
-  ``EDGEDB_CLIENT_TLS_SECURITY=insecure`` but it may encompass additional
+  :gelenv:`CLIENT_TLS_SECURITY=insecure` but it may encompass additional
   configuration settings later.  This is most commonly used when developing
   locally with Docker.
 
@@ -359,6 +365,7 @@ instance:
 
 - :gelenv:`PASSWORD` **will** override the password specified in
   :gelenv:`DSN`
+
 - :gelenv:`PASSWORD` **will be ignored** if a DSN is passed
   explicitly using the ``--dsn`` flag. Explicit parameters take
   precedence over environment variables. To override the password of

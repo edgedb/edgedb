@@ -38,7 +38,7 @@ homepage. At this point the app's file structure looks like this:
   pages
   ├── _app.tsx
   ├── api
-  │   └── hello.ts
+  │   └── hello.ts
   └── index.tsx
   public
   ├── favicon.ico
