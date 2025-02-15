@@ -55,7 +55,7 @@ initialize a project.
 
   $ mydir myproject
   $ cd myproject
-  $ edgedb project init
+  $ gel project init
 
 Configure the environment as needed for your preferred language.
 
@@ -386,7 +386,7 @@ project <ref_intro_projects>` in the root of your codebase.
 
 .. code-block:: bash
 
-  $ edgedb project init
+  $ gel project init
 
 Once the project is initialized, any code that uses an official client library
 will automatically connect to the project-linked instance—no need for

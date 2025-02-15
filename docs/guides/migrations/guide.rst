@@ -950,9 +950,9 @@ started" section <ref_intro_branches>`.
 How rebasing works
 ------------------
 
-Rebasing the branch in step 4 above happens with a single command — ``edgedb
-branch rebase main`` — but that one command has quite a bit going on under the
-hood. Here's how it works:
+Rebasing the branch in step 4 above happens with a single command —
+:gelcmd:`branch rebase main` — but that one command has quite a bit going on
+under the hood. Here's how it works:
 
 1. The CLI first clones the |main| branch with the data into a ``temp``
    branch.

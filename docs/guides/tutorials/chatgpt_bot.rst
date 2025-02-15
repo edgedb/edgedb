@@ -221,7 +221,7 @@ the following in the root of the project:
 .. code-block:: bash
 
     $ gel project init
-    No `edgedb.toml` found in `/<path>/<to>/<project>/docs-chatbot`
+    No `gel.toml` found in `/<path>/<to>/<project>/docs-chatbot`
     or above
 
     Do you want to initialize a new project? [Y/n]
