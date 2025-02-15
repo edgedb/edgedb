@@ -114,7 +114,7 @@ your terminal:
     $ aws cloudformation create-stack \
         --stack-name Gel \
         --template-url \
-          https://edgedb-deploy.s3.us-east-2.amazonaws.com/edgedb-aurora.yml \
+          https://gel-deploy.s3.us-east-2.amazonaws.com/gel-aurora.yml \
         --capabilities CAPABILITY_NAMED_IAM \
         --parameters ParameterKey=SuperUserPassword,ParameterValue=<password>
 
@@ -123,7 +123,7 @@ your terminal:
 .. _cf-deploy:
    https://console.aws.amazon.com
    /cloudformation/home#/stacks/new?stackName=Gel&templateURL=
-   https%3A%2F%2Fedgedb-deploy.s3.us-east-2.amazonaws.com%2Fedgedb-aurora.yml
+   https%3A%2F%gel-deploy.s3.us-east-2.amazonaws.com%gel-aurora.yml
 .. _aws_console:
    https://console.aws.amazon.com
    /ec2/v2/home#NIC:search=ec2-security-group

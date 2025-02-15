@@ -136,7 +136,7 @@ From the application's root directory, run the following command:
 
 .. code-block:: bash
 
-  $ npx edgedb project init
+  $ npx gel project init
   No `gel.toml` found in `~/nextjs-blog` or above
   Do you want to initialize a new project? [Y/n]
   > Y
@@ -216,7 +216,7 @@ Save the file, then let's create our first migration.
 
 .. code-block:: bash
 
-  $ npx edgedb migration create
+  $ npx gel migration create
   did you create object type 'default::BlogPost'? [y,n,l,c,b,s,q,?]
   > y
   Created ./dbschema/migrations/00001.edgeql
@@ -227,7 +227,7 @@ our database. Let's do that.
 
 .. code-block:: bash
 
-  $ npx edgedb migrate
+  $ npx gel migrate
   Applied m1fee6oypqpjrreleos5hmivgfqg6zfkgbrowx7sw5jvnicm73hqdq (00001.edgeql)
 
 Our database now has a schema consisting of the ``BlogPost`` type. We can
@@ -573,7 +573,7 @@ Use the DSN to apply migrations against your remote instance.
 
 .. code-block:: bash
 
-  $ npx edgedb migrate --dsn <your-instance-dsn> --tls-security insecure
+  $ npx gel migrate --dsn <your-instance-dsn> --tls-security insecure
 
 .. note::
 
@@ -586,7 +586,7 @@ database. Open a REPL and ``insert`` some blog posts:
 
 .. code-block:: bash
 
-  $ npx edgedb --dsn <your-instance-dsn> --tls-security insecure
+  $ npx gel --dsn <your-instance-dsn> --tls-security insecure
   Gel x.x (repl x.x)
   Type \help for help, \quit to quit.
   gel> insert BlogPost { title := "Test post" };

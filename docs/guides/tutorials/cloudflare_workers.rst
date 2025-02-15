@@ -27,7 +27,7 @@ Prerequisites
 Ensure you have the following installed:
 
 - `Node.js`_
-- :ref:`Gel CLI <ref_intro_cli>`
+- :ref:`Gel CLI <ref_intro_cli>` or juse ``$ npx gel``
 
 .. _Sign up for a Cloudflare account: https://dash.cloudflare.com/sign-up
 .. _Node.js: https://nodejs.org/en/
@@ -71,7 +71,7 @@ Configure Gel
 
 You can use `Gel Cloud`_ for a managed service or run Gel locally.
 
-.. _`Gel Cloud`: https://www.edgedb.com/cloud
+.. _`Gel Cloud`: https://www.geldata.com/cloud
 
 **Local Gel Setup (Optional for Gel Cloud Users)**
 
@@ -90,12 +90,15 @@ directory.
 As long as you're inside the project directory, all CLI commands will
 be executed against this instance.
 
-You can run :code:`edgedb` in your terminal to open an
-interactive REPL to your instance.
+You can run |gelcmd| in your terminal to open an interactive REPL to your
+instance.
 
 .. code-block:: bash
 
     $ gel
+
+    # or
+    $ npx gel
 
 **Install the Gel npm package**
 
@@ -142,7 +145,7 @@ To interact with your **local Gel instance**, use the following code:
 
 .. code-block:: typescript
 
-    import * as edgedb from "edgedb";
+    import * as gel from "gel";
 
     export default {
       async fetch(
@@ -150,9 +153,9 @@ To interact with your **local Gel instance**, use the following code:
         env: Env,
         ctx: ExecutionContext,
       ): Promise<Response> {
-        const client = edgedb.createHttpClient({
+        const client = gel.createHttpClient({
           tlsSecurity: "insecure",
-          dsn: "<your-edgedb-dsn>",
+          dsn: "<your-gel-dsn>",
         });
         const movies = await client.query(`select Movie { title }`);
         return new Response(JSON.stringify(movies, null, 2), {
@@ -166,7 +169,7 @@ To interact with your **local Gel instance**, use the following code:
 
 .. note:: Gel DSN
 
-    Replace :code:`<your-edgedb-dsn>` with your Gel DSN.
+    Replace :code:`<your-gel-dsn>` with your Gel DSN.
     You can obtain your Gel DSN from the command line by running:
 
     .. code-block:: bash
@@ -186,7 +189,7 @@ set up the client:
 
 .. code-block:: typescript
 
-   const client = edgedb.createHttpClient({
+   const client = gel.createHttpClient({
      instanceName: env.EDGEDB_INSTANCE,
      secretKey: env.EDGEDB_SECRET_KEY,
    });
@@ -204,8 +207,8 @@ Add the following to your :code:`wrangler.toml` file:
 .. code-block:: toml
 
     [vars]
-    EDGEDB_INSTANCE = "your-edgedb-instance"
-    EDGEDB_SECRET_KEY = "your-edgedb-secret-key"
+    EDGEDB_INSTANCE = "your-gel-instance"
+    EDGEDB_SECRET_KEY = "your-gel-secret-key"
 
 Next, you can run :code:`wrangler types` to generate the types for your
 environment variables.
@@ -214,7 +217,7 @@ environment variables.
 
 .. note:: Adding polyfills for Node.js
 
-    The :code:`edgedb` package currently uses Node.js built-in modules
+    The :code:`gel` package currently uses Node.js built-in modules
     that are not available in the Cloudflare Worker environment.
     You have to add the following line to your :code:`wrangler.toml` file
     to include the polyfills:

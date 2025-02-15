@@ -54,7 +54,7 @@ to see a breakdown of all the commands and options.
 .. code-block:: bash
 
   $ gel --help
-  Usage: edgedb [OPTIONS] [COMMAND]
+  Usage: gel [OPTIONS] [COMMAND]
 
   Commands:
     <list of commands>
@@ -62,7 +62,7 @@ to see a breakdown of all the commands and options.
   Options:
     <list of options>
 
-  Connection Options (edgedb --help-connect to see full list):
+  Connection Options (gel --help-connect to see full list):
     <list of connection options>
 
   Cloud Connection Options:
@@ -79,7 +79,7 @@ information like TLS certificates. The following command documents these flags.
   Connection Options (full list):
 
     -I, --instance <INSTANCE>
-            Instance name (use `edgedb instance list` to list local, remote and
+            Instance name (use `gel instance list` to list local, remote and
             Cloud instances available to you)
 
         --dsn <DSN>
@@ -111,7 +111,7 @@ just append the ``--help`` flag.
   $ gel instance --help
   Manage local Gel instances
 
-  Usage: edgedb instance <COMMAND>
+  Usage: gel instance <COMMAND>
 
   Commands:
     create          Initialize a new Gel instance

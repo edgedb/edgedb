@@ -128,17 +128,16 @@ Initializing Gel
 ----------------
 
 Now let's spin up a database for the app. You have two options to initialize
-an Gel project: using ``npx edgedb`` without installing the CLI, or
-installing the edgedb CLI directly. In this tutorial, we'll use the first
+an Gel project: using ``$ npx gel`` without installing the CLI, or
+installing the gel CLI directly. In this tutorial, we'll use the first
 option. If you prefer to install the CLI, see the
-`Gel CLI installation guide <https://docs.edgedb.com/cli>`_
-for more information.
+:ref:`Gel CLI guide <ref_cli_overview>` for more information.
 
 From the application's root directory, run the following command:
 
 .. code-block:: bash
 
-  $ npx edgedb project init
+  $ npx gel project init
   No `gel.toml` found in `~/nextjs-blog` or above
   Do you want to initialize a new project? [Y/n]
   > Y
@@ -217,7 +216,7 @@ Save the file, then let's create our first migration.
 
 .. code-block:: bash
 
-  $ npx edgedb migration create
+  $ npx gel migration create
   did you create object type 'default::BlogPost'? [y,n,l,c,b,s,q,?]
   > y
   Created ./dbschema/migrations/00001.edgeql
@@ -228,7 +227,7 @@ our database. Let's do that.
 
 .. code-block:: bash
 
-  $ npx edgedb migrate
+  $ npx gel migrate
   Applied m1fee6oypqpjrreleos5hmivgfqg6zfkgbrowx7sw5jvnicm73hqdq (00001.edgeql)
 
 Our database now has a schema consisting of the ``BlogPost`` type. We can
@@ -270,7 +269,7 @@ NPM:
 .. code-block:: bash
 
   $ npm install gel
-  # or yarn add edgedb or pnpm add edgedb or bun add edgedb
+  # or 'yarn add gel' or 'pnpm add gel' or 'bun add gel'
 
 Then go to the ``app/page.tsx`` file to replace the static data with
 the blogposts fetched from the database.
@@ -283,7 +282,7 @@ To fetch these from the homepage, we'll create an Gel client and use the
   :caption: app/page.tsx
 
     import Link from 'next/link'
-  + import { createClient } from 'edgedb';
+  + import { createClient } from 'gel';
 
     type Post = {
       id: string
@@ -388,7 +387,7 @@ instead.
   :caption: app/page.tsx
 
     import Link from 'next/link'
-    import { createClient } from 'edgedb';
+    import { createClient } from 'gel';
   + import e from '@/dbschema/edgeql-js';
 
   - type Post = {
@@ -459,7 +458,7 @@ Add the following code in ``app/post/[id]/page.tsx``:
 .. code-block:: tsx
   :caption: app/post/[id]/page.tsx
 
-  import { createClient } from 'edgedb'
+  import { createClient } from 'gel'
   import e from '@/dbschema/edgeql-js'
   import Link from 'next/link'
 
@@ -516,7 +515,7 @@ With Gel Cloud
 **#1 Deploy Gel**
 
 First, sign up for an account at
-`cloud.edgedb.com <https://cloud.edgedb.com>`_ and create a new instance.
+`cloud.geldata.com <https://cloud.geldata.com>`_ and create a new instance.
 Create and make note of a secret key for your Gel Cloud instance. You
 can create a new secret key from the "Secret Keys" tab in the Gel Cloud
 console. We'll need this later to connect to the database from Vercel.
@@ -525,7 +524,7 @@ Run the following command to migrate the project to the Gel Cloud:
 
 .. code-block:: bash
 
-  $ npx edgedb migrate -I <org>/<instance-name>
+  $ npx gel migrate -I <org>/<instance-name>
 
 .. note::
 
@@ -534,8 +533,8 @@ Run the following command to migrate the project to the Gel Cloud:
 
 .. code-block:: bash
 
-  $ npx edgedb dump <your-dump.dump>
-  $ npx edgedb restore -I <org>/<instance-name> <your-dump.dump>
+  $ npx gel dump <your-dump.dump>
+  $ npx gel restore -I <org>/<instance-name> <your-dump.dump>
 
 The migrations and schema will be automatically applied to the
 cloud instance.
@@ -565,6 +564,8 @@ starts building the project.
 Push your project to GitHub or some other Git remote repository. Then deploy
 this app to Vercel with the button below.
 
+
+.. XXX -- update URL
 .. lint-off
 
 .. image:: https://vercel.com/button
@@ -593,12 +594,12 @@ With other cloud providers
 Check out the following guides for deploying Gel to your preferred cloud
 provider:
 
-- `AWS <https://www.edgedb.com/docs/guides/deployment/aws_aurora_ecs>`_
-- `Google Cloud <https://www.edgedb.com/docs/guides/deployment/gcp>`_
-- `Azure <https://www.edgedb.com/docs/guides/deployment/azure_flexibleserver>`_
-- `DigitalOcean <https://www.edgedb.com/docs/guides/deployment/digitalocean>`_
-- `Fly.io <https://www.edgedb.com/docs/guides/deployment/fly_io>`_
-- `Docker <https://www.edgedb.com/docs/guides/deployment/docker>`_
+- :ref:`AWS <ref_guide_deployment_aws_aurora_ecs>`
+- :ref:`Google Cloud <ref_guide_deployment_gcp>`
+- :ref:`Azure <ref_guide_deployment_azure_flexibleserver>`
+- :ref:`DigitalOcean <ref_guide_deployment_digitalocean>`
+- :ref:`Fly.io <ref_guide_deployment_fly_io>`
+- :ref:`Docker <ref_guide_deployment_docker>`
   (cloud-agnostic)
 
 **#2 Find your instance's DSN**
@@ -613,7 +614,7 @@ Use the DSN to apply migrations against your remote instance.
 
 .. code-block:: bash
 
-  $ npx edgedb migrate --dsn <your-instance-dsn> --tls-security insecure
+  $ npx gel migrate --dsn <your-instance-dsn> --tls-security insecure
 
 .. note::
 
@@ -626,7 +627,7 @@ database. Open a REPL and ``insert`` some blog posts:
 
 .. code-block:: bash
 
-  $ npx edgedb --dsn <your-instance-dsn> --tls-security insecure
+  $ npx gel --dsn <your-instance-dsn> --tls-security insecure
   Gel x.x (repl x.x)
   Type \help for help, \quit to quit.
   gel> insert BlogPost { title := "Test post" };
@@ -671,8 +672,10 @@ When prompted:
   Gel's default TLS checks; configuring TLS is beyond the scope of this
   tutorial.
 
+.. XXX -- update URL
+
 .. image::
-    https://www.edgedb.com/docs/tutorials/nextjs/env.png
+    https://www.geldata.com/docs/tutorials/nextjs/env.png
     :alt: Setting environment variables in Vercel
     :width: 100%
 
@@ -695,6 +698,6 @@ The next step is to add a ``/newpost`` page with a form for writing new blog
 posts and saving them into Gel. That's left as an exercise for the reader.
 
 To see the final code for this tutorial, refer to
-`github.com/edgedb/edgedb-examples/tree/main/nextjs-blog
+`github.com/geldata/gel-examples/tree/main/nextjs-blog
 <https://github.com/geldata/gel-examples/tree/main/
 nextjs-blog-app-router>`_.

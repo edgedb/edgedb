@@ -53,8 +53,8 @@ directory.
 
 .. code-block:: bash
 
-    $ git clone git@github.com:edgedb/edgedb-examples.git
-    $ cd edgedb-examples/strawberry-gql
+    $ git clone git@github.com:geldata/gel-examples.git
+    $ cd gel-examples/strawberry-gql
 
 Create a Python 3.10 virtual environment, activate it, and install the
 dependencies with this command:
@@ -213,10 +213,10 @@ via type annotated Python classes. We define the Strawberry schema in the
 
     import json # will be used later for serialization
 
-    import edgedb
+    import gel
     import strawberry
 
-    client = edgedb.create_async_client()
+    client = gel.create_async_client()
 
 
     @strawberry.type
