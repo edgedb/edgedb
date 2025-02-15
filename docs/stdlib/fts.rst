@@ -121,7 +121,7 @@ Consider the following:
 
 .. code-block:: edgeql-repl
 
-    edgedb> select Item{name, description};
+    gel> select Item{name, description};
     {
       default::Item {name: 'Canned corn', description: {}},
       default::Item {
@@ -134,11 +134,11 @@ Consider the following:
       },
     }
 
-    edgedb> with res := (
-    .......   select fts::search(Item, 'corn treat', language := 'eng')
-    ....... )
-    ....... select res.object {name, description, score := res.score}
-    ....... order by res.score desc;
+    gel> with res := (
+    ....   select fts::search(Item, 'corn treat', language := 'eng')
+    .... )
+    .... select res.object {name, description, score := res.score}
+    .... order by res.score desc;
     {
       default::Item {
         name: 'Candy corn',
@@ -166,15 +166,15 @@ to change this trend:
 
 .. code-block:: edgeql-repl
 
-    edgedb> with res := (
-    .......   select fts::search(
-    .......     Item, 'corn treat',
-    .......     language := 'eng',
-    .......     weights := [0.2, 1],
-    .......   )
-    ....... )
-    ....... select res.object {name, description, score := res.score}
-    ....... order by res.score desc;
+    gel> with res := (
+    ....   select fts::search(
+    ....     Item, 'corn treat',
+    ....     language := 'eng',
+    ....     weights := [0.2, 1],
+    ....   )
+    .... )
+    .... select res.object {name, description, score := res.score}
+    .... order by res.score desc;
     {
       default::Item {
         name: 'Sweet',
@@ -199,16 +199,16 @@ the score to make this work properly:
 
 .. code-block:: edgeql-repl
 
-    edgedb> with res := (
-    .......   select fts::search(
-    .......     Item, 'corn treat',
-    .......     language := 'eng',
-    .......     weights := [0, 1],
-    .......   )
-    ....... )
-    ....... select res.object {name, description, score := res.score}
-    ....... filter res.score > 0
-    ....... order by res.score desc;
+    gel> with res := (
+    ....   select fts::search(
+    ....     Item, 'corn treat',
+    ....     language := 'eng',
+    ....     weights := [0, 1],
+    ....   )
+    .... )
+    .... select res.object {name, description, score := res.score}
+    .... filter res.score > 0
+    .... order by res.score desc;
     {
       default::Item {
         name: 'Sweet',
@@ -229,14 +229,14 @@ increased importance and should appear in all matches:
 
 .. code-block:: edgeql-repl
 
-    edgedb> with res := (
-    .......   select fts::search(
-    .......     Item, '"corn sugar"',
-    .......     language := 'eng',
-    .......   )
-    ....... )
-    ....... select res.object {name, description, score := res.score}
-    ....... order by res.score desc;
+    gel> with res := (
+    ....   select fts::search(
+    ....     Item, '"corn sugar"',
+    ....     language := 'eng',
+    ....   )
+    .... )
+    .... select res.object {name, description, score := res.score}
+    .... order by res.score desc;
     {
       default::Item {
         name: 'Sweet',
@@ -254,14 +254,14 @@ required or optional:
 
 .. code-block:: edgeql-repl
 
-    edgedb> with res := (
-    .......   select fts::search(
-    .......     Item, 'sweet AND treat',
-    .......     language := 'eng',
-    .......   )
-    ....... )
-    ....... select res.object {name, description, score := res.score}
-    ....... order by res.score desc;
+    gel> with res := (
+    ....   select fts::search(
+    ....     Item, 'sweet AND treat',
+    ....     language := 'eng',
+    ....   )
+    .... )
+    .... select res.object {name, description, score := res.score}
+    .... order by res.score desc;
     {
       default::Item {
         name: 'Sweet',
@@ -275,14 +275,14 @@ the matching object *must not* contain:
 
 .. code-block:: edgeql-repl
 
-    edgedb> with res := (
-    .......   select fts::search(
-    .......     Item, '!treat',
-    .......     language := 'eng',
-    .......   )
-    ....... )
-    ....... select res.object {name, description, score := res.score}
-    ....... order by res.score desc;
+    gel> with res := (
+    ....   select fts::search(
+    ....     Item, '!treat',
+    ....     language := 'eng',
+    ....   )
+    .... )
+    .... select res.object {name, description, score := res.score}
+    .... order by res.score desc;
     {
       default::Item {
         name: 'Canned corn',

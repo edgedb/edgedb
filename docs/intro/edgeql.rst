@@ -151,13 +151,13 @@ returns another ``json`` value.
 
   .. code-tab:: edgeql-repl
 
-    edgedb> select <json>5;
+    gel> select <json>5;
     {"5"}
-    edgedb> select <json>[1,2,3];
+    gel> select <json>[1,2,3];
     {"[1, 2, 3]"}
-    edgedb> select to_json('[{ "name": "Peter Parker" }]');
+    gel> select to_json('[{ "name": "Peter Parker" }]');
     {"[{\"name\": \"Peter Parker\"}]"}
-    edgedb> select to_json('[{ "name": "Peter Parker" }]')[0]['name'];
+    gel> select to_json('[{ "name": "Peter Parker" }]')[0]['name'];
     {"\"Peter Parker\""}
 
   .. code-tab:: typescript

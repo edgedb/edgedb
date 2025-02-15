@@ -104,7 +104,7 @@ similar to this:
 
     Gel x.x (repl x.x)
     Type \help for help, \quit to quit.
-    edgedb>
+    gel>
 
 You can start writing queries here. However, the database is currently
 empty. Let's start designing the data model.

@@ -812,12 +812,12 @@ the database data.
 
 .. code-block:: edgeql-repl
 
-  edgedb> select User {
-  .......   name,
-  .......   username,
-  .......   avatar_url,
-  .......   external_homepage_url,
-  ....... };
+  gel> select User {
+  ....   name,
+  ....   username,
+  ....   avatar_url,
+  ....   external_homepage_url,
+  .... };
   {
     default::User {
       name: 'Nik',
@@ -826,9 +826,9 @@ the database data.
       external_homepage_url: 'https://github.com/nsidnev'
     },
   }
-  edgedb> select Identity {
-  .......   provider,
-  .......   provider_login
-  ....... }
-  ....... filter .user.username = 'nsidnev';
+  gel> select Identity {
+  ....   provider,
+  ....   provider_login
+  .... }
+  .... filter .user.username = 'nsidnev';
   {default::Identity {provider: 'github', provider_login: 'nsidnev'}}
