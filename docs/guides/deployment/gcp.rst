@@ -175,11 +175,11 @@ pass it as a secret into Kubernetes. Then we'll redeploy the pods.
    $ kubectl create secret generic cloudsql-tls-credentials \
        --from-literal=tlskey="$(
            kubectl exec deploy/gel -c=gel -- \
-               gel-show-secrets.sh --format=raw EDGEDB_SERVER_TLS_KEY
+               gel-show-secrets.sh --format=raw GEL_SERVER_TLS_KEY
        )" \
        --from-literal=tlscert="$(
            kubectl exec deploy/gel -c=gel -- \
-               gel-show-secrets.sh --format=raw EDGEDB_SERVER_TLS_CERT
+               gel-show-secrets.sh --format=raw GEL_SERVER_TLS_CERT
        )"
 
    $ kubectl delete -f deployment.yaml
@@ -212,8 +212,8 @@ Copy and paste the ``EXTERNAL-IP`` associated with the service named
 
 .. code-block:: bash
 
-    $ EDGEDB_IP=<copy IP address here>
-    $ EDGEDB_DSN="gel://admin:${PASSWORD}@${EDGEDB_IP}"
+    $ GEL_IP=<copy IP address here>
+    $ GEL_DSN="gel://admin:${PASSWORD}@${GEL_IP}"
 
 To print the final DSN, you can ``echo`` it. Note that you should only run
 this command on a computer you trust, like a personal laptop or sandboxed
@@ -221,14 +221,14 @@ environment.
 
 .. code-block:: bash
 
-    $ echo $EDGEDB_DSN
+    $ echo $GEL_DSN
 
 The resuling DSN can be used to connect to your instance.
 To test it, try opening a REPL:
 
 .. code-block:: bash
 
-    $ gel --dsn $EDGEDB_DSN --tls-security insecure
+    $ gel --dsn $GEL_DSN --tls-security insecure
     Gel x.x (repl x.x)
     Type \help for help, \quit to quit.
     gel> select "hello world!";
@@ -247,7 +247,7 @@ alias using :gelcmd:`instance link`.
 .. code-block:: bash
 
     $ echo $PASSWORD | gel instance link \
-        --dsn $EDGEDB_DSN \
+        --dsn $GEL_DSN \
         --password-from-stdin \
         --non-interactive \
         --trust-tls-cert \
