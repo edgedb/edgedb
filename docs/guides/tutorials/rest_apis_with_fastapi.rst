@@ -1359,7 +1359,7 @@ Next, we're going to create endpoints in FastAPI to handle user registration
 
     # Value should be:
     # {protocol}://${host}:${port}/branch/${branch}/ext/auth/
-    EDGEDB_AUTH_BASE_URL = os.getenv('EDGEDB_AUTH_BASE_URL')
+    GEL_AUTH_BASE_URL = os.getenv('GEL_AUTH_BASE_URL')
 
     @router.post("/auth/signup")
     async def handle_signup(request: Request):
@@ -1371,7 +1371,7 @@ Next, we're going to create endpoints in FastAPI to handle user registration
             raise HTTPException(status_code=400, detail="Missing email or password")
 
         verifier, challenge = generate_pkce()
-        register_url = f"{EDGEDB_AUTH_BASE_URL}/register"
+        register_url = f"{GEL_AUTH_BASE_URL}/register"
         register_response = httpx.post(register_url, json={
             "challenge": challenge,
             "email": email,
@@ -1384,7 +1384,7 @@ Next, we're going to create endpoints in FastAPI to handle user registration
             return JSONResponse(status_code=400, content={"message": "Registration failed"})
 
         code = register_response.json().get("code")
-        token_url = f"{EDGEDB_AUTH_BASE_URL}/token"
+        token_url = f"{GEL_AUTH_BASE_URL}/token"
         token_response = httpx.get(token_url, params={"code": code, "verifier": verifier})
 
         if token_response.status_code != 200:
@@ -1415,7 +1415,7 @@ a new user. It also sets the auth token as an HttpOnly cookie in the response.
             raise HTTPException(status_code=400, detail="Missing email, password, or provider.")
 
         verifier, challenge = generate_pkce()
-        authenticate_url = f"{EDGEDB_AUTH_BASE_URL}/authenticate"
+        authenticate_url = f"{GEL_AUTH_BASE_URL}/authenticate"
         response = httpx.post(authenticate_url, json={
             "challenge": challenge,
             "email": email,
@@ -1427,7 +1427,7 @@ a new user. It also sets the auth token as an HttpOnly cookie in the response.
             return JSONResponse(status_code=400, content={"message": "Authentication failed"})
 
         code = response.json().get("code")
-        token_url = f"{EDGEDB_AUTH_BASE_URL}/token"
+        token_url = f"{GEL_AUTH_BASE_URL}/token"
         token_response = httpx.get(token_url, params={"code": code, "verifier": verifier})
 
         if token_response.status_code != 200:
@@ -1532,7 +1532,7 @@ endpoint to create a new user in the database. We need to do a few things:
     +         raise HTTPException(status_code=400, detail="Missing email, password, or name.")
 
           verifier, challenge = generate_pkce()
-          register_url = f"{EDGEDB_AUTH_BASE_URL}/register"
+          register_url = f"{GEL_AUTH_BASE_URL}/register"
           register_response = httpx.post(register_url, json={
               "challenge": challenge,
               "email": email,
@@ -1545,7 +1545,7 @@ endpoint to create a new user in the database. We need to do a few things:
               return JSONResponse(status_code=400, content={"message": "Registration failed"})
 
           code = register_response.json().get("code")
-          token_url = f"{EDGEDB_AUTH_BASE_URL}/token"
+          token_url = f"{GEL_AUTH_BASE_URL}/token"
           token_response = httpx.get(token_url, params={"code": code, "verifier": verifier})
 
           if token_response.status_code != 200:

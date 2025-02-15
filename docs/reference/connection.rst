@@ -349,9 +349,9 @@ environment variables:
 
 .. code-block::
 
-  EDGEDB_DSN=gel://olduser:oldpass@hostname.com:5656
-  EDGEDB_USER=newuser
-  EDGEDB_PASSWORD=newpass
+  GEL_DSN=gel://olduser:oldpass@hostname.com:5656
+  GEL_USER=newuser
+  GEL_PASSWORD=newpass
 
 In this scenario, ``newuser`` will override ``olduser`` and ``newpass``
 will override ``oldpass``. The client library will try to connect using this
