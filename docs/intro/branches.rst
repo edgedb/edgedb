@@ -35,8 +35,8 @@ to a corresponding branch in Gel using the CLI.
 
 .. note::
 
-    You can alternatively create and switch in one shot using ``edgedb branch
-    switch -c feature``.
+    You can alternatively create and switch in one shot using :gelcmd:`branch
+    switch -c feature`.
 
 
 2. Build your feature
@@ -45,34 +45,34 @@ to a corresponding branch in Gel using the CLI.
 Write your code and make any schema changes your feature requires.
 
 
-3. Pull any changes on ``main``
--------------------------------
+3. Pull any changes on "main"
+-----------------------------
 
 .. note::
 
-    This step is optional. If you know your ``main`` code branch is current and
+    This step is optional. If you know your |main| code branch is current and
     all migrations in that code branch have already been applied to your
-    ``main`` database branch, feel free to skip it.
+    |main| database branch, feel free to skip it.
 
-We need to make sure that merging our feature branch onto ``main`` is a simple
+We need to make sure that merging our feature branch onto |main| is a simple
 fast-forward. The next two steps take care of that.
 
-Switch back to your ``main`` code branch. Run ``git pull`` to pull down any new
+Switch back to your |main| code branch. Run ``git pull`` to pull down any new
 changes. If any of these are schema changes, use :gelcmd:`branch switch main`
-to switch back to your ``main`` database branch and apply the new schema with
+to switch back to your |main| database branch and apply the new schema with
 :gelcmd:`migrate`.
 
 Once this is done, you can switch back to your feature branches in your VCS and
 |Gel|.
 
 
-4. Rebase your feature branch on ``main``
------------------------------------------
+4. Rebase your feature branch on "main"
+---------------------------------------
 
 .. note::
 
     If you skipped the previous step, you can skip this one too. This is only
-    necessary if you had to pull down new changes on ``main``.
+    necessary if you had to pull down new changes on |main|.
 
 For your code branch, first make sure you're on ``feature`` and then run the
 rebase:
@@ -88,10 +88,10 @@ Now, do the same for your database, also from ``feature``:
     $ edgedb branch rebase main
 
 
-5. Merge ``feature`` onto ``main``
-----------------------------------
+5. Merge ``feature`` onto "main"
+--------------------------------
 
-Switch back to both ``main`` branches and merge ``feature``.
+Switch back to both |main| branches and merge ``feature``.
 
 .. code-block:: bash
 

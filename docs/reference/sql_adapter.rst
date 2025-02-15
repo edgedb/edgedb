@@ -30,7 +30,7 @@ for the database.
 .. versionchanged:: 5.0
 
     Here's how you might connect to a local instance on port 10701 (determined
-    by running :gelcmd:`instance list`) on a branch ``main`` using the
+    by running :gelcmd:`instance list`) on a branch |main| using the
     ``psql`` CLI:
 
     .. code-block:: bash
@@ -40,7 +40,7 @@ for the database.
     You'll then be prompted for a password. If you don't have it, you can run
     :gelcmd:`instance credentials --insecure-dsn` and grab it out of the DSN
     the command returns. (It's the string between the second colon and the "at"
-    symbol: ``edgedb://edgedb:PASSWORD_IS_HERE@<host>:<port>/<branch>``)
+    symbol: :geluri:`admin:PASSWORD_IS_HERE@<host>:<port>/<branch>`)
 
 .. note::
 

@@ -50,12 +50,12 @@ GraphQL queries via HTTP at the following URL.
 
 ``http://<instance-hostname><instance-port>/branch/<branch-name>/graphql``
 
-The default ``branch-name`` will be ``main``, and after initializing your
+The default ``branch-name`` will be |main|, and after initializing your
 database, all queries are executed against it by default. If you want to query
 another branch instead, simply use that branch name in the URL.
 
-To find the port number associated with a local instance, run ``gel
-instance list``.
+To find the port number associated with a local instance, run
+:gelcmd:`instance list`.
 
 .. code-block:: bash
 
@@ -68,7 +68,7 @@ instance list``.
   │ local  │ inst3        │ 10703    │ 6.x           │ running     │
   └────────┴──────────────┴──────────┴───────────────┴─────────────┘
 
-To execute a GraphQL query against the branch ``main`` on the instance
+To execute a GraphQL query against the |main| branch on the instance
 named ``inst2``, we would send an HTTP request to
 ``http://localhost:10702/branch/gel/main``.
 

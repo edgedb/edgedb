@@ -564,7 +564,7 @@ or use a cloud-agnostic deployment method:
 **#2. Find your instance's DSN**
 
 The DSN is also known as a connection string. It will have the format
-``edgedb://username:password@hostname:port``. The exact instructions for this
+:geluri:`username:password@hostname:port`. The exact instructions for this
 depend on which cloud you are deploying to.
 
 **#3 Apply migrations**

@@ -49,7 +49,7 @@ environment variable.
 
    $ echo -n "> " && read -s PASSWORD
 
-Use these variables to change the password for the default role ``admin``.
+Use these variables to change the password for the default role |admin|.
 
 .. code-block:: bash
 
