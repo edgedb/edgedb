@@ -1396,5 +1396,5 @@ migration and give it a proper ``.edgeql`` file in the same way we
 did above in the "So you really wanted to use DDL but now regret it?"
 section.
 
-.. _rfc: https://github.com/edgedb/rfcs/blob/master/text/1000-migrations.rst
+.. _rfc: https://github.com/geldata/rfcs/blob/master/text/1000-migrations.rst
 .. _tutorial_files: https://github.com/edgedb/website/tree/main/content/tutorial/dbschema/migrations

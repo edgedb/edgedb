@@ -35,7 +35,7 @@ For Windows, the installation script is:
   detect the OS and download the appropriate build of the Gel CLI
   tool, ``gel``.
 * The |gelcmd| command is a single executable (it's `open source!
-  <https://github.com/edgedb/edgedb-cli/>`_)
+  <https://github.com/geldata/gel-cli/>`_)
 * Once installed, the ``gel`` command can be used to install,
   uninstall, upgrade, and interact with |Gel| server instances.
 * You can uninstall Gel server or remove the ``gel`` command at

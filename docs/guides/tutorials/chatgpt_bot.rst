@@ -366,7 +366,7 @@ since they are straightforward for OpenAI's language models to use.
 Create a ``docs`` folder in the root of the project. Here we will place our
 Markdown documentation files. You can grab the files we use from `the example
 project's GitHub repo
-<https://github.com/edgedb/edgedb-examples/tree/main/docs-chatbot/docs>`_ or
+<https://github.com/geldata/gel-examples/tree/main/docs-chatbot/docs>`_ or
 add your own. (If you use your own, you may also want to adjust the system
 message we send to OpenAI later.)
 
@@ -2294,7 +2294,7 @@ try tweaking:
   function in ``app/api/generate-answer/route.ts``
 
 You can see the finished source code for this build in `our examples repo on
-GitHub <https://github.com/edgedb/edgedb-examples/tree/main/docs-chatbot>`_.
+GitHub <https://github.com/geldata/gel-examples/tree/main/docs-chatbot>`_.
 You might also find our actual implementation interesting. You'll find it in
 `our website repo <https://github.com/edgedb/website>`_. Pay close attention to
 the contents of `buildTools/gpt

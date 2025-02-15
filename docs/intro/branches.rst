@@ -115,5 +115,5 @@ Further reading
 - :ref:`Branches CLI <ref_cli_gel_branch>`
 
 Further information can be found in the `branches RFC
-<https://github.com/edgedb/rfcs/blob/master/text/1025-branches.rst#rebasing-branches>`_,
+<https://github.com/geldata/rfcs/blob/master/text/1025-branches.rst#rebasing-branches>`_,
 which describes the design of the migration system.
