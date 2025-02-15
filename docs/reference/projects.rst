@@ -181,7 +181,7 @@ the remote Gel instance first:
 
 .. code-block:: bash
 
-  $ edgedb instance link
+  $ gel instance link
   Specify the host of the server [default: localhost]:
   > 192.168.4.2
   Specify the port of the server [default: 5656]:

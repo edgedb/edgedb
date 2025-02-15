@@ -53,7 +53,7 @@ to see a breakdown of all the commands and options.
 
 .. code-block:: bash
 
-  $ edgedb --help
+  $ gel --help
   Usage: edgedb [OPTIONS] [COMMAND]
 
   Commands:
@@ -75,7 +75,7 @@ information like TLS certificates. The following command documents these flags.
 
 .. code-block:: bash
 
-  $ edgedb --help-connect
+  $ gel --help-connect
   Connection Options (full list):
 
     -I, --instance <INSTANCE>
@@ -108,7 +108,7 @@ just append the ``--help`` flag.
 
 .. code-block:: bash
 
-  $ edgedb instance --help
+  $ gel instance --help
   Manage local Gel instances
 
   Usage: edgedb instance <COMMAND>
@@ -128,4 +128,4 @@ To upgrade to the latest version:
 
 .. code-block:: bash
 
-  $ edgedb cli upgrade
+  $ gel cli upgrade

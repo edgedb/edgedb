@@ -31,7 +31,7 @@ configuration from a terminal:
 
 .. code-block:: bash
 
-  $ edgedb configure set listen_addresses 127.0.0.1 ::1
+  $ gel configure set listen_addresses 127.0.0.1 ::1
 
 
 Available settings
