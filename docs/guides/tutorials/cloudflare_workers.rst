@@ -196,10 +196,10 @@ set up the client:
 
 .. note:: Environment variables
 
-    You can obtain :code:`EDGEDB_INSTANCE` and :code:`EDGEDB_SECRET_KEY`
+    You can obtain :gelenv:`INSTANCE` and :gelenv:`SECRET_KEY`
     values from the Gel Cloud dashboard.
 
-You will need to set the :code:`EDGEDB_INSTANCE` and :code:`EDGEDB_SECRET`
+You will need to set the :gelenv:`INSTANCE` and :gelenv:`SECRET_KEY`
 environment variables in your Cloudflare Worker project.
 
 Add the following to your :code:`wrangler.toml` file:
@@ -207,8 +207,8 @@ Add the following to your :code:`wrangler.toml` file:
 .. code-block:: toml
 
     [vars]
-    EDGEDB_INSTANCE = "your-gel-instance"
-    EDGEDB_SECRET_KEY = "your-gel-secret-key"
+    GEL_INSTANCE = "your-gel-instance"
+    GEL_SECRET_KEY = "your-gel-secret-key"
 
 Next, you can run :code:`wrangler types` to generate the types for your
 environment variables.

@@ -253,8 +253,8 @@ this to it:
 
 .. code-block:: typescript
 
-    EDGEDB_DSN=<your-dsn>
-    EDGEDB_CLIENT_TLS_SECURITY="insecure"
+    GEL_DSN=<your-dsn>
+    GEL_CLIENT_TLS_SECURITY="insecure"
 
 Replace ``<your-dsn>`` with the value you copied earlier.
 
@@ -289,8 +289,8 @@ Copy the new key. Re-open your ``.env.local`` file and add it like this:
 
 .. code-block:: typescript-diff
 
-      EDGEDB_DSN=<your-dsn>
-      EDGEDB_CLIENT_TLS_SECURITY="insecure"
+      GEL_DSN=<your-dsn>
+      GEL_CLIENT_TLS_SECURITY="insecure"
     + OPENAI_API_KEY="<your-openai-api-key>"
 
 Instead of ``<your-openai-api-key>``, paste in the key you just created.
