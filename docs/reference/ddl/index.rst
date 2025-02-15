@@ -13,7 +13,6 @@ DDL
     links
     properties
     aliases
-    indexes
     constraints
     annotations
     globals
