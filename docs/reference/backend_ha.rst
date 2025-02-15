@@ -94,12 +94,12 @@ certain conditions are met.
 ``Unhealthy`` -> ``Failover``
 
 * More than 60% (configurable with environment variable
-  ``EDGEDB_SERVER_BACKEND_ADAPTIVE_HA_DISCONNECT_PERCENT``) of existing pgcons
+  :gelenv:`SERVER_BACKEND_ADAPTIVE_HA_DISCONNECT_PERCENT`) of existing pgcons
   are "unexpectedly disconnected" (number of existing pgcons is captured at the
   moment we change to ``Unhealthy`` state, and maintained on "expected
   disconnects" too).
 * (and) In ``Unhealthy`` state for more than 30 seconds
-  (``EDGEDB_SERVER_BACKEND_ADAPTIVE_HA_UNHEALTHY_MIN_TIME``).
+  (:gelenv:`SERVER_BACKEND_ADAPTIVE_HA_UNHEALTHY_MIN_TIME`).
 * (and) sys_pgcon is down.
 * (or) Postgres shutdown/hot-standby notification received.
 

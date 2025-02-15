@@ -270,7 +270,7 @@ Or apply migrations:
 In production
 -------------
 
-To connect to this instance in production, set the ``EDGEDB_DSN`` environment
+To connect to this instance in production, set the :gelenv:`DSN` environment
 variable wherever you deploy your application server; Gel's client
 libraries read the value of this variable to know how to connect to your
 instance.

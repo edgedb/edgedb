@@ -31,7 +31,7 @@ The simplest way to run the image (without data persistence) is this:
        geldata/gel
 
 See the :ref:`ref_guides_deployment_docker_customization` section below for the
-meaning of the ``EDGEDB_SERVER_SECURITY`` variable and other options.
+meaning of the :gelenv:`SERVER_SECURITY` variable and other options.
 
 Then, to authenticate to the Gel instance and store the credentials in a
 Docker volume, run:
@@ -57,7 +57,7 @@ Data Persistence
 
 If you want the contents of the database to survive container restarts, you
 must mount a persistent volume at the path specified by
-``EDGEDB_SERVER_DATADIR`` (``/var/lib/gel/data`` by default).  For example:
+:gelenv:`SERVER_DATADIR` (``/var/lib/gel/data`` by default).  For example:
 
 .. code-block:: bash
 
@@ -81,7 +81,7 @@ Note that on Windows you must use a Docker volume instead:
        -d geldata/gel
 
 It is also possible to run an ``gel`` container on a remote PostgreSQL
-cluster specified by ``EDGEDB_SERVER_BACKEND_DSN``. See below for details.
+cluster specified by :gelenv:`SERVER_BACKEND_DSN`. See below for details.
 
 
 Schema Migrations
@@ -89,7 +89,7 @@ Schema Migrations
 
 A derived image may include application schema and migrations in ``/dbschema``,
 in which case the container will attempt to apply the schema migrations found
-in ``/dbschema/migrations``, unless the ``EDGEDB_DOCKER_APPLY_MIGRATIONS``
+in ``/dbschema/migrations``, unless the :gelenv:`DOCKER_APPLY_MIGRATIONS`
 environment variable is set to ``never``.
 
 
@@ -161,8 +161,8 @@ EDGEDB_SERVER_BOOTSTRAP_COMMAND
 ...............................
 
 Useful to fine-tune initial user and branch creation, and other initial
-setup. If neither the ``EDGEDB_SERVER_BOOTSTRAP_COMMAND`` variable or the
-``EDGEDB_SERVER_BOOTSTRAP_SCRIPT_FILE`` are explicitly specified, the container
+setup. If neither the :gelenv:`SERVER_BOOTSTRAP_COMMAND` variable or the
+:gelenv:`SERVER_BOOTSTRAP_SCRIPT_FILE` are explicitly specified, the container
 will look for the presence of ``/gel-bootstrap.edgeql`` in the container
 (which can be placed in a derived image).
 
@@ -172,7 +172,7 @@ Maps directly to the |gel-server| flag ``--bootstrap-command``. The
 
 EDGEDB_SERVER_BOOTSTRAP_SCRIPT_FILE
 ...................................
-Deprecated in image version 2.8: use ``EDGEDB_SERVER_BOOTSTRAP_COMMAND_FILE``
+Deprecated in image version 2.8: use :gelenv:`SERVER_BOOTSTRAP_COMMAND_FILE`
 instead.
 
 Run the script when initializing the database. The script is run by default
@@ -184,8 +184,8 @@ EDGEDB_SERVER_PASSWORD
 
 The password for the default superuser account will be set to this value. If
 no value is provided a password will not be set, unless set via
-``EDGEDB_SERVER_BOOTSTRAP_COMMAND``. (If a value for
-``EDGEDB_SERVER_BOOTSTRAP_COMMAND`` is provided, this variable will be
+:gelenv:`SERVER_BOOTSTRAP_COMMAND`. (If a value for
+:gelenv:`SERVER_BOOTSTRAP_COMMAND` is provided, this variable will be
 ignored.)
 
 The ``*_FILE`` and ``*_ENV`` variants are also supported.
@@ -194,10 +194,10 @@ The ``*_FILE`` and ``*_ENV`` variants are also supported.
 EDGEDB_SERVER_PASSWORD_HASH
 ...........................
 
-A variant of ``EDGEDB_SERVER_PASSWORD``, where the specified value is a hashed
+A variant of :gelenv:`SERVER_PASSWORD`, where the specified value is a hashed
 password verifier instead of plain text.
 
-If ``EDGEDB_SERVER_BOOTSTRAP_COMMAND`` is set, this variable will be ignored.
+If :gelenv:`SERVER_BOOTSTRAP_COMMAND` is set, this variable will be ignored.
 
 The ``*_FILE`` and ``*_ENV`` variants are also supported.
 
@@ -211,7 +211,7 @@ EDGEDB_SERVER_GENERATE_SELF_SIGNED_CERT
    instead.
 
 Set this option to ``1`` to tell the server to automatically generate a
-self-signed certificate with key file in the ``EDGEDB_SERVER_DATADIR`` (if
+self-signed certificate with key file in the :gelenv:`SERVER_DATADIR` (if
 present, see below), and echo the certificate content in the logs. If the
 certificate file exists, the server will use it instead of generating a new
 one.

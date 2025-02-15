@@ -11,9 +11,9 @@ with Gel. These libraries provide a common set of functionality.
   internally manages a pool of physical connections to your Gel instance.
 - *Resolving connections.* All client libraries implement a standard protocol
   for determining how to connect to your database. In most cases, this will
-  involve checking for special environment variables like ``EDGEDB_DSN`` or, in
-  the case of Gel Cloud instances, ``EDGEDB_INSTANCE`` and
-  ``EDGEDB_SECRET_KEY``.
+  involve checking for special environment variables like :gelenv:`DSN` or, in
+  the case of Gel Cloud instances, :gelenv:`INSTANCE` and
+  :gelenv:`SECRET_KEY`.
   (More on this in :ref:`the Connection section below
   <ref_intro_clients_connection>`.)
 - *Executing queries.* A ``Client`` will provide some methods for executing
@@ -321,9 +321,9 @@ For Gel Cloud
 
 In production, connection information can be securely passed to the client
 library via environment variables. For Gel Cloud instances, the recommended
-variables to set are ``EDGEDB_INSTANCE`` and ``EDGEDB_SECRET_KEY``.
+variables to set are :gelenv:`INSTANCE` and :gelenv:`SECRET_KEY`.
 
-Set ``EDGEDB_INSTANCE`` to ``<org-name>/<instance-name>`` where
+Set :gelenv:`INSTANCE` to ``<org-name>/<instance-name>`` where
 ``<instance-name>`` is the name you set when you created the Gel Cloud
 instance.
 
@@ -334,11 +334,11 @@ For self-hosted instances
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Most commonly for self-hosted remote instances, you set a value for the
-``EDGEDB_DSN`` environment variable.
+:gelenv:`DSN` environment variable.
 
 .. note::
 
-  If environment variables like ``EDGEDB_DSN`` are defined inside a project
+  If environment variables like :gelenv:`DSN` are defined inside a project
   directory, the environment variables will take precedence.
 
 A DSN is also known as a "connection string" and takes the
@@ -395,22 +395,22 @@ Using multiple environment variables
 If needed for your deployment pipeline, each element of the DSN can be
 specified independently.
 
-- ``EDGEDB_HOST``
-- ``EDGEDB_PORT``
-- ``EDGEDB_USER``
-- ``EDGEDB_PASSWORD``
-- ``EDGEDB_BRANCH``
-- ``EDGEDB_TLS_CA_FILE``
-- ``EDGEDB_CLIENT_TLS_SECURITY``
+- :gelenv:`HOST`
+- :gelenv:`PORT`
+- :gelenv:`USER`
+- :gelenv:`PASSWORD`
+- :gelenv:`BRANCH`
+- :gelenv:`TLS_CA_FILE`
+- :gelenv:`CLIENT_TLS_SECURITY`
 
 .. note::
 
-  If a value for ``EDGEDB_DSN`` is defined, it will override these variables!
+  If a value for :gelenv:`DSN` is defined, it will override these variables!
 
 Other mechanisms
 ----------------
 
-``EDGEDB_CREDENTIALS_FILE``
+:gelenv:`CREDENTIALS_FILE`
   A path to a ``.json`` file containing connection information. In some
   scenarios (including local Docker development) its useful to represent
   connection information with files.
@@ -426,7 +426,7 @@ Other mechanisms
       "tls_cert_data": "-----BEGIN CERTIFICATE-----\nabcdef..."
     }
 
-``EDGEDB_INSTANCE`` (local/Gel Cloud only)
+:gelenv:`INSTANCE` (local/Gel Cloud only)
   The name of an instance. Useful only for local or Gel Cloud instances.
 
   .. note::

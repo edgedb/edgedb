@@ -59,16 +59,16 @@ we'll need. There are a couple more environment variables we need to set:
 
 Let's discuss what's going on with all these secrets.
 
-- The ``EDGEDB_SERVER_BACKEND_DSN_ENV`` tells the Gel container where to
+- The :gelenv:`SERVER_BACKEND_DSN_ENV` tells the Gel container where to
   look for the PostgreSQL connection string (more on that below)
-- The ``EDGEDB_SERVER_TLS_CERT_MODE`` tells Gel to auto-generate a
+- The :gelenv:`SERVER_TLS_CERT_MODE` tells Gel to auto-generate a
   self-signed TLS certificate.
 
   You may instead choose to provision a custom TLS certificate. In this
   case, you should instead create two other secrets: assign your certificate
-  to ``EDGEDB_SERVER_TLS_CERT`` and your private key to
-  ``EDGEDB_SERVER_TLS_KEY``.
-- Lastly, ``EDGEDB_SERVER_PORT`` tells Gel to listen on port 8080 instead
+  to :gelenv:`SERVER_TLS_CERT` and your private key to
+  :gelenv:`SERVER_TLS_KEY`.
+- Lastly, :gelenv:`SERVER_PORT` tells Gel to listen on port 8080 instead
   of the default 5656, because Fly.io prefers ``8080`` for its default health
   checks.
 
@@ -241,7 +241,7 @@ From a Fly.io app
 -----------------
 
 To connect to this instance from another Fly app (say, an app that runs your
-API server) set the value of the ``EDGEDB_DSN`` secret inside that app.
+API server) set the value of the :gelenv:`DSN` secret inside that app.
 
 .. code-block:: bash
 
@@ -300,7 +300,7 @@ available to the outside world. You can now access the instance from any host
 via the following public DSN: :geluri:`admin:$PASSWORD@$EDB_APP.fly.dev`.
 
 To secure communication between the server and the client, you will also
-need to set the ``EDGEDB_TLS_CA`` environment secret in your application.
+need to set the :gelenv:`TLS_CA` environment secret in your application.
 You can securely obtain the certificate content by running:
 
 .. code-block:: bash

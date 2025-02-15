@@ -262,7 +262,7 @@ We're going to be using the Gel HTTP client a bit later to connect to our
 database, but it requires a trusted TLS/SSL certificate. Local development
 instances use self signed certificates, and using HTTPS with these certificates
 will result in an error. To work around this error, we allow the client to
-ignore TLS by setting the ``EDGEDB_CLIENT_TLS_SECURITY`` variable to
+ignore TLS by setting the :gelenv:`CLIENT_TLS_SECURITY` variable to
 ``"insecure"``. Bear in mind that this is only for local development, and you
 should always use TLS in production.
 

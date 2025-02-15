@@ -13,7 +13,7 @@ To use |Gel| Cloud via the CLI, first log in using
 
     This is the way you'll log in interactively on your development machine,
     but when interacting with Gel Cloud via a script or in CI, you'll
-    instead set the ``EDGEDB_SECRET_KEY`` environment variable to your secret
+    instead set the :gelenv:`SECRET_KEY` environment variable to your secret
     key. Generate a secret key in the Gel Cloud UI or by running
     :ref:`ref_cli_gel_cloud_secretkey_create`. The :gelcmd:`cloud
     login` and :gelcmd:`cloud logout` commands are not intended for use

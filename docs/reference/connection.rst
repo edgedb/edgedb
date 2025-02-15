@@ -27,22 +27,22 @@ There are several ways to uniquely identify an Gel instance.
     - **Environment variable**
   * - Instance name
     - ``--instance/-I <name>``
-    - ``EDGEDB_INSTANCE``
+    - :gelenv:`INSTANCE`
   * - Secret key (required in some Gel Cloud scenarios; see description)
     - ``--secret-key``
-    - ``EDGEDB_SECRET_KEY``
+    - :gelenv:`SECRET_KEY`
   * - DSN
     - ``--dsn <dsn>``
-    - ``EDGEDB_DSN``
+    - :gelenv:`DSN`
   * - Host and port
     - .. code-block::
 
         --host/-H <host>
         --port/-P <port>
-    - ``EDGEDB_HOST`` and ``EDGEDB_PORT``
+    - :gelenv:`HOST` and :gelenv:`PORT`
   * - Credentials file
     - ``--credentials-file <path>``
-    - ``EDGEDB_CREDENTIALS_FILE``
+    - :gelenv:`CREDENTIALS_FILE`
   * - *Project linking*
     - *N/A*
     - *N/A*
@@ -189,10 +189,10 @@ for production), or rely on :gelcmd:`project` (recommended for development).
    your Gel client, especially in production or when running Gel inside a
    container. All clients read the following variables from the environment:
 
-   - ``EDGEDB_DSN``
-   - ``EDGEDB_INSTANCE``
-   - ``EDGEDB_CREDENTIALS_FILE``
-   - ``EDGEDB_HOST`` / ``EDGEDB_PORT``
+   - :gelenv:`DSN`
+   - :gelenv:`INSTANCE`
+   - :gelenv:`CREDENTIALS_FILE`
+   - :gelenv:`HOST` / :gelenv:`PORT`
 
    When one of these environment variables is defined, there's no need to pass
    any additional information to the client. The CLI and client libraries will
@@ -219,8 +219,8 @@ for production), or rely on :gelcmd:`project` (recommended for development).
    .. warning::
 
       Ambiguity is not permitted. For instance, specifying both
-      ``EDGEDB_INSTANCE`` and ``EDGEDB_DSN`` will result in an error. You *can*
-      use ``EDGEDB_HOST`` and ``EDGEDB_PORT`` simultaneously.
+      :gelenv:`INSTANCE` and :gelenv:`DSN` will result in an error. You *can*
+      use :gelenv:`HOST` and :gelenv:`PORT` simultaneously.
 
 
 3. **Project-linked credentials**
@@ -242,7 +242,7 @@ connection fails.
 
    Within a given priority level, you cannot specify multiple instances of
    "instance selection parameters" simultaneously. For instance, specifying
-   both ``EDGEDB_INSTANCE`` and ``EDGEDB_DSN`` environment variables will
+   both :gelenv:`INSTANCE` and :gelenv:`DSN` environment variables will
    result in an error.
 
 
@@ -264,19 +264,19 @@ instance-level configuration object.
 
   * - **Environment variable**
     - **CLI flag**
-  * - ``EDGEDB_BRANCH``
+  * - :gelenv:`BRANCH`
     - ``--branch/-b <name>``
-  * - ``EDGEDB_USER``
+  * - :gelenv:`USER`
     - ``--user/-u <user>``
-  * - ``EDGEDB_PASSWORD``
+  * - :gelenv:`PASSWORD`
     - ``--password <pass>``
-  * - ``EDGEDB_TLS_CA_FILE``
+  * - :gelenv:`TLS_CA_FILE`
     - ``--tls-ca-file <path>``
-  * - ``EDGEDB_TLS_SERVER_NAME``
+  * - :gelenv:`TLS_SERVER_NAME`
     - ``--tls-server-name``
-  * - ``EDGEDB_CLIENT_TLS_SECURITY``
+  * - :gelenv:`CLIENT_TLS_SECURITY`
     - ``--tls-security``
-  * - ``EDGEDB_CLIENT_SECURITY``
+  * - :gelenv:`CLIENT_SECURITY`
     - N/A
 
 **EDGEDB_BRANCH**
@@ -357,9 +357,9 @@ Overriding across priority levels
 Override behavior can only happen at the *same or lower priority level*. For
 instance:
 
-- ``EDGEDB_PASSWORD`` **will** override the password specified in
-  ``EDGEDB_DSN``
-- ``EDGEDB_PASSWORD`` **will be ignored** if a DSN is passed
+- :gelenv:`PASSWORD` **will** override the password specified in
+  :gelenv:`DSN`
+- :gelenv:`PASSWORD` **will be ignored** if a DSN is passed
   explicitly using the ``--dsn`` flag. Explicit parameters take
   precedence over environment variables. To override the password of
   an explicit DSN, you need to pass it explicitly as well:
@@ -369,5 +369,5 @@ instance:
      $ gel --dsn gel://username:oldpass@hostname.com --password qwerty
      # connects to gel://username:qwerty@hostname.com
 
-- ``EDGEDB_PASSWORD`` **will** override the stored password associated
+- :gelenv:`PASSWORD` **will** override the stored password associated
   with a project-linked instance. (This is unlikely to be desirable.)
