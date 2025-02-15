@@ -785,7 +785,7 @@ Strings
         db> select to_str(b'\xe3\x83\x86');
         {'テ'}
         db> select to_str(b'\xe3\x83');
-        edgedb error: InvalidValueError: invalid byte sequence for
+        gel error: InvalidValueError: invalid byte sequence for
         encoding "UTF8": 0xe3 0x83
 
 

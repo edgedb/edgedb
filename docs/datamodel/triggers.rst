@@ -347,7 +347,7 @@ both a friend and an enemy of any other person.
     ...     select detached Person filter .name = 'Dracula'
     ...   )
     ... };
-    edgedb error: GelError: Invalid frenemies
+    gel error: GelError: Invalid frenemies
 
 
 .. list-table::

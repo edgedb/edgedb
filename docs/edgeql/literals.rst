@@ -539,7 +539,7 @@ ranges cannot be unpacked.
     db> select range_unpack(range(1, 1));
     {}
     db> select range_unpack(range(0, <int64>{}));
-    edgedb error: InvalidValueError: cannot unpack an unbounded range
+    gel error: InvalidValueError: cannot unpack an unbounded range
 
 .. _ref_eql_literal_bytes:
 

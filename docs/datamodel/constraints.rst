@@ -458,14 +458,14 @@ apply globally across all the types that inherited the constraint.
     db> insert Moderator {
     ...   name := 'Jan'
     ... };
-    edgedb error: ConstraintViolationError: name violates exclusivity
+    gel error: ConstraintViolationError: name violates exclusivity
     constraint
       Detail: value of property 'name' of object type 'default::Moderator'
       violates exclusivity constraint
     db> insert User {
     ...   name := 'Jan'
     ... };
-    edgedb error: ConstraintViolationError: name violates exclusivity
+    gel error: ConstraintViolationError: name violates exclusivity
     constraint
       Detail: value of property 'name' of object type 'default::User'
       violates exclusivity constraint
@@ -518,7 +518,7 @@ on each of the inheriting types.
     db> insert Moderator {
     ...   name := 'Jan'
     ... };
-    edgedb error: ConstraintViolationError: name violates exclusivity
+    gel error: ConstraintViolationError: name violates exclusivity
     constraint
       Detail: value of property 'name' of object type 'default::Moderator'
       violates exclusivity constraint
