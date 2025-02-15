@@ -1,4 +1,4 @@
-.. _ref_cli_edgedb_server_list_versions:
+.. _ref_cli_gel_server_list_versions:
 
 
 ========================

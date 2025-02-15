@@ -124,8 +124,8 @@ To start using |Gel| AI on a type, create an index:
 
 In this example, we have added an AI index on the ``Astronomy`` type's
 ``content`` property using the ``text-embedding-3-small`` model. Once you have
-the index in your schema, :ref:`create <ref_cli_edgedb_migration_create>` and
-:ref:`apply <ref_cli_edgedb_migration_apply>` your migration, and you're ready
+the index in your schema, :ref:`create <ref_cli_gel_migration_create>` and
+:ref:`apply <ref_cli_gel_migration_apply>` your migration, and you're ready
 to start running queries!
 
 .. note::
@@ -156,7 +156,7 @@ can define an AI index on an expression:
     If you find your queries are not returning the expected results, try
     inspecting your instance logs. On an |Gel| Cloud instance, use the "Logs"
     tab in your instance dashboard. On local or :ref:`CLI-linked remote
-    instances <ref_cli_edgedb_instance_link>`, use :gelcmd:`instance logs -I
+    instances <ref_cli_gel_instance_link>`, use :gelcmd:`instance logs -I
     <instance-name>`. You may find the problem there.
 
     Providers impose rate limits on their APIs which can often be the source of

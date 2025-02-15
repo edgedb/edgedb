@@ -1,4 +1,4 @@
-.. _ref_cli_edgedb_database:
+.. _ref_cli_gel_database:
 
 
 ============
@@ -13,7 +13,7 @@ manipulation tools.
     |EdgeDB| 5.0 introduced :ref:`branches <ref_datamodel_branches>` to
     replace databases. These commands work on instances running versions
     prior to |EdgeDB| 5.0. If you are running a newer version of
-    Gel, you will instead use the :ref:`ref_cli_edgedb_branch` suite of
+    Gel, you will instead use the :ref:`ref_cli_gel_branch` suite of
     commands.
 
 .. toctree::
@@ -27,9 +27,9 @@ manipulation tools.
 .. list-table::
     :class: funcoptable
 
-    * - :ref:`ref_cli_edgedb_database_create`
+    * - :ref:`ref_cli_gel_database_create`
       - Create a new database
-    * - :ref:`ref_cli_edgedb_database_drop`
+    * - :ref:`ref_cli_gel_database_drop`
       - Drop a database
-    * - :ref:`ref_cli_edgedb_database_wipe`
+    * - :ref:`ref_cli_gel_database_wipe`
       - Destroy the contents of a database

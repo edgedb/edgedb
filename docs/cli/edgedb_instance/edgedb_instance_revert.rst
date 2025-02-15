@@ -1,4 +1,4 @@
-.. _ref_cli_edgedb_instance_revert:
+.. _ref_cli_gel_instance_revert:
 
 
 ===================
@@ -15,7 +15,7 @@ Revert a major instance upgrade.
 Description
 ===========
 
-When :ref:`ref_cli_edgedb_instance_upgrade` performs a major version
+When :ref:`ref_cli_gel_instance_upgrade` performs a major version
 upgrade on an instance the old instance data is kept around. The
 :gelcmd:`instance revert` command removes the new instance version and
 replaces it with the old copy. It also ensures that the previous

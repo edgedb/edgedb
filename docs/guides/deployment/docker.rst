@@ -14,7 +14,7 @@ When to use the `edgedb/edgedb`_ Docker image
 This image is primarily intended to be used directly when there is a
 requirement to use Docker containers, such as in production, or in a
 development setup that involves multiple containers orchestrated by Docker
-Compose or a similar tool. Otherwise, using the :ref:`ref_cli_edgedb_server`
+Compose or a similar tool. Otherwise, using the :ref:`ref_cli_gel_server`
 CLI on the host system is the recommended way to install and run Gel
 servers.
 

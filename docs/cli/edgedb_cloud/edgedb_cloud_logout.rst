@@ -1,4 +1,4 @@
-.. _ref_cli_edgedb_cloud_logout:
+.. _ref_cli_gel_cloud_logout:
 
 
 ================
@@ -16,7 +16,7 @@ Forget the stored access token
     This command is not intended for use in scripting and CI. Instead, to
     authenticate to your |Gel| Cloud account, you should generate a secret key
     in the Gel Cloud UI or by running
-    :ref:`ref_cli_edgedb_cloud_secretkey_create` and set the
+    :ref:`ref_cli_gel_cloud_secretkey_create` and set the
     ``EDGEDB_SECRET_KEY`` environment variable to your secret key. Logging out
     is not necessary.
 

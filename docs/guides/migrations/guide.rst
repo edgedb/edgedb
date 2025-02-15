@@ -935,12 +935,12 @@ Imagine a scenario in which your main branch is |main| and your feature branch
 is called ``feature``. This is the ideal workflow for using an Gel branch
 alongside a feature branch in your VCS to develop a new feature:
 
-1. Create a new feature branch with :ref:`ref_cli_edgedb_branch_create`
+1. Create a new feature branch with :ref:`ref_cli_gel_branch_create`
 2. Build your feature
 3. Pull any changes on |main|
 4. Rebase your feature branch on |main| with
-   :ref:`ref_cli_edgedb_branch_rebase`
-5. Merge ``feature`` onto |main| with :ref:`ref_cli_edgedb_branch_merge`
+   :ref:`ref_cli_gel_branch_rebase`
+5. Merge ``feature`` onto |main| with :ref:`ref_cli_gel_branch_merge`
 
 The workflow is outlined in detail in :ref:`the branches guide in our "Get
 started" section <ref_intro_branches>`.

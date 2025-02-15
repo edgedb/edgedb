@@ -1,4 +1,4 @@
-.. _ref_cli_edgedb_branch_drop:
+.. _ref_cli_gel_branch_drop:
 
 
 ===============
@@ -16,7 +16,7 @@ Options
 
 The ``branch drop`` command runs in the |Gel| instance it is
 connected to. For specifying the connection target see
-:ref:`connection options <ref_cli_edgedb_connopts>`.
+:ref:`connection options <ref_cli_gel_connopts>`.
 
 :cli:synopsis:`<name>`
     The name of the branch to drop.

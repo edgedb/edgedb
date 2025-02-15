@@ -1,4 +1,4 @@
-.. _ref_cli_edgedb_migration_apply:
+.. _ref_cli_gel_migration_apply:
 
 
 ===================
@@ -21,7 +21,7 @@ target instance.
     When scripting a ``migrate``/``migration apply`` for an |Gel| Cloud
     instance, do not use :gelcmd:`login` to authenticate. Instead, you should
     generate a secret key in the Gel Cloud UI or by running
-    :ref:`ref_cli_edgedb_cloud_secretkey_create` and set the
+    :ref:`ref_cli_gel_cloud_secretkey_create` and set the
     ``EDGEDB_SECRET_KEY`` environment variable to your secret key. Once this
     variable is set to your secret key, logging in is no longer required.
 
@@ -30,7 +30,7 @@ Options
 
 The ``migration apply`` command runs on the database it is connected
 to. For specifying the connection target see :ref:`connection options
-<ref_cli_edgedb_connopts>`.
+<ref_cli_gel_connopts>`.
 
 :cli:synopsis:`--quiet`
     Do not print any messages, only indicate success by exit status.
@@ -52,5 +52,5 @@ to. For specifying the connection target see :ref:`connection options
 :cli:synopsis:`--dev-mode`
     Apply the current schema changes on top of the current migration history,
     without having created a new migration. This works the same way as
-    :ref:`ref_cli_edgedb_watch` but without starting a long-running watch
+    :ref:`ref_cli_gel_watch` but without starting a long-running watch
     task.

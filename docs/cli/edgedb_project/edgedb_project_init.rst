@@ -1,4 +1,4 @@
-.. _ref_cli_edgedb_project_init:
+.. _ref_cli_gel_project_init:
 
 
 ================
@@ -16,7 +16,7 @@ Description
 ===========
 
 This command sets up a new project, creating an instance, a schema directory,
-and an :ref:`gel.toml <ref_reference_edgedb_toml>` file. It can also be used
+and an :ref:`gel.toml <ref_reference_gel_toml>` file. It can also be used
 to convert an existing directory to a project directory, connecting the
 existing instance to the project. Typically this tool will prompt for specific
 details about how the project should be setup.
@@ -26,7 +26,7 @@ Gel Cloud
 ---------
 
 |Gel| Cloud users may use this command to create a Cloud instance after
-logging in using :ref:`ref_cli_edgedb_cloud_login`.
+logging in using :ref:`ref_cli_gel_cloud_login`.
 
 To create a Cloud instance, your instance name should be in the format
 ``<org-name>/<instance-name>``. Cloud instance names may contain alphanumeric

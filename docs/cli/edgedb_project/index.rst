@@ -1,4 +1,4 @@
-.. _ref_cli_edgedb_project:
+.. _ref_cli_gel_project:
 
 
 ===========
@@ -8,7 +8,7 @@ gel project
 |Gel| provides a way to quickly setup a project. This way the project
 directory gets associated with a specific Gel instance and thus
 makes it the default instance to connect to. This is done by creating
-an :ref:`ref_reference_edgedb_toml` file in the project directory.
+an :ref:`ref_reference_gel_toml` file in the project directory.
 
 .. toctree::
     :maxdepth: 3
@@ -22,11 +22,11 @@ an :ref:`ref_reference_edgedb_toml` file in the project directory.
 .. list-table::
     :class: funcoptable
 
-    * - :ref:`ref_cli_edgedb_project_init`
+    * - :ref:`ref_cli_gel_project_init`
       - Initialize a new or existing project
-    * - :ref:`ref_cli_edgedb_project_info`
+    * - :ref:`ref_cli_gel_project_info`
       - Get various metadata about the project
-    * - :ref:`ref_cli_edgedb_project_unlink`
+    * - :ref:`ref_cli_gel_project_unlink`
       - Remove project association with an instance
-    * - :ref:`ref_cli_edgedb_project_upgrade`
+    * - :ref:`ref_cli_gel_project_upgrade`
       - Upgrade |Gel| instance used for the current project

@@ -1,4 +1,4 @@
-.. _ref_cli_edgedb_connopts:
+.. _ref_cli_gel_connopts:
 
 ================
 Connection flags
@@ -25,7 +25,7 @@ Connection flags
     Specifies the named instance to connect to. The actual connection
     parameters for local and self-hosted instances are stored in
     ``<edgedb_config_dir>/credentials`` and are usually created by
-    :ref:`ref_cli_edgedb_instance_create` or similar commands. Run
+    :ref:`ref_cli_gel_instance_create` or similar commands. Run
     :gelcmd:`info` to see the location of ``<edgedb_config_dir>`` on your
     machine.
 
@@ -71,7 +71,7 @@ Connection flags
     local instances will default to the most recently switched branch or the
     |main| branch, while remote instances will default to the name provided
     when the link was created. This also includes |Gel| Cloud instance links
-    created via :ref:`ref_cli_edgedb_project_init`.
+    created via :ref:`ref_cli_gel_project_init`.
 
     .. note::
         Prior to |EdgeDB| 5, branches were called databases.
@@ -125,7 +125,7 @@ Connection flags
 :cli:synopsis:`--secret-key <key>`
     Specifies the secret key to use for authentication with |Gel| Cloud
     instances. This is not required when connecting to your own Gel Cloud
-    instance if you have logged in with :ref:`ref_cli_edgedb_cloud_login`.
+    instance if you have logged in with :ref:`ref_cli_gel_cloud_login`.
 
 :cli:synopsis:`--wait-until-available=<wait_time>`
     In case |Gel| connection can't be established, keep retrying up

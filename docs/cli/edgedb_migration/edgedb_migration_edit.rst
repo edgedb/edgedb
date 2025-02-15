@@ -1,4 +1,4 @@
-.. _ref_cli_edgedb_migration_edit:
+.. _ref_cli_gel_migration_edit:
 
 
 ==================
@@ -20,7 +20,7 @@ Options
 
 The ``migration edit`` command runs on the database it is connected to. For
 specifying the connection target see :ref:`connection options
-<ref_cli_edgedb_connopts>`.
+<ref_cli_gel_connopts>`.
 
 :cli:synopsis:`--schema-dir=<schema-dir>`
     Directory where the schema files are located. Defaults to

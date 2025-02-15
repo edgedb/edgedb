@@ -1,4 +1,4 @@
-.. _ref_cli_edgedb_database_wipe:
+.. _ref_cli_gel_database_wipe:
 
 
 =================
@@ -16,7 +16,7 @@ Destroy the contents of a :ref:`database <ref_datamodel_databases>`
     |EdgeDB| 5.0 introduced :ref:`branches <ref_datamodel_branches>` to
     replace databases. This command works on instances running versions
     prior to |EdgeDB| 5.0. If you are running a newer version of
-    |EdgeDB| or Gel, you will instead use :ref:`ref_cli_edgedb_branch_wipe`.
+    |EdgeDB| or Gel, you will instead use :ref:`ref_cli_gel_branch_wipe`.
 
 
 Description
@@ -36,7 +36,7 @@ Options
 
 The ``database wipe`` command runs in the |Gel| instance it is
 connected to. For specifying the connection target see
-:ref:`connection options <ref_cli_edgedb_connopts>`.
+:ref:`connection options <ref_cli_gel_connopts>`.
 
 :cli:synopsis:`--non-interactive`
     Destroy the data without asking for confirmation.

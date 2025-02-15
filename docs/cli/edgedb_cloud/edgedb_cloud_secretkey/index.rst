@@ -1,4 +1,4 @@
-.. _ref_cli_edgedb_cloud_secretkey:
+.. _ref_cli_gel_cloud_secretkey:
 
 
 ===================
@@ -18,14 +18,14 @@ Manage your secret keys
 .. list-table::
     :class: funcoptable
 
-    * - :ref:`ref_cli_edgedb_cloud_secretkey_create`
+    * - :ref:`ref_cli_gel_cloud_secretkey_create`
       - Create a new secret key
-    * - :ref:`ref_cli_edgedb_cloud_secretkey_list`
+    * - :ref:`ref_cli_gel_cloud_secretkey_list`
       - List existing secret keys
-    * - :ref:`ref_cli_edgedb_cloud_secretkey_revoke`
+    * - :ref:`ref_cli_gel_cloud_secretkey_revoke`
       - Revoke a secret key
 
 .. note::
 
     These commands work only if you have already authenticated using
-    :ref:`ref_cli_edgedb_cloud_login`.
+    :ref:`ref_cli_gel_cloud_login`.

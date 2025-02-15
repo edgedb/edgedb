@@ -7,7 +7,7 @@ Deploy an app
 :edb-alt-title: Deploying applications built on Gel Cloud
 
 For your production deployment, generate a dedicated secret key for your
-instance with :ref:`ref_cli_edgedb_cloud_secretkey_create` or via the web UI's
+instance with :ref:`ref_cli_gel_cloud_secretkey_create` or via the web UI's
 "Secret Keys" pane in your instance dashboard. Create two environment variables
 accessible to your production application:
 

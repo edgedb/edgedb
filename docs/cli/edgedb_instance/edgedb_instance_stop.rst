@@ -1,4 +1,4 @@
-.. _ref_cli_edgedb_instance_stop:
+.. _ref_cli_gel_instance_stop:
 
 
 =================
@@ -17,7 +17,7 @@ Description
 
 :gelcmd:`instance stop` is a terminal command for stopping a running
 |Gel| instance. This is a necessary step before
-:ref:`destroying <ref_cli_edgedb_instance_destroy>` an instance.
+:ref:`destroying <ref_cli_gel_instance_destroy>` an instance.
 
 .. note::
 

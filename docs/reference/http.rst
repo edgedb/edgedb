@@ -203,8 +203,8 @@ schema. Add this to your schema, outside any ``module``:
     using extension edgeql_http;
 
 Then create a new migration and apply it using
-:ref:`ref_cli_edgedb_migration_create` and
-:ref:`ref_cli_edgedb_migrate`, respectively.
+:ref:`ref_cli_gel_migration_create` and
+:ref:`ref_cli_gel_migrate`, respectively.
 
 Your instance is now able to receive EdgeQL queries over HTTP.
 

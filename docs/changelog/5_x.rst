@@ -195,7 +195,7 @@ manage "feature" branches:
    then merge the EdgeDB branch as well (or rename the "feature" EdgeDB branch
    to "main", if the old branch is no longer needed).
 
-We've added :ref:`edgedb branch commands <ref_cli_edgedb_branch>` to our CLI
+We've added :ref:`edgedb branch commands <ref_cli_gel_branch>` to our CLI
 as well that create, copy, rename, drop, and rebase |EdgeDB| branches.
 
 

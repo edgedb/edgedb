@@ -78,7 +78,7 @@ Connection
 ~~~~~~~~~~
 
 The ``gel-py`` command supports the same set of :ref:`connection options
-<ref_cli_edgedb_connopts>` as the ``gel`` CLI.
+<ref_cli_gel_connopts>` as the ``gel`` CLI.
 
 .. code-block::
 

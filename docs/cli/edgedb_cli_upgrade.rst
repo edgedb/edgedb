@@ -1,4 +1,4 @@
-.. _ref_cli_edgedb_cli_upgrade:
+.. _ref_cli_gel_cli_upgrade:
 
 
 ===============

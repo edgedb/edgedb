@@ -1,4 +1,4 @@
-.. _ref_cli_edgedb_ui:
+.. _ref_cli_gel_ui:
 
 
 ======
@@ -36,7 +36,7 @@ Options
 =======
 
 The ``ui`` command runs on the database it is connected to. For specifying the
-connection target see :ref:`connection options <ref_cli_edgedb_connopts>`.
+connection target see :ref:`connection options <ref_cli_gel_connopts>`.
 
 :cli:synopsis:`--print-url`
     Print URL in console instead of opening in the browser. This is useful if

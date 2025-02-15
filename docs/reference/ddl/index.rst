@@ -50,7 +50,7 @@ to ``Person``.
 
 Under the hood, all migrations are represented as DDL scripts: a sequence of
 imperative commands representing the migration. When you :ref:`create a
-migration <ref_cli_edgedb_migrate>` with the CLI, Gel produces a DDL script.
+migration <ref_cli_gel_migrate>` with the CLI, Gel produces a DDL script.
 
 
 Comparison to SDL

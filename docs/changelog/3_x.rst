@@ -713,7 +713,7 @@ CLI
 * Change the backslash command ``\d object <name>`` to ``\d <name>``
 
 * Add the ``edgedb migration edit`` command (:ref:`docs
-  <ref_cli_edgedb_migration_edit>`; released in 2.1)
+  <ref_cli_gel_migration_edit>`; released in 2.1)
 
 * Add the ``--get`` option to the ``edgedb info`` command (released in 2.1)
 

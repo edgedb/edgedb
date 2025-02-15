@@ -1,4 +1,4 @@
-.. _ref_cli_edgedb_restore:
+.. _ref_cli_gel_restore:
 
 
 ===========
@@ -25,12 +25,12 @@ currently active branch (or to the currently connected database pre-v5).
     existing schema. As a result, you should restore to one of these targets:
 
     - a new empty branch which can be created using
-      :ref:`ref_cli_edgedb_branch_create` with the ``--empty`` option
+      :ref:`ref_cli_gel_branch_create` with the ``--empty`` option
     - a new empty database if your instance is running |EdgeDB| versions
       prior to 5
     - an existing branch or database that has been wiped with the appropriate
-      ``wipe`` command (either :ref:`ref_cli_edgedb_branch_wipe` or
-      :ref:`ref_cli_edgedb_database_wipe`; note that this will destroy all data
+      ``wipe`` command (either :ref:`ref_cli_gel_branch_wipe` or
+      :ref:`ref_cli_gel_database_wipe`; note that this will destroy all data
       and schema currently in that branch/database)
 
 
@@ -39,7 +39,7 @@ Options
 
 The ``restore`` command restores the backup file into the active branch or, in
 pre-v5 instance, the currently connected database. For specifying the
-connection target see :ref:`connection options <ref_cli_edgedb_connopts>`.
+connection target see :ref:`connection options <ref_cli_gel_connopts>`.
 
 :cli:synopsis:`<path>`
     The name of the backup file to restore the database branch from.
