@@ -50,10 +50,10 @@ we'll need. There are a couple more environment variables we need to set:
 .. code-block:: bash
 
     $ flyctl secrets set \
-        EDGEDB_SERVER_PASSWORD="$PASSWORD" \
-        EDGEDB_SERVER_BACKEND_DSN_ENV=DATABASE_URL \
-        EDGEDB_SERVER_TLS_CERT_MODE=generate_self_signed \
-        EDGEDB_SERVER_PORT=8080 \
+        GEL_SERVER_PASSWORD="$PASSWORD" \
+        GEL_SERVER_BACKEND_DSN_ENV=DATABASE_URL \
+        GEL_SERVER_TLS_CERT_MODE=generate_self_signed \
+        GEL_SERVER_PORT=8080 \
         --app $EDB_APP
     Secrets are staged for the first deployment
 
@@ -199,7 +199,7 @@ skip this step).
 
 .. code-block:: bash
 
-    $ EDB_SECRETS="EDGEDB_SERVER_TLS_KEY EDGEDB_SERVER_TLS_CERT"
+    $ EDB_SECRETS="GEL_SERVER_TLS_KEY GEL_SERVER_TLS_CERT"
     $ flyctl ssh console --app $EDB_APP -C \
         "gel-show-secrets.sh --format=toml $EDB_SECRETS" \
       | tr -d '\r' | flyctl secrets import --app $EDB_APP
