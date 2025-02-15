@@ -206,7 +206,7 @@ for production), or rely on :gelcmd:`project` (recommended for development).
 
    .. code-block:: bash
 
-      $ edgedb --instance my_instance
+      $ gel --instance my_instance
       Gel x.x
       Type \help for help, \quit to quit.
       gel>
@@ -230,7 +230,7 @@ for production), or rely on :gelcmd:`project` (recommended for development).
 
    .. code-block:: bash
 
-      $ edgedb # no flags needed
+      $ gel  # no flags needed
       Gel x.x
       Type \help for help, \quit to quit.
       gel>
@@ -395,7 +395,7 @@ instance:
 
   .. code-block:: bash
 
-     $ edgedb --dsn gel://username:oldpass@hostname.com --password qwerty
+     $ gel --dsn gel://username:oldpass@hostname.com --password qwerty
      # connects to gel://username:qwerty@hostname.com
 
 - ``EDGEDB_PASSWORD`` **will** override the stored password associated

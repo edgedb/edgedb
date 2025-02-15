@@ -23,7 +23,7 @@ automatically apply schema changes in your database as you work.
 
 .. code-block:: bash
 
-    $ edgedb watch
+    $ gel watch
     Initialized. Monitoring "/projects/my-edgedb-project".
 
 If you get output similar to the output above, you're ready to get started!

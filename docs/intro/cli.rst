@@ -36,7 +36,7 @@ shell environment. Then test the installation:
 
 .. code-block:: bash
 
-    $ edgedb --version
+    $ gel --version
     Gel CLI x.x+abcdefg
 
 .. note::

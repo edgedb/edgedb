@@ -80,7 +80,7 @@ to create a new instance:
 
 .. code-block:: bash
 
-    $ edgedb project init
+    $ gel project init
 
 It creates an :code:`edgedb.toml` config file and a schema file
 :code:`dbschema/default.esdl`.
@@ -95,7 +95,7 @@ interactive REPL to your instance.
 
 .. code-block:: bash
 
-    $ edgedb
+    $ gel
 
 **Install the Gel npm package**
 
@@ -129,8 +129,8 @@ Then apply the schema schema to your Gel instance:
 
 .. code-block:: bash
 
-    $ edgedb migration create
-    $ edgedb migrate
+    $ gel migration create
+    $ gel migrate
 
 Using Gel in a Cloudflare Worker
 ================================
@@ -171,7 +171,7 @@ To interact with your **local Gel instance**, use the following code:
 
     .. code-block:: bash
 
-        $ edgedb instance credentials --insecure-dsn
+        $ gel instance credentials --insecure-dsn
 
 .. note:: tlsSecurity
 

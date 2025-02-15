@@ -29,14 +29,14 @@ create a local project linked to your instance.
 
   .. code-block:: bash
 
-      $ edgedb instance create <org-name>/<instance-name>
+      $ gel instance create <org-name>/<instance-name>
 
 * :ref:`ref_cli_gel_project_init` with the ``--server-instance`` option. Set
   the server instance name to ``<org-name>/<instance-name>``.
 
   .. code-block:: bash
 
-      $ edgedb project init \
+      $ gel project init \
         --server-instance <org-name>/<instance-name>
 
   Alternatively, you can run :gelcmd:`project init` *without* the
