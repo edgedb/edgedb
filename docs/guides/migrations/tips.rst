@@ -337,7 +337,7 @@ Now we proceed with the migration:
     Created ./dbschema/migrations/00003.edgeql, id:
     m1dxs3xbk4f3vhmqh6mjzetojafddtwlphp5a3kfbfuyvupjafevya
     $ edgedb migrate
-    edgedb error: ConstraintViolationError: name violates exclusivity
+    gel error: ConstraintViolationError: name violates exclusivity
     constraint
 
 Some objects must have the same ``name``, so the migration can't be
@@ -385,7 +385,7 @@ And then we apply the migration:
 .. code-block:: bash
 
     $ edgedb migrate
-    edgedb error: could not read migrations in ./dbschema/migrations: could not
+    gel error: could not read migrations in ./dbschema/migrations: could not
     read migration file ./dbschema/migrations/00003.edgeql: migration name
     should be `m1t6slgcfne35vir2lcgnqkmaxsxylzvn2hanr6mijbj5esefsp7za` but `
     m1dxs3xbk4f3vhmqh6mjzetojafddtwlphp5a3kfbfuyvupjafevya` is used instead.
@@ -581,7 +581,7 @@ reminder:
 .. code-block:: bash
 
     $ edgedb migrate
-    edgedb error: could not read migrations in ./dbschema/migrations:
+    gel error: could not read migrations in ./dbschema/migrations:
     could not read migration file ./dbschema/migrations/00003.edgeql:
     migration name should be
     `m1e3d3eg3j2pr7acie4n5rrhaddyhkiy5kgckd5l7h5ysrpmgwxl5a` but
@@ -886,7 +886,7 @@ We're ready to apply the migration:
 .. code-block:: bash
 
     $ edgedb migrate
-    edgedb error: could not read migrations in ./dbschema/migrations:
+    gel error: could not read migrations in ./dbschema/migrations:
     could not read migration file ./dbschema/migrations/00003.edgeql:
     migration name should be
     `m1ryafvp24g5eqjeu65zr4bqf6m3qath3lckfdhoecfncmr7zshehq`
@@ -1025,7 +1025,7 @@ reminder:
 .. code-block:: bash
 
     $ edgedb migrate
-    edgedb error: could not read migrations in ./dbschema/migrations:
+    gel error: could not read migrations in ./dbschema/migrations:
     could not read migration file ./dbschema/migrations/00002.edgeql:
     migration name should be
     `m1juin65wriqmb4vwg23fiyajjxlzj2jyjv5qp36uxenit5y63g2iq` but
@@ -1320,7 +1320,7 @@ Our attempt at migrating fails as we expected:
 .. code-block:: bash
 
     $ edgedb migrate
-    edgedb error: MissingRequiredError: missing value for required link
+    gel error: MissingRequiredError: missing value for required link
     'class' of object type 'default::Character'
       Detail: Failing object id is 'ee604992-c1b1-11ec-ad59-4f878963769f'.
 

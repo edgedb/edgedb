@@ -121,7 +121,7 @@ with the ``-I`` flag.
 
   $ cd ~
   $ edgedb
-  edgedb error: no `edgedb.toml` found and no connection options are specified
+  gel error: no `edgedb.toml` found and no connection options are specified
     Hint: Run `edgedb project init` or use any of `-H`, `-P`, `-I` arguments to
     specify connection parameters. See `--help` for details
   $ edgedb -I my_instance

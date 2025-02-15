@@ -109,10 +109,10 @@ Unlike other functions, the arguments of modifying functions **must** have a
 .. code-block:: edgeql-repl
 
     db> select add_user({'Feb','Mar'});
-    edgedb error: QueryError: possibly more than one element passed into
+    gel error: QueryError: possibly more than one element passed into
     modifying function
     db> select add_user(<str>{});
-    edgedb error: QueryError: possibly an empty set passed as non-optional
+    gel error: QueryError: possibly an empty set passed as non-optional
     argument into modifying function
 
 Optional arguments can still accept empty sets. For example, if ``add_user``
