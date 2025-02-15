@@ -228,7 +228,7 @@ At the very end of the flow, the Gel server will redirect the user's browser
 to the ``redirect_to`` address with a single query parameter: ``code``. This
 route should be a server route that has access to the ``verifier``. You then
 take that ``code`` and look up the ``verifier`` in the ``gel-pkce-verifier``
-cookie (``edgedb-pkce-verifier`` with |EdgeDB| <= 5), and make a request
+cookie (``gel-pkce-verifier`` with |EdgeDB| <= 5), and make a request
 to the Gel Auth extension to exchange these two pieces of data for an
 ``auth_token``.
 

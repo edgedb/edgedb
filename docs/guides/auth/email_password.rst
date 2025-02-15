@@ -241,7 +241,7 @@ an existing user.
 
          const { auth_token } = await tokenResponse.json();
          res.writeHead(204, {
-           "Set-Cookie": `edgedb-auth-token=${auth_token}; HttpOnly; Path=/; Secure; SameSite=Strict`,
+           "Set-Cookie": `gel-auth-token=${auth_token}; HttpOnly; Path=/; Secure; SameSite=Strict`,
          });
 
          res.end();
@@ -323,7 +323,7 @@ an existing user.
 
          const { auth_token } = await tokenResponse.json();
          res.writeHead(204, {
-           "Set-Cookie": `edgedb-auth-token=${auth_token}; HttpOnly; Path=/; Secure; SameSite=Strict`,
+           "Set-Cookie": `gel-auth-token=${auth_token}; HttpOnly; Path=/; Secure; SameSite=Strict`,
          });
          res.end();
        } else {
@@ -404,7 +404,7 @@ handle the verification flow, we implement an endpoint:
 
      const cookies = req.headers.cookie?.split("; ");
      const verifier = cookies
-       ?.find((cookie) => cookie.startsWith("edgedb-pkce-verifier="))
+       ?.find((cookie) => cookie.startsWith("gel-pkce-verifier="))
        ?.split("=")[1];
      if (verifier) {
        // Email verification flow is continuing from the original
@@ -425,7 +425,7 @@ handle the verification flow, we implement an endpoint:
 
        const { auth_token } = await tokenResponse.json();
        res.writeHead(204, {
-         "Set-Cookie": `edgedb-auth-token=${auth_token}; HttpOnly; Path=/; Secure; SameSite=Strict`,
+         "Set-Cookie": `gel-auth-token=${auth_token}; HttpOnly; Path=/; Secure; SameSite=Strict`,
        });
        res.end();
        return;
@@ -556,7 +556,7 @@ that updates the password and logs in the user.
        const { email_sent } = await sendResetResponse.json();
 
        res.writeHead(200, {
-         "Set-Cookie": `edgedb-pkce-verifier=${pkce.verifier}; HttpOnly; Path=/; Secure; SameSite=Strict`,
+         "Set-Cookie": `gel-pkce-verifier=${pkce.verifier}; HttpOnly; Path=/; Secure; SameSite=Strict`,
        });
        res.end(`Reset email sent to '${email_sent}'`);
      });
@@ -611,7 +611,7 @@ that updates the password and logs in the user.
        const provider = "builtin::local_emailpassword";
        const cookies = req.headers.cookie.split("; ");
        const verifier = cookies
-         .find((cookie) => cookie.startsWith("edgedb-pkce-verifier="))
+         .find((cookie) => cookie.startsWith("gel-pkce-verifier="))
          .split("=")[1];
        if (!verifier) {
          res.status = 400;
@@ -653,7 +653,7 @@ that updates the password and logs in the user.
        }
        const { auth_token } = await tokenResponse.json();
        res.writeHead(204, {
-         "Set-Cookie": `edgedb-auth-token=${auth_token}; HttpOnly; Path=/; Secure; SameSite=Strict`,
+         "Set-Cookie": `gel-auth-token=${auth_token}; HttpOnly; Path=/; Secure; SameSite=Strict`,
        });
        res.end();
      });
