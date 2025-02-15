@@ -209,7 +209,7 @@ for production), or rely on :gelcmd:`project` (recommended for development).
       $ edgedb --instance my_instance
       Gel x.x
       Type \help for help, \quit to quit.
-      edgedb>
+      gel>
 
 
 2. **Environment variables**.
@@ -233,7 +233,7 @@ for production), or rely on :gelcmd:`project` (recommended for development).
       $ edgedb # no flags needed
       Gel x.x
       Type \help for help, \quit to quit.
-      edgedb>
+      gel>
 
    Using the JavaScript client library:
 

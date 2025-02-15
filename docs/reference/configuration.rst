@@ -20,7 +20,7 @@ configuration parameters using EdgeQL. For example:
 
 .. code-block:: edgeql-repl
 
-  edgedb> configure instance set listen_addresses := {'127.0.0.1', '::1'};
+  gel> configure instance set listen_addresses := {'127.0.0.1', '::1'};
   CONFIGURE: OK
 
 CLI

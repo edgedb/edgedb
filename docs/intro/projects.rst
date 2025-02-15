@@ -171,7 +171,7 @@ instance name in CLI commands.
 .. code-block::
 
   $ edgedb -I staging_db
-  edgedb>
+  gel>
 
 To initialize a project that uses the remote instance, provide this alias when
 prompted for an instance name during the :gelcmd:`project init` workflow.
