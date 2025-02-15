@@ -58,7 +58,7 @@ We need to make sure that merging our feature branch onto ``main`` is a simple
 fast-forward. The next two steps take care of that.
 
 Switch back to your ``main`` code branch. Run ``git pull`` to pull down any new
-changes. If any of these are schema changes, use ``edgedb branch switch main``
+changes. If any of these are schema changes, use :gelcmd:`branch switch main`
 to switch back to your ``main`` database branch and apply the new schema with
 :gelcmd:`migrate`.
 
