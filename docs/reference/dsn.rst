@@ -37,63 +37,37 @@ containing the value (``?host_file=./hostname.txt``).
   For a breakdown of these configuration options, see :ref:`Reference >
   Connection Parameters <ref_reference_connection_granular>`.
 
-.. versionchanged:: _default
+  .. list-table::
 
-    .. list-table::
+    * - **Plain param**
+      - **File param**
+      - **Environment param**
+    * - ``host``
+      - ``host_file``
+      - ``host_env``
+    * - ``port``
+      - ``port_file``
+      - ``port_env``
+    * - ``branch``
+      - ``branch_file``
+      - ``branch_env``
+    * - ``user``
+      - ``user_file``
+      - ``user_env``
+    * - ``password``
+      - ``password_file``
+      - ``password_env``
+    * - ``tls_ca_file``
+      - ``tls_ca_file_file``
+      - ``tls_ca_file_env``
+    * - ``tls_security``
+      - ``tls_security_file``
+      - ``tls_security_env``
 
-      * - **Plain param**
-        - **File param**
-        - **Environment param**
-      * - ``host``
-        - ``host_file``
-        - ``host_env``
-      * - ``port``
-        - ``port_file``
-        - ``port_env``
-      * - ``database``
-        - ``database_file``
-        - ``database_env``
-      * - ``user``
-        - ``user_file``
-        - ``user_env``
-      * - ``password``
-        - ``password_file``
-        - ``password_env``
-      * - ``tls_ca_file``
-        - ``tls_ca_file_file``
-        - ``tls_ca_file_env``
-      * - ``tls_security``
-        - ``tls_security_file``
-        - ``tls_security_env``
-
-.. versionchanged:: 5.0
-
-    .. list-table::
-
-      * - **Plain param**
-        - **File param**
-        - **Environment param**
-      * - ``host``
-        - ``host_file``
-        - ``host_env``
-      * - ``port``
-        - ``port_file``
-        - ``port_env``
-      * - ``branch``
-        - ``branch_file``
-        - ``branch_env``
-      * - ``user``
-        - ``user_file``
-        - ``user_env``
-      * - ``password``
-        - ``password_file``
-        - ``password_env``
-      * - ``tls_ca_file``
-        - ``tls_ca_file_file``
-        - ``tls_ca_file_env``
-      * - ``tls_security``
-        - ``tls_security_file``
-        - ``tls_security_env``
+.. note::
+    Prior to |Gel| and |EdgeDB| 5.0 *branches* were called *databases*.
+    If you're using or composing a DSN for an older version of |EdgeDB|
+    you should change ``branch*`` options to ``database*``.
 
 **Plain params**
   These "plain" parameters can be used to provide values for options that can't
