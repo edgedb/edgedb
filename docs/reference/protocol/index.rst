@@ -88,7 +88,7 @@ the client should abort the authentication attempt.
     the HTTP connection. The client then sends any following message to
     ``/branch/{BRANCH}`` with the following headers:
 
-* ``X-Gel-User``: The username specified in the
+* ``X-EdgeDB-User``: The username specified in the
   :ref:`connection parameters <ref_reference_connection>`.
 
 * ``Authorization``: The authorization token received from the
