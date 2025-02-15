@@ -41,7 +41,7 @@ Before we start, make sure you have :ref:`installed <ref_admin_install>` the
 |gelcmd| command-line tool. Here, we'll use Python 3.10 and a few of its
 latest features while building the APIs. A working version of this tutorial can
 be found `on Github
-<https://github.com/edgedb/edgedb-examples/tree/main/strawberry-gql>`_.
+<https://github.com/geldata/gel-examples/tree/main/strawberry-gql>`_.
 
 
 Install the dependencies

@@ -119,7 +119,7 @@ your terminal:
         --parameters ParameterKey=SuperUserPassword,ParameterValue=<password>
 
 
-.. _cf-template: https://github.com/edgedb/edgedb-deploy/tree/dev/aws-cf
+.. _cf-template: https://github.com/geldata/gel-deploy/tree/dev/aws-cf
 .. _cf-deploy:
    https://console.aws.amazon.com
    /cloudformation/home#/stacks/new?stackName=Gel&templateURL=

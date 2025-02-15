@@ -569,7 +569,7 @@ this app to Vercel with the button below.
 
 .. image:: https://vercel.com/button
   :width: 150px
-  :target: https://vercel.com/new/git/external?repository-url=https://github.com/edgedb/edgedb-examples/tree/main/nextjs-blog&project-name=nextjs-edgedb-blog&repository-name=nextjs-edgedb-blog&env=EDGEDB_DSN,EDGEDB_CLIENT_TLS_SECURITY
+  :target: https://vercel.com/new/git/external?repository-url=https://github.com/geldata/gel-examples/tree/main/nextjs-blog&project-name=nextjs-edgedb-blog&repository-name=nextjs-edgedb-blog&env=EDGEDB_DSN,EDGEDB_CLIENT_TLS_SECURITY
 
 .. lint-on
 
@@ -660,7 +660,7 @@ Deploy this app to Vercel with the button below.
 
 .. image:: https://vercel.com/button
   :width: 150px
-  :target: https://vercel.com/new/git/external?repository-url=https://github.com/edgedb/edgedb-examples/tree/main/nextjs-blog&project-name=nextjs-edgedb-blog&repository-name=nextjs-edgedb-blog&env=EDGEDB_DSN,EDGEDB_CLIENT_TLS_SECURITY
+  :target: https://vercel.com/new/git/external?repository-url=https://github.com/geldata/gel-examples/tree/main/nextjs-blog&project-name=nextjs-edgedb-blog&repository-name=nextjs-edgedb-blog&env=EDGEDB_DSN,EDGEDB_CLIENT_TLS_SECURITY
 
 .. lint-on
 
@@ -696,5 +696,5 @@ posts and saving them into Gel. That's left as an exercise for the reader.
 
 To see the final code for this tutorial, refer to
 `github.com/edgedb/edgedb-examples/tree/main/nextjs-blog
-<https://github.com/edgedb/edgedb-examples/tree/main/
+<https://github.com/geldata/gel-examples/tree/main/
 nextjs-blog-app-router>`_.

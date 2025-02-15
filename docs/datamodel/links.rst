@@ -850,7 +850,7 @@ There are 4 available target deletion policies.
   .. note::
 
     There is `a limit
-    <https://github.com/edgedb/edgedb/issues/3063>`_ to the depth of a deletion
+    <https://github.com/geldata/gel/issues/3063>`_ to the depth of a deletion
     cascade due to an upstream stack size limitation.
 
 - ``allow`` - the target object is deleted and is removed from the
