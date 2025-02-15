@@ -18,12 +18,20 @@ data, and writing your first query. Let's jump in!
 First let's install the Gel CLI. Open a terminal and run the appropriate
 command below.
 
-.. note:: Great news for Node users!
+JavaScript and Python users
+---------------------------
 
-    Skip installing and start using the Gel CLI right away! Just prepend
-    :ref:`any CLI command <ref_cli_overview>` with ``npx`` or your package
-    manager's equivalent. For example, to create a new project, you can use
-    ``npx edgedb project init``.
+If you use ``npx`` or ``uvx`` you can skip the installation steps below
+and use Gel CLI like this:
+
+.. code-block:: bash
+
+  # JavaScript:
+  $ npx gel project init
+
+  # Python
+  $ uvx gel project init
+
 
 Linux
 -----
@@ -41,25 +49,25 @@ Linux
         $ # Import the Gel packaging key
         $ sudo mkdir -p /usr/local/share/keyrings && \
           sudo curl --proto '=https' --tlsv1.2 -sSf \
-            -o /usr/local/share/keyrings/edgedb-keyring.gpg \
-            https://packages.edgedb.com/keys/edgedb-keyring.gpg && \
+            -o /usr/local/share/keyrings/gel-keyring.gpg \
+            https://packages.geldata.com/keys/gel-keyring.gpg && \
         $ # Add the Gel package repository
-        $ echo deb [signed-by=/usr/local/share/keyrings/edgedb-keyring.gpg]\
-            https://packages.edgedb.com/apt \
+        $ echo deb [signed-by=/usr/local/share/keyrings/gel-keyring.gpg]\
+            https://packages.geldata.com/apt \
             $(grep "VERSION_CODENAME=" /etc/os-release | cut -d= -f2) main \
-            | sudo tee /etc/apt/sources.list.d/edgedb.list
+            | sudo tee /etc/apt/sources.list.d/gel.list
         $ # Install the Gel package
-        $ sudo apt-get update && sudo apt-get install edgedb-5
+        $ sudo apt-get update && sudo apt-get install gel-6
 
     .. code-tab:: bash
         :caption: YUM
 
         $ # Add the Gel package repository
         $ sudo curl --proto '=https' --tlsv1.2 -sSfL \
-            https://packages.edgedb.com/rpm/edgedb-rhel.repo \
-            > /etc/yum.repos.d/edgedb.repo
+            https://packages.geldata.com/rpm/gel-rhel.repo \
+            > /etc/yum.repos.d/gel.repo
         $ # Install the Gel package
-        $ sudo yum install edgedb-5
+        $ sudo yum install gel-6
 
 macOS
 -----
@@ -75,9 +83,9 @@ macOS
         :caption: Homebrew
 
         $ # Add the Gel tap to your Homebrew
-        $ brew tap edgedb/tap
+        $ brew tap geldata/tap
         $ # Install Gel CLI
-        $ brew install edgedb-cli
+        $ brew install gel-cli
 
 Windows (Powershell)
 --------------------
@@ -98,7 +106,7 @@ Windows (Powershell)
 
     To install Gel in the Windows Command prompt, follow these steps:
 
-    1. `Download the CLI <https://packages.edgedb.com/dist/x86_64-pc-windows-msvc/edgedb-cli.exe>`__
+    1. `Download the CLI <https://packages.geldata.com/dist/x86_64-pc-windows-msvc/gel-cli.exe>`__
 
     2. Navigate to the download location in the command prompt
 
@@ -106,7 +114,7 @@ Windows (Powershell)
 
     .. code-block::
 
-        edgedb-cli.exe _self_install
+        gel-cli.exe _self_install
 
 The script installation methods download and execute a bash script that
 installs the |gelcmd| CLI on your machine. You may be asked for your
@@ -131,15 +139,15 @@ Then initialize your Gel project:
 
 .. code-block:: bash
 
-  $ edgedb project init
+  $ gel project init
 
 This starts an interactive tool that walks you through the process of setting
 up your first Gel instance. You should see something like this:
 
 .. code-block:: bash
 
-  $ edgedb project init
-  No `edgedb.toml` found in `/path/to/quickstart` or above
+  $ gel project init
+  No `tel.toml` found in `/path/to/quickstart` or above
   Do you want to initialize a new project? [Y/n]
   > Y
   Specify the name of Gel instance to use with this project
@@ -152,7 +160,7 @@ up your first Gel instance. You should see something like this:
   > main
   ┌─────────────────────┬───────────────────────────────────────────────┐
   │ Project directory   │ ~/path/to/quickstart                          │
-  │ Project config      │ ~/path/to/quickstart/edgedb.toml              │
+  │ Project config      │ ~/path/to/quickstart/gel.toml                 │
   │ Schema dir (empty)  │ ~/path/to/quickstart/dbschema                 │
   │ Installation method │ portable package                              │
   │ Version             │ x.x+cc4f3b5                                   │
@@ -165,7 +173,7 @@ up your first Gel instance. You should see something like this:
   Applying migrations...
   Everything is up to date. Revision initial
   Project initialized.
-  To connect to quickstart, run `edgedb`
+  To connect to quickstart, run `gel`
 
 
 This did a couple things.
@@ -213,7 +221,7 @@ see the following file structure.
 .. code-block::
 
   /path/to/quickstart
-  ├── edgedb.toml
+  ├── gel.toml
   ├── dbschema
   │   ├── default.esdl
   │   ├── migrations
@@ -294,7 +302,7 @@ which creates a migration file.
 
 .. code-block:: bash
 
-  $ edgedb migration create
+  $ gel migration create
   Created ./dbschema/migrations/00001.edgeql (id: <hash>)
 
 .. note::
@@ -308,7 +316,7 @@ database. Let's do that.
 
 .. code-block:: bash
 
-  $ edgedb migrate
+  $ gel migrate
   Applied m1k54jubcs62wlzfebn3pxwwngajvlbf6c6qfslsuagkylg2fzv2lq (00001.edgeql)
 
 Looking good! Let's make sure that worked by running :gelcmd:`list types` on
@@ -317,7 +325,7 @@ object types.
 
 .. code-block:: bash
 
-  $ edgedb list types
+  $ gel list types
   ┌─────────────────┬──────────────────────────────┐
   │      Name       │          Extending           │
   ├─────────────────┼──────────────────────────────┤
@@ -355,7 +363,7 @@ see something a little different than before.
 
 .. code-block:: bash
 
-  $ edgedb migration create
+  $ gel migration create
   did you make property 'title' of object type 'default::Movie'
   required? [y,n,l,c,b,s,q,?]
   >
@@ -370,7 +378,7 @@ Enter ``y`` to confirm the change.
 
 .. code-block:: bash
 
-  $ edgedb migration create
+  $ gel migration create
   did you make property 'title' of object type 'default::Movie'
   required? [y,n,l,c,b,s,q,?]
   > y
@@ -405,7 +413,7 @@ Let's wrap up by applying the new migration.
 
 .. code-block:: bash
 
-  $ edgedb migrate
+  $ gel migrate
   Applied m1rd2ikgwdtlj5ws7ll6rwzvyiui2xbrkzig4adsvwy2sje7kxeh3a (00002.edgeql)
 
 .. _ref_quickstart_insert_data:
@@ -422,7 +430,7 @@ into every Gel instance. To open the dashboard:
 
 .. code-block:: bash
 
-  $ edgedb ui
+  $ gel ui
   Opening URL in browser:
   http://localhost:107xx/ui?authToken=<jwt token>
 
@@ -519,8 +527,8 @@ provides official libraries for many langauges:
 .. - :ref:`Dart <edgedb-dart-intro>`
 .. - :ref:`Elixir <edgedb-elixir-intro>`
 
-Check out the :ref:`Clients
-<ref_intro_clients>` guide to get started with the language of your choice.
+Check out the :ref:`Clients <ref_intro_clients>` guide to get
+started with the language of your choice.
 
 .. _ref_quickstart_onwards:
 
@@ -537,10 +545,11 @@ and used a client library.
   the other pages in the Getting Started section, which will cover important
   topics like migrations, the schema language, and EdgeQL in greater detail.
 
-- For guided tours of major concepts, check out the showcase pages for `Data
-  Modeling <https://www.edgedb.com/showcase/data-modeling>`_, `EdgeQL
-  <https://www.edgedb.com/showcase/edgeql>`_, and `Migrations
-  <https://www.edgedb.com/showcase/migrations>`_.
+.. XXX:
+.. - For guided tours of major concepts, check out the showcase pages for `Data
+..   Modeling <https://www.edgedb.com/showcase/data-modeling>`_, `EdgeQL
+..   <https://www.edgedb.com/showcase/edgeql>`_, and `Migrations
+..   <https://www.edgedb.com/showcase/migrations>`_.
 
 - To start building an application using the language of your choice, check out
   our client libraries:
@@ -548,10 +557,3 @@ and used a client library.
   - :ref:`JavaScript/TypeScript <gel-js-intro>`
   - :ref:`Go <gel-go-intro>`
   - :ref:`Python <gel-python-intro>`
-
-.. XXX: link to third-party doc websites
-.. - :ref:`Rust <ref_rust_index>`
-.. - :ref:`C# and F# <edgedb-dotnet-intro>`
-.. - :ref:`Java <edgedb-java-intro>`
-.. - :ref:`Dart <edgedb-dart-intro>`
-.. - :ref:`Elixir <edgedb-elixir-intro>`

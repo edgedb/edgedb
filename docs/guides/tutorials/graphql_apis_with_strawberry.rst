@@ -63,7 +63,7 @@ dependencies with this command:
 
     $ python3.10 -m venv .venv
     $ source .venv/bin/activate
-    $ pip install edgedb fastapi strawberry-graphql uvicorn[standard]
+    $ pip install gel fastapi strawberry-graphql uvicorn[standard]
 
 
 Initialize the database
