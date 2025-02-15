@@ -18,7 +18,8 @@ namely INSERT, DELETE and UPDATE statements.
 It does not, however, support PostgreSQL Data Definition Language
 (e.g. ``CREATE TABLE``). This means that it is not possible to use SQL
 connections to Gel to modify its schema. Instead, the schema should be
-managed using ESDL (Gel Schema Definition Language) and migration commands.
+managed in |.gel| files using Gel Schema Definition Language and migration
+commands.
 
 Any Postgres-compatible client can connect to an Gel database by using the
 same port that is used for the Gel protocol and the
@@ -245,12 +246,12 @@ Tested SQL tools
    https://www.postgresql.org/docs/15/ddl-system-columns.html
 
 
-ESDL to PostgreSQL
-==================
+Gel to PostgreSQL
+=================
 
 As mentioned, the SQL schema of the database is managed trough Gel Schema
-Definition Language (ESDL). Here is a breakdown of how each of the ESDL
-construct is mapped to PostgreSQL schema:
+Definition Language. Here is a breakdown of how each of its
+constructs is mapped to PostgreSQL schema:
 
 - Objects types are mapped into tables.
   Each table has columns ``id UUID`` and ``__type__ UUID`` and one column for
