@@ -175,7 +175,7 @@ This is totally a valid case and Gel fully supports it!
 Before running :gelcmd:`project init`, you just need to create a local link to
 the remote Gel instance first:
 
-.. TODO: Will need to change this once https://github.com/edgedb/edgedb-cli/issues/1269 is resolved
+.. TODO: Will need to change this once https://github.com/geldata/gel-cli/issues/1269 is resolved
 
 .. lint-off
 

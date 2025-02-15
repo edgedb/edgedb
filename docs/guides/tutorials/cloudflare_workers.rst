@@ -256,6 +256,6 @@ Check out the `Cloudflare Workers documentation`_ for more information and
 to learn about the various features and capabilities of Cloudflare Workers.
 
 .. _`Gel Cloudflare Workers Example`:
-  https://github.com/edgedb/edgedb-examples/tree/main/cloudflare-workers
+  https://github.com/geldata/gel-examples/tree/main/cloudflare-workers
 .. _`Cloudflare Workers documentation`:
   https://developers.cloudflare.com/workers

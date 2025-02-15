@@ -136,7 +136,7 @@ Deploy Gel
 Download the starter Gel Kubernetes configuration file. This file specifies
 a persistent volume, a container running a `Cloud SQL authorization proxy
 <https://github.com/GoogleCloudPlatform/cloudsql-proxy>`_, and a container to
-run `Gel itself <https://github.com/edgedb/edgedb-docker>`_. It relies on
+run `Gel itself <https://github.com/geldata/gel-docker>`_. It relies on
 the secrets we declared in the previous step.
 
 .. code-block:: bash

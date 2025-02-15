@@ -7,7 +7,7 @@ Deployment
 
 |Gel| can be hosted on all major cloud hosting platforms. The guides below
 demonstrate how to spin up both a managed PostgreSQL instance and a container
-running Gel `in Docker <https://github.com/edgedb/edgedb-docker>`_.
+running Gel `in Docker <https://github.com/geldata/gel-docker>`_.
 
 .. note:: Minimum requirements
 
