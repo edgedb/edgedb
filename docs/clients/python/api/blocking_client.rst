@@ -1,4 +1,4 @@
-.. _edgedb-python-blocking-api-reference:
+.. _gel-python-blocking-api-reference:
 
 ============
 Blocking API
@@ -7,7 +7,7 @@ Blocking API
 .. py:currentmodule:: gel
 
 
-.. _edgedb-python-blocking-api-client:
+.. _gel-python-blocking-api-client:
 
 Client
 ======
@@ -29,7 +29,7 @@ Client
 
     If no connection parameter is specified, the client will try to search in
     environment variables and then the current project, see :ref:`Client
-    Library Connection <edgedb_client_connection>` docs for more information.
+    Library Connection <gel_client_connection>` docs for more information.
 
     Returns a new :py:class:`Client` object.
 
@@ -325,7 +325,7 @@ Client
 
         Returns an instance of :py:class:`Retry`.
 
-        See :ref:`edgedb-python-blocking-api-transaction` for more details.
+        See :ref:`gel-python-blocking-api-transaction` for more details.
 
         Example:
 
@@ -383,7 +383,7 @@ Client
         :param TransactionOptions options:
             Object that encapsulates transaction options.
 
-        See :ref:`edgedb-python-transaction-options` for details.
+        See :ref:`gel-python-transaction-options` for details.
 
     .. py:method:: with_retry_options(options=None)
 
@@ -391,7 +391,7 @@ Client
 
         :param RetryOptions options: Object that encapsulates retry options.
 
-        See :ref:`edgedb-python-retry-options` for details.
+        See :ref:`gel-python-retry-options` for details.
 
     .. py:method:: with_state(state)
 
@@ -399,7 +399,7 @@ Client
 
         :param State state: Object that encapsulates state.
 
-        See :ref:`edgedb-python-state` for details.
+        See :ref:`gel-python-state` for details.
 
     .. py:method:: with_default_module(module=None)
 
@@ -486,7 +486,7 @@ Client
         See :py:meth:`State.without_globals` for details.
 
 
-.. _edgedb-python-blocking-api-transaction:
+.. _gel-python-blocking-api-transaction:
 
 Transactions
 ============

@@ -1,4 +1,4 @@
-.. _edgedb-python-installation:
+.. _gel-python-installation:
 
 
 Installation

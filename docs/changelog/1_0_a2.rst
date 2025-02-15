@@ -47,7 +47,7 @@ and it is ready for use:
 
     main();
 
-The documentation can be found :ref:`here <edgedb-js-intro>`.
+The documentation can be found :ref:`here <gel-js-intro>`.
 
 
 Standard Library

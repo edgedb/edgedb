@@ -39,7 +39,7 @@ Then create a new migration and apply it.
   $ gel migration create
   $ gel migrate
 
-Refer to the :ref:`connection docs <edgedb_client_connection>` for various
+Refer to the :ref:`connection docs <gel_client_connection>` for various
 methods of running these commands against remotely-hosted instances.
 
 Connection

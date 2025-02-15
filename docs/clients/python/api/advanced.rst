@@ -1,4 +1,4 @@
-.. _edgedb-python-advanced:
+.. _gel-python-advanced:
 
 ==============
 Advanced Usage
@@ -7,7 +7,7 @@ Advanced Usage
 .. py:currentmodule:: gel
 
 
-.. _edgedb-python-transaction-options:
+.. _gel-python-transaction-options:
 
 Transaction Options
 ===================
@@ -51,7 +51,7 @@ Transaction options are used by the future calls to the method
 :py:meth:`gel.Client.transaction` or :py:meth:`gel.AsyncIOClient.transaction`.
 
 
-.. _edgedb-python-retry-options:
+.. _gel-python-retry-options:
 
 Retry Options
 =============
@@ -105,7 +105,7 @@ retry options. Both ``self`` and the returned object can be used, but different
 retry options will applied respectively.
 
 
-.. _edgedb-python-state:
+.. _gel-python-state:
 
 State
 =====

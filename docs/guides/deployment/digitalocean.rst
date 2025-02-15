@@ -17,7 +17,7 @@ One-click Deploy
 Prerequisites
 =============
 
-* |gelcmd| CLI (`install <edgedb-install_>`_)
+* |gelcmd| CLI (`install <gel-install_>`_)
 * DigitalOcean account
 
 Click the button below and follow the droplet creation workflow on
@@ -36,7 +36,7 @@ something more secure. First, find your droplet's IP address on the
 it to an environment variable ``IP``.
 
 .. _DigitalOcean: https://cloud.digitalocean.com/droplets?
-.. _here: edgedb-install_
+.. _here: gel-install_
 
 .. code-block:: bash
 
@@ -116,12 +116,12 @@ Deploy with Managed PostgreSQL
 Prerequisites
 =============
 
-* |gelcmd| CLI (`install <edgedb-install_>`_)
+* |gelcmd| CLI (`install <gel-install_>`_)
 * DigitalOcean account
 * ``doctl`` CLI (`install <doclt-install_>`_)
 * ``jq`` (`install <jq_>`_)
 
-.. _edgedb-install: https://www.edgedb.com/install
+.. _gel-install: https://www.edgedb.com/install
 .. _doclt-install: https://docs.digitalocean.com/reference/doctl/how-to/install
 .. _jq: https://stedolan.github.io/jq/
 

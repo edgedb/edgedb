@@ -1,4 +1,4 @@
-.. _edgedb-python-codegen:
+.. _gel-python-codegen:
 
 ===============
 Code Generation

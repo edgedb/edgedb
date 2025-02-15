@@ -1,4 +1,4 @@
-.. _edgedb-js-generators:
+.. _gel-js-generators:
 
 Generators
 ==========
@@ -10,7 +10,7 @@ TypeScript/JavaScript.
 To get started with generators, first initialize an :ref:`Gel project
 <ref_guide_using_projects>` in the root of your application. Generators will
 look for an |gel.toml| file to determine the root of your application. See
-the :ref:`Overview <edgedb-js-installation>` page for details on installing.
+the :ref:`Overview <gel-js-installation>` page for details on installing.
 
 .. note::
 
@@ -57,18 +57,18 @@ The value of ``<generator>`` should be one of the following:
      - Generates the query builder which provides a **code-first** way to write
        **fully-typed** EdgeQL queries with TypeScript. We recommend it for
        TypeScript users, or anyone who prefers writing queries with code.
-     - :ref:`docs <edgedb-js-qb>`
+     - :ref:`docs <gel-js-qb>`
 
    * - ``queries``
      - Scans your project for ``*.edgeql`` files and generates functions that
        allow you to execute these queries in a typesafe way.
-     - :ref:`docs <edgedb-js-queries>`
+     - :ref:`docs <gel-js-queries>`
 
    * - ``interfaces``
      - Introspects your schema and generates file containing *TypeScript
        interfaces* that correspond to each object type. This is useful for
        writing typesafe code to interact with |Gel|.
-     - :ref:`docs <edgedb-js-interfaces>`
+     - :ref:`docs <gel-js-interfaces>`
 
 Connection
 ^^^^^^^^^^
@@ -87,9 +87,9 @@ analyzer in JavaScript—which we don't intend to do anytime soon.
 If you're using :gelcmd:`project init`, the connection is automatically handled
 for you. Otherwise, you'll need to explicitly pass connection information via
 environment variables or CLI flags, just like any other CLI command. See
-:ref:`Client Libraries > Connection <edgedb_client_connection>` for guidance.
+:ref:`Client Libraries > Connection <gel_client_connection>` for guidance.
 
-.. _edgedb_qb_target:
+.. _gel_qb_target:
 
 Targets
 ^^^^^^^

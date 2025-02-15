@@ -1,4 +1,4 @@
-.. _edgedb-js-types-and-casting:
+.. _gel-js-types-and-casting:
 
 
 Types
@@ -111,7 +111,7 @@ Pass strongly-typed parameters into your query with ``e.params``.
 
 
 The full documentation on using parameters is :ref:`here
-<edgedb-js-parameters>`.
+<gel-js-parameters>`.
 
 
 Polymorphism

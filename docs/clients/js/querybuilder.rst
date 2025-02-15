@@ -1,4 +1,4 @@
-.. _edgedb-js-qb:
+.. _gel-js-qb:
 
 =======================
 Query Builder Generator
@@ -153,7 +153,7 @@ connection.
 
    Generators work by connecting to the database to get information about the current state of the schema. Make sure you run the generators again any time the schema changes so that the generated code is in-sync with the current state of the schema.
 
-.. _edgedb-js-execution:
+.. _gel-js-execution:
 
 Expressions
 -----------
@@ -185,8 +185,8 @@ which accepts a ``Client`` instead as the first argument. The result is
 
 Note that the ``.run`` method accepts an instance of :js:class:`Client` (or
 ``Transaction``) as it's first argument. See :ref:`Creating a Client
-<edgedb-js-create-client>` for details on creating clients. The second
-argument is for passing :ref:`$parameters <edgedb-js-parameters>`, more on
+<gel-js-create-client>` for details on creating clients. The second
+argument is for passing :ref:`$parameters <gel-js-parameters>`, more on
 that later.
 
 .. code-block:: typescript
@@ -258,7 +258,7 @@ Insert an object
   // { id: string }
   // by default INSERT only returns the id of the new object
 
-.. _edgedb-js-qb-transaction:
+.. _gel-js-qb-transaction:
 
 Transaction
 ^^^^^^^^^^^
@@ -356,7 +356,7 @@ live alongside your property keys without a risk of collision.
 
   The ``e.op`` function is used to express EdgeQL operators. It is documented in
   more detail below and on the :ref:`Functions and operators
-  <edgedb-js-funcops>` page.
+  <gel-js-funcops>` page.
 
 Select a single object
 ^^^^^^^^^^^^^^^^^^^^^^
@@ -594,7 +594,7 @@ Parameters
   EdgeQL query with the query builder.
 
 
-.. _ref_edgedbjs_globals:
+.. _ref_geljs_globals:
 
 Globals
 ^^^^^^^
