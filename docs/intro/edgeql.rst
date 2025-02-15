@@ -12,7 +12,7 @@ intended as a rapid-fire overview so you can hit the ground running with
 .. note::
 
   The examples below also demonstrate how to express the query with the
-  :ref:`TypeScript client's <edgedb-js-intro>` query builder, which lets you
+  :ref:`TypeScript client's <gel-js-intro>` query builder, which lets you
   express arbitrary EdgeQL queries in a code-first, typesafe way.
 
 

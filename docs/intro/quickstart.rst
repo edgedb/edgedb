@@ -508,9 +508,9 @@ will look something like this:
 likely be using one of Gel's *client libraries* to execute queries. Gel
 provides official libraries for many langauges:
 
-- :ref:`JavaScript/TypeScript <edgedb-js-intro>`
-- :ref:`Go <edgedb-go-intro>`
-- :ref:`Python <edgedb-python-intro>`
+- :ref:`JavaScript/TypeScript <gel-js-intro>`
+- :ref:`Go <gel-go-intro>`
+- :ref:`Python <gel-python-intro>`
 
 .. XXX: link to third-party doc websites
 .. - :ref:`Rust <ref_rust_index>`
@@ -545,9 +545,9 @@ and used a client library.
 - To start building an application using the language of your choice, check out
   our client libraries:
 
-  - :ref:`JavaScript/TypeScript <edgedb-js-intro>`
-  - :ref:`Go <edgedb-go-intro>`
-  - :ref:`Python <edgedb-python-intro>`
+  - :ref:`JavaScript/TypeScript <gel-js-intro>`
+  - :ref:`Go <gel-go-intro>`
+  - :ref:`Python <gel-python-intro>`
 
 .. XXX: link to third-party doc websites
 .. - :ref:`Rust <ref_rust_index>`

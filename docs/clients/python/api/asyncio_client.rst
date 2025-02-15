@@ -1,4 +1,4 @@
-.. _edgedb-python-asyncio-api-reference:
+.. _gel-python-asyncio-api-reference:
 
 ===========
 AsyncIO API
@@ -7,7 +7,7 @@ AsyncIO API
 .. py:currentmodule:: gel
 
 
-.. _edgedb-python-async-api-client:
+.. _gel-python-async-api-client:
 
 Client
 ======
@@ -29,7 +29,7 @@ Client
 
     If no connection parameter is specified, the client will try to search in
     environment variables and then the current project, see :ref:`Client
-    Library Connection <edgedb_client_connection>` docs for more information.
+    Library Connection <gel_client_connection>` docs for more information.
 
     Returns a new :py:class:`AsyncIOClient` object.
 
@@ -329,7 +329,7 @@ Client
 
         Returns an instance of :py:class:`AsyncIORetry`.
 
-        See :ref:`edgedb-python-asyncio-api-transaction` for more details.
+        See :ref:`gel-python-asyncio-api-transaction` for more details.
 
         Example:
 
@@ -387,7 +387,7 @@ Client
         :param TransactionOptions options:
             Object that encapsulates transaction options.
 
-        See :ref:`edgedb-python-transaction-options` for details.
+        See :ref:`gel-python-transaction-options` for details.
 
     .. py:method:: with_retry_options(options=None)
 
@@ -395,7 +395,7 @@ Client
 
         :param RetryOptions options: Object that encapsulates retry options.
 
-        See :ref:`edgedb-python-retry-options` for details.
+        See :ref:`gel-python-retry-options` for details.
 
     .. py:method:: with_state(state)
 
@@ -403,7 +403,7 @@ Client
 
         :param State state: Object that encapsulates state.
 
-        See :ref:`edgedb-python-state` for details.
+        See :ref:`gel-python-state` for details.
 
     .. py:method:: with_default_module(module=None)
 
@@ -490,7 +490,7 @@ Client
         See :py:meth:`State.without_globals` for details.
 
 
-.. _edgedb-python-asyncio-api-transaction:
+.. _gel-python-asyncio-api-transaction:
 
 Transactions
 ============

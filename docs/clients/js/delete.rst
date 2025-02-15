@@ -1,4 +1,4 @@
-.. _edgedb-js-delete:
+.. _gel-js-delete:
 
 Delete
 ------

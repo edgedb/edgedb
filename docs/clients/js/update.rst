@@ -1,4 +1,4 @@
-.. _edgedb-js-update:
+.. _gel-js-update:
 
 Update
 ------
@@ -27,8 +27,8 @@ You can reference the current value of the object's properties.
   }))
 
 You can conditionally update a property by using an :ref:`optional parameter
-<edgedb-js-optional-parameters>` and the :ref:`coalescing infix operator
-<edgedb-js-funcops-infix>`.
+<gel-js-optional-parameters>` and the :ref:`coalescing infix operator
+<gel-js-funcops-infix>`.
 
 .. code-block:: typescript
 
@@ -167,5 +167,5 @@ In the query builder this is represented with the following syntax.
 Bulk updates
 ^^^^^^^^^^^^
 
-You can use a :ref:`for loop <edgedb-js-for>` to perform :ref:`bulk updates
-<edgedb-js-for-bulk-inserts>`.
+You can use a :ref:`for loop <gel-js-for>` to perform :ref:`bulk updates
+<gel-js-for-bulk-inserts>`.

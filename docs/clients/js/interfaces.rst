@@ -1,4 +1,4 @@
-.. _edgedb-js-interfaces:
+.. _gel-js-interfaces:
 
 ====================
 Interfaces Generator

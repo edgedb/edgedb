@@ -1,4 +1,4 @@
-.. _edgedb-js-funcops:
+.. _gel-js-funcops:
 
 Functions and Operators
 -----------------------
@@ -24,7 +24,7 @@ All built-in standard library functions are reflected as functions in ``e``.
   // math::mean({3, 5, 7})
 
 
-.. _edgedb-js-funcops-prefix:
+.. _gel-js-funcops-prefix:
 
 Prefix operators
 ^^^^^^^^^^^^^^^^
@@ -45,7 +45,7 @@ Prefix operators operate on a single argument: ``OPERATOR <arg>``.
   * - ``"exists"`` ``"distinct"`` ``"not"``
 
 
-.. _edgedb-js-funcops-infix:
+.. _gel-js-funcops-infix:
 
 Infix operators
 ^^^^^^^^^^^^^^^
@@ -65,7 +65,7 @@ Infix operators operate on two arguments: ``<arg> OPERATOR <arg>``.
       ``"ilike"`` ``"not like"`` ``"not ilike"``
 
 
-.. _edgedb-js-funcops-ternary:
+.. _gel-js-funcops-ternary:
 
 Ternary operators
 ^^^^^^^^^^^^^^^^^

@@ -1,4 +1,4 @@
-.. _edgedb-js-parameters:
+.. _gel-js-parameters:
 
 Parameters
 ----------
@@ -47,7 +47,7 @@ an expression inside a larger query.
   wrappedQuery.run(client, {name: "Harry Styles"});
 
 
-.. _edgedb-js-optional-parameters:
+.. _gel-js-optional-parameters:
 
 Optional parameters
 ^^^^^^^^^^^^^^^^^^^

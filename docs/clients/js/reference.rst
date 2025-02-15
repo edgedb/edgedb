@@ -1,10 +1,10 @@
-.. _edgedb-js-api-reference:
+.. _gel-js-api-reference:
 
 #########
 Reference
 #########
 
-.. _edgedb-js-api-client:
+.. _gel-js-api-client:
 
 Client
 ======
@@ -380,7 +380,7 @@ Client
         transaction, and the backoff timeout between retries can be
         configured with :js:meth:`Client.withRetryOptions`.
 
-        See :ref:`edgedb-js-api-transaction` for more details.
+        See :ref:`gel-js-api-transaction` for more details.
 
         Example:
 
@@ -551,7 +551,7 @@ Client
         anything.
 
 
-.. _edgedb-js-datatypes:
+.. _gel-js-datatypes:
 
 Type conversion
 ===============
@@ -653,7 +653,7 @@ Gel ``array``  maps onto the JavaScript ``Array``.
 
     main();
 
-.. _edgedb-js-types-object:
+.. _gel-js-types-object:
 
 Objects
 =======

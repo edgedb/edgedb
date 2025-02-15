@@ -1,4 +1,4 @@
-.. _edgedb-python-datatypes:
+.. _gel-python-datatypes:
 
 =========
 Datatypes
@@ -74,7 +74,7 @@ The table below shows the correspondence between Gel and Python types.
     to ``float64`` or ``decimal`` in your query.
 
 
-.. _edgedb-python-types-set:
+.. _gel-python-types-set:
 
 Sets
 ====
@@ -84,7 +84,7 @@ Sets
     This is :py:class:`list <python:list>` since version 1.0.
 
 
-.. _edgedb-python-types-object:
+.. _gel-python-types-object:
 
 Objects
 =======

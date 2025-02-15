@@ -1,4 +1,4 @@
-.. _edgedb-python-examples:
+.. _gel-python-examples:
 
 Basic Usage
 ===========
@@ -63,17 +63,17 @@ Connect to Gel
 The examples above only work under an :ref:`Gel project
 <ref_guide_using_projects>`. You could also provide your own connection
 parameters, refer to the :ref:`Client Library Connection
-<edgedb_client_connection>` docs for details.
+<gel_client_connection>` docs for details.
 
 
 Type conversion
 ---------------
 
 gel-python automatically converts Gel types to the corresponding Python
-types and vice versa.  See :ref:`edgedb-python-datatypes` for details.
+types and vice versa.  See :ref:`gel-python-datatypes` for details.
 
 
-.. _edgedb-python-connection-pool:
+.. _gel-python-connection-pool:
 
 Client connection pools
 -----------------------
@@ -135,15 +135,15 @@ lazily as they are needed. If you want to explicitly connect to the
 database in ``init_app()``, use the ``ensure_connected()`` method on the client.
 
 For more information, see API documentation of :ref:`the blocking client
-<edgedb-python-blocking-api-client>` and :ref:`the asynchronous client
-<edgedb-python-async-api-client>`.
+<gel-python-blocking-api-client>` and :ref:`the asynchronous client
+<gel-python-async-api-client>`.
 
 
 Transactions
 ------------
 
 The most robust way to create a
-:ref:`transaction <edgedb-python-asyncio-api-transaction>` is the
+:ref:`transaction <gel-python-asyncio-api-transaction>` is the
 ``transaction()`` method:
 
 * :py:meth:`AsyncIOClient.transaction() <gel.AsyncIOClient.transaction>`
@@ -172,5 +172,5 @@ or, if using the async API:
    will be applied immediately.
 
 For more information, see API documentation of transactions for :ref:`the
-blocking client <edgedb-python-blocking-api-transaction>` and :ref:`the
-asynchronous client <edgedb-python-asyncio-api-transaction>`.
+blocking client <gel-python-blocking-api-transaction>` and :ref:`the
+asynchronous client <gel-python-asyncio-api-transaction>`.

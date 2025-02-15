@@ -1,4 +1,4 @@
-.. _edgedb-js-with:
+.. _gel-js-with:
 
 With Blocks
 -----------

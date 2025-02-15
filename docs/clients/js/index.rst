@@ -1,4 +1,4 @@
-.. _edgedb-js-intro:
+.. _gel-js-intro:
 
 ========================
 Gel TypeScript/JS Client
@@ -27,7 +27,7 @@ Gel TypeScript/JS Client
    group
    reference
 
-.. _edgedb-js-installation:
+.. _gel-js-installation:
 
 
 Installation
@@ -89,7 +89,7 @@ generators from npm using your package manager of choice.
         }
 
 
-.. _edgedb-js-quickstart:
+.. _gel-js-quickstart:
 
 Quickstart
 ==========
@@ -225,7 +225,7 @@ Interfaces
 
 Since we're using TypeScript, it would be nice to be able to type the return
 value of this query, so let's use our first generator, the :ref:`interfaces
-generator <edgedb-js-interfaces>` to tell TypeScript what the type of our result
+generator <gel-js-interfaces>` to tell TypeScript what the type of our result
 is.
 
 First we run the generator:
@@ -277,7 +277,7 @@ Queries generator
 
 Wouldn't it be great if we could write any arbitrary query and get a type-safe
 function that we could call? Good news, that's exactly what the next generator
-does! The :ref:`queries generator <edgedb-js-queries>` scans your project for
+does! The :ref:`queries generator <gel-js-queries>` scans your project for
 ``*.edgeql`` files and generates a file containing a strongly-typed function.
 
 First, move the query into a separate file called ``getMovie.edgeql``.
@@ -396,8 +396,8 @@ in TypeScript, getting editor completion, type checking, and type inferrence:
 What's next
 ===========
 
-We recommend reading the :ref:`client docs <edgedb-js-driver>` first and getting
+We recommend reading the :ref:`client docs <gel-js-driver>` first and getting
 familiar with configuring the client. You'll find important APIs like
 ``withGlobals`` and connection details there. After that, depending on your
-preferences, look through the :ref:`query builder <edgedb-js-qb>` documentation
+preferences, look through the :ref:`query builder <gel-js-qb>` documentation
 and use the other pages as a reference for writing code-first Gel queries.
