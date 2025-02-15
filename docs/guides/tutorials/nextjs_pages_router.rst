@@ -126,12 +126,10 @@ Initializing Gel
 ----------------
 
 Now let's spin up a database for the app. You have two options to initialize
-an Gel project: using ``npx edgedb`` without installing the CLI, or
-installing the edgedb CLI directly. In this tutorial, we'll use the first
+an Gel project: using ``$ npx gel`` without installing the CLI, or
+installing the gel CLI directly. In this tutorial, we'll use the first
 option. If you prefer to install the CLI, see the
-`Gel CLI installation guide <https://docs.edgedb.com/cli>`_
-for more information.
-
+:ref:`Gel CLI guide <ref_cli_overview>` for more information.
 From the application's root directory, run the following command:
 
 .. code-block:: bash
@@ -395,7 +393,7 @@ instead.
     // pages/api/post.ts
 
     import type {NextApiRequest, NextApiResponse} from 'next';
-    import {createClient} from 'edgedb';
+    import {createClient} from 'gel';
   + import e, {$infer} from '../../dbschema/edgeql-js';
 
     export const client = createClient();
@@ -616,6 +614,7 @@ query builder before Vercel starts building the project.
 
 Deploy this app to Vercel with the button below.
 
+.. XXX -- update URL
 .. lint-off
 
 .. image:: https://vercel.com/button
@@ -654,5 +653,5 @@ The next step is to add a ``/newpost`` page with a form for writing new blog
 posts and saving them into Gel. That's left as an exercise for the reader.
 
 To see the final code for this tutorial, refer to
-`github.com/edgedb/edgedb-examples/tree/main/nextjs-blog
+`github.com/geldata/gel-examples/tree/main/nextjs-blog
 <https://github.com/geldata/gel-examples/tree/main/nextjs-blog>`_.
