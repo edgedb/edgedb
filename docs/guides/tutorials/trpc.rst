@@ -60,8 +60,8 @@ Once schema changes are made, apply migrations with:
 
 .. code-block:: bash
 
-   $ pnpm dlx edgedb migration create # or npx edgedb migration create
-   $ pnpm dlx edgedb migration apply # or npx edgedb migration apply
+   $ pnpm dlx gel migration create # or npx gel migration create
+   $ pnpm dlx gel migration apply # or npx gel migration apply
 
 Step 2: Configure Gel Client
 ============================
@@ -76,10 +76,10 @@ First, install the **Gel** client using your package manager:
 
 .. code-block:: bash
 
-   $ pnpm add edgedb
-   $ # or yarn add edgedb
-   $ # or npm install edgedb
-   $ # or bun add edgedb
+   $ pnpm add gel
+   $ # or yarn add gel
+   $ # or npm install gel
+   $ # or bun add gel
 
 Then, create a client instance in a ``edgedb.ts`` file:
 

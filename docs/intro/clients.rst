@@ -118,8 +118,8 @@ Install the Gel client library.
   .. code-tab:: bash
     :caption: Node.js
 
-    $ npm install edgedb    # npm
-    $ yarn add edgedb       # yarn
+    $ npm install gel    # npm
+    $ yarn add gel       # yarn
 
   .. code-tab:: txt
     :caption: Deno
@@ -129,7 +129,7 @@ Install the Gel client library.
   .. code-tab:: bash
     :caption: Python
 
-    $ pip install edgedb
+    $ pip install gel
 
   .. code-tab:: toml
     :caption: Rust
