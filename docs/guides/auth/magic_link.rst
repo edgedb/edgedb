@@ -201,7 +201,7 @@ Sign up
        }
 
        res.writeHead(204, {
-         "Set-Cookie": `edgedb-pkce-verifier=${pkce.verifier}; HttpOnly; Path=/; Secure; SameSite=Strict`,
+         "Set-Cookie": `gel-pkce-verifier=${pkce.verifier}; HttpOnly; Path=/; Secure; SameSite=Strict`,
        });
        res.end();
      });
@@ -263,7 +263,7 @@ authenticate.
        }
 
        res.writeHead(204, {
-         "Set-Cookie": `edgedb-pkce-verifier=${pkce.verifier}; HttpOnly; Path=/; Secure; SameSite=Strict`,
+         "Set-Cookie": `gel-pkce-verifier=${pkce.verifier}; HttpOnly; Path=/; Secure; SameSite=Strict`,
        });
        res.end();
      });
@@ -304,7 +304,7 @@ this code for an authentication token.
 
       const cookies = req.headers.cookie?.split("; ");
       const verifier = cookies
-         ?.find((cookie) => cookie.startsWith("edgedb-pkce-verifier="))
+         ?.find((cookie) => cookie.startsWith("gel-pkce-verifier="))
          ?.split("=")[1];
       if (!verifier) {
          res.status = 400;
@@ -330,7 +330,7 @@ this code for an authentication token.
 
       const { auth_token } = await codeExchangeResponse.json();
       res.writeHead(204, {
-         "Set-Cookie": `edgedb-auth-token=${auth_token}; HttpOnly; Path=/; Secure; SameSite=Strict`,
+         "Set-Cookie": `gel-auth-token=${auth_token}; HttpOnly; Path=/; Secure; SameSite=Strict`,
       });
       res.end();
    };
