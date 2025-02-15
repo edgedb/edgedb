@@ -224,7 +224,7 @@ feature_used_branches = registry.new_labeled_gauge(
 )
 feature_used = registry.new_labeled_gauge(
     'feature_used_num_count_current',
-    'How many branches a schema feature is used by.',
+    'How many times a schema feature is used.',
     labels=('tenant', 'feature'),
 )
 
