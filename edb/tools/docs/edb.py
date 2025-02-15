@@ -151,7 +151,7 @@ class GelSubstitutionTransform(transforms.SphinxTransform):
         for node in self.document.traverse(d_nodes.substitution_reference):
             nt = node.astext()
             if nt in {"Gel", "Gel's","EdgeDB", "gelcmd", ".gel", "gel.toml",
-                      "gel-server"}:
+                      "gel-server", "geluri", "admin", "main"}:
                 if builder_name in {"xml", "edge-xml"}:
                     if nt == "gelcmd":
                         sub = d_nodes.literal(
@@ -159,6 +159,15 @@ class GelSubstitutionTransform(transforms.SphinxTransform):
                             **{
                                 "edb-gelcmd": "true",
                                 "edb-gelcmd-top": "true",
+                                "edb-substitution": "true",
+                            }
+                        )
+                    elif nt == "geluri":
+                        sub = d_nodes.literal(
+                            'gel', 'gel://',
+                            **{
+                                "edb-geluri": "true",
+                                "edb-geluri-top": "true",
                                 "edb-substitution": "true",
                             }
                         )
@@ -195,8 +204,34 @@ class GelCmdRole:
         return [node], []
 
 
+class GelUriRole:
+
+    def __call__(
+        self, role, rawtext, text, lineno, inliner, options=None, content=None
+    ):
+        if text.startswith("edgedb://"):
+            fn = inliner.document.current_source
+            raise Exception(
+                f"{fn}:{lineno} - :geluri:`{text}`"
+                f" - can't start with 'edgedb://'"
+            )
+        if text.startswith("gel://"):
+            fn = inliner.document.current_source
+            raise Exception(
+                f"{fn}:{lineno} - :geluri:`{text}` - can't start with 'gel://'"
+            )
+        text = f'gel://{text}'
+        node = d_nodes.literal(text, text)
+        node["edb-geluri"] = "true"
+        node["edb-geluri-top"] = "false"
+        node["edb-substitution"] = "true"
+        return [node], []
+
+
 def setup_domain(app):
+
     app.add_role('gelcmd', GelCmdRole())
+    app.add_role('geluri', GelUriRole())
     app.add_domain(GelDomain)
     app.add_transform(GelSubstitutionTransform)
 

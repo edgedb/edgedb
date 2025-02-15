@@ -138,9 +138,9 @@ declarative schema definitions as *models*. In Gel we call them
 
 The schema lives inside |.gel| files in the ``dbschema`` directory. It's
 common to declare the entire schema in a single file
-``dbschema/default.esdl``. This file is created for you when you run ``gel
-project init``, but you'll need to fill it with your schema. This is what our
-datatypes look like:
+``dbschema/default.esdl``. This file is created for you when you run
+:gelcmd:`project init`, but you'll need to fill it with your schema.
+This is what our datatypes look like:
 
 .. code-block:: sdl
     :caption: dbschema/default.esdl

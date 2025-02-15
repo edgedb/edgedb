@@ -425,6 +425,33 @@ class TestDocSnippets(unittest.TestCase):
                 )
             )
 
+    def test_cqa_doc_substitutions(self):
+        edgepath = find_edgedb_root()
+        docspath = os.path.join(edgepath, 'docs')
+
+        errors = []
+
+        for filename in self.find_rest_files(docspath):
+            with open(filename, 'rt') as f:
+                source = f.readlines()
+
+            for lineno, line in enumerate(source):
+                if '``edgedb://' in line:
+                    errors.append(
+                        f'{filename}:{lineno}: do not use ``edgedb://``, '
+                        f'use |geluri| for "gel://"or '
+                        f':geluri:`blah` for "gel://blah"')
+                if '``gel://' in line:
+                    errors.append(
+                        f'{filename}:{lineno}: do not use ``gel://``, '
+                        f'use |geluri| for "gel://" or '
+                        f':geluri:`blah` for "gel://blah"')
+
+        if errors:
+            raise AssertionError(
+                '\n'.join(errors)
+            )
+
     @unittest.skipIf(docutils is None, 'docutils is missing')
     def test_doc_test_broken_code_block_01(self):
         source = '''

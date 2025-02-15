@@ -14,8 +14,7 @@ or ``branch/<branch-name>/edgeql`` for Gel and |EdgeDB| >= 5.
 
 Here's how to determine your *local* Gel instance's HTTP server URL:
 
-- The ``<database-name>``, in most cases, will be ``edgedb`` for |EdgeDB| < 5,
-  or ``main`` for Gel and |EdgeDB| >= 5.
+- The ``<database-name>``, in most cases, will be |main|.
 
 - The ``hostname`` will be ``localhost``
 
@@ -257,7 +256,7 @@ The query inserts a ``Person`` object. The object's ``name`` value is
 parameterized in the query as ``$name``.
 
 This GET request would run the same query (assuming the instance is local
-and you want to query the ``main`` branch):
+and you want to query the |main| branch):
 
 .. code-block::
 

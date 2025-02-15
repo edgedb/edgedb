@@ -15,12 +15,12 @@ real time. Starting it is as simple as running this command:
 
 .. note::
 
-    If a schema change cannot be applied, you will see an error in the ``gel
-    watch`` console. You will also receive the error when you try to run a
-    query with any |Gel| client binding.
+    If a schema change cannot be applied, you will see an error in the
+    :gelcmd:`watch` console. You will also receive the error when you
+    try to run a query with any |Gel| client binding.
 
-To learn about our recommended development migration workflow using ``gel
-watch``, read our :ref:`intro to migrations <ref_intro_migrations>`.
+To learn about our recommended development migration workflow using
+:gelcmd:`watch`, read our :ref:`intro to migrations <ref_intro_migrations>`.
 
 .. note::
 

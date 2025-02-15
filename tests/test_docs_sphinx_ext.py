@@ -974,6 +974,9 @@ class TestOthers(unittest.TestCase, BaseDomainTest):
         --help
         --foo`
 
+        blah4 |geluri|
+        blah5 :geluri:`foo:bar@nax/a:123#12`
+
         DONE
         '''
 
@@ -1002,3 +1005,12 @@ class TestOthers(unittest.TestCase, BaseDomainTest):
             ['gel migrate --help', 'gel migrate --help --foo']
         )
 
+        self.assertEqual(
+            x.xpath('''
+                //paragraph/literal
+                    [@edb-substitution="true"]
+                    [@edb-geluri="true"]
+                    / text()
+            '''),
+            ['gel://', 'gel://foo:bar@nax/a:123#12']
+        )

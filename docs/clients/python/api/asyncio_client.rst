@@ -34,12 +34,12 @@ Client
     Returns a new :py:class:`AsyncIOClient` object.
 
     :param str dsn:
-        If this parameter does not start with ``gel://`` then this is
+        If this parameter does not start with |geluri| then this is
         interpreted as the :ref:`name of a local instance
         <ref_reference_connection_instance_name>`.
 
         Otherwise it specifies a single string in the following format:
-        ``gel://user:password@host:port/database?option=value``.
+        :geluri:`user:password@host:port/database?option=value`.
         The following options are recognized: host, port,
         user, database, password. For a complete reference on DSN, see
         the :ref:`DSN Specification <ref_dsn>`.

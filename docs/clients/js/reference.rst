@@ -22,12 +22,11 @@ Client
         If this parameter is a string it can represent either a
         DSN or an instance name:
 
-        * when the string does not start with ``gel://`` (or legacy |EdgeDB|
-          <= 5 ``edgedb://``) it is a :ref:`name of an instance
-          <ref_reference_connection_instance_name>`;
+        * when the string does not start with |geluri| it is a
+          :ref:`name of an instance <ref_reference_connection_instance_name>`;
 
         * otherwise it specifies a single string in the connection URI format:
-          ``gel://user:password@host:port/database?option=value``.
+          :geluri:`user:password@host:port/database?option=value`.
 
           See the :ref:`Connection Parameters <ref_reference_connection>`
           docs for full details.
