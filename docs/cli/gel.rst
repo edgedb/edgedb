@@ -200,9 +200,9 @@ Branch
 
 .. versionadded:: 5.0
 
-    |EdgeDB| 5.0 introduced :ref:`branches <ref_datamodel_branches>` to replace
-    databases. If you are running an earlier version of Gel,
-    you will instead use the database commands above.
+|EdgeDB| 5.0 introduced :ref:`branches <ref_datamodel_branches>` to replace
+databases. If you are running an earlier version of Gel,
+you will instead use the database commands above.
 
 :cli:synopsis:`\\branch create NAME`
   Create a new branch. The backslash command mirrors the options of the CLI's

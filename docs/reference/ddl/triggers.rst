@@ -1,5 +1,3 @@
-.. versionadded:: 3.0
-
 .. _ref_eql_ddl_triggers:
 
 ========
@@ -62,24 +60,22 @@ Declare a trigger that inserts a ``Log`` object for each new ``User`` object:
       );
     };
 
-.. versionadded:: 4.0
+Declare a trigger that inserts a ``Log`` object conditionally when an update
+query makes a change to a ``User`` object:
 
-    Declare a trigger that inserts a ``Log`` object conditionally when an update
-    query makes a change to a ``User`` object:
+.. code-block:: edgeql
 
-    .. code-block:: edgeql
-
-        alter type User {
-          create trigger log_update after update for each
-          when (<json>__old__ {**} != <json>__new__ {**})
-          do (
-            insert Log {
-              action := 'update',
-              target_name := __new__.name,
-              change := __old__.name ++ '->' ++ __new__.name
-            }
-          );
+    alter type User {
+      create trigger log_update after update for each
+      when (<json>__old__ {**} != <json>__new__ {**})
+      do (
+        insert Log {
+          action := 'update',
+          target_name := __new__.name,
+          change := __old__.name ++ '->' ++ __new__.name
         }
+      );
+    }
 
 
 Drop trigger

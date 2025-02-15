@@ -1,7 +1,5 @@
 .. _ref_eql_statements_analyze:
 
-.. versionadded:: 3.0
-
 Analyze
 =======
 

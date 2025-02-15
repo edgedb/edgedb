@@ -1,5 +1,3 @@
-.. versionadded:: 2.0
-
 .. _ref_eql_group:
 
 Group

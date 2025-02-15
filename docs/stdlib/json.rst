@@ -79,16 +79,14 @@ Any value in Gel can be cast to a :eql:type:`json` type as well:
     db> select <json>cal::to_local_date(datetime_current(), 'UTC');
     {Json("\"2022-11-21\"")}
 
-.. versionadded:: 3.0
+The :eql:func:`json_object_pack` function provides one more way to
+construct JSON. It constructs a JSON object from an array of key/value
+tuples:
 
-    The :eql:func:`json_object_pack` function provides one more way to
-    construct JSON. It constructs a JSON object from an array of key/value
-    tuples:
+.. code-block:: edgeql-repl
 
-    .. code-block:: edgeql-repl
-
-        db> select json_object_pack({("hello", <json>"world")});
-        {Json("{\"hello\": \"world\"}")}
+    db> select json_object_pack({("hello", <json>"world")});
+    {Json("{\"hello\": \"world\"}")}
 
 Additionally, any :eql:type:`Object` in Gel can be cast as a
 :eql:type:`json` type. This produces the same JSON value as the
@@ -390,8 +388,6 @@ JSON array.
                       JsonEmpty.ReturnEmpty) \
                   -> optional json
 
-    .. versionadded:: 2.0
-
     Returns an updated JSON target with a new value.
 
     .. code-block:: edgeql-repl
@@ -479,8 +475,6 @@ JSON array.
 
 .. eql:function:: std::json_object_pack(pairs: SET OF tuple<str, json>) -> \
                   json
-
-    .. versionadded:: 3.0
 
     Returns the given set of key/value tuples as a JSON object.
 

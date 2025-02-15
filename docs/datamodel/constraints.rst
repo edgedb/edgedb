@@ -153,8 +153,6 @@ tuple of properties or links.
 Partial constraints
 ^^^^^^^^^^^^^^^^^^^
 
-.. versionadded:: 2.0
-
 .. index:: constraint exclusive on, except
 
 Constraints on object types can be made partial, so that they don't apply

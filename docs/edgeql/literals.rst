@@ -451,8 +451,6 @@ To declare relative duration literals:
 Date durations
 ^^^^^^^^^^^^^^
 
-.. versionadded:: 2.0
-
 The :eql:type:`cal::date_duration` represents spans consisting of some number
 of *months* and *days*. This type is primarily intended to simplify logic
 involving :eql:type:`cal::local_date` values.
@@ -490,8 +488,6 @@ EdgeQL supports a set of functions and operators on duration types.
 
 Ranges
 ------
-
-.. versionadded:: 2.0
 
 .. index:: ranges, lower bound, upper bound, inclusive, inc_lower, inc_upper,
            empty

@@ -265,8 +265,6 @@ Use the :eql:op:`union` operator to merge two sets.
 Finding common members
 ----------------------
 
-.. versionadded:: 3.0
-
 .. index:: intersect
 
 Use the :eql:op:`intersect` operator to find common members between two sets.
@@ -296,8 +294,6 @@ resulting set.
 
 Removing common members
 -----------------------
-
-.. versionadded:: 3.0
 
 .. index:: except
 

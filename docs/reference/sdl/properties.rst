@@ -151,12 +151,6 @@ The following options are available:
     between the new property and its parents.  Schema modifications
     to the parent(s) propagate to the child.
 
-    .. versionadded:: 3.0
-
-        As of |EdgeDB| 3.0, the ``extended`` clause is now a sub-declaration of
-        the property and included inside the curly braces rather than an option
-        as in earlier versions.
-
 :eql:synopsis:`<type>`
     The type must be a valid :ref:`type expression <ref_eql_types>`
     denoting a non-abstract scalar or a container type.

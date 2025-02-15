@@ -230,8 +230,6 @@ identically to concrete/non-computed links like ``Villain.nemesis``.
 Splats
 ^^^^^^
 
-.. versionadded:: 3.0
-
 .. index:: select, splats, *, **, select *, select all, [is ].*, [is ].**
 
 Splats allow you to select all properties of a type using the asterisk (``*``)
