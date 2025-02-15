@@ -188,10 +188,10 @@ Here's some examples of regular strings using escape sequences
     ...         world';
     {'hello world'}
 
-    db> select 'https://edgedb.com/\
+    db> select 'https://geldata.com/\
     ...         docs/edgeql/lexical\
     ...         #constants';
-    {'https://edgedb.com/docs/edgeql/lexical#constants'}
+    {'https://geldata.com/docs/edgeql/lexical#constants'}
 
     db> select 'hello \\ world';
     {'hello \ world'}

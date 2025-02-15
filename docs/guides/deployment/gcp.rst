@@ -4,9 +4,9 @@
 Google Cloud
 ============
 
-:edb-alt-title: Deploying EdgeDB to Google Cloud
+:edb-alt-title: Deploying Gel to Google Cloud
 
-In this guide we show how to deploy EdgeDB on GCP using Cloud SQL and
+In this guide we show how to deploy Gel on GCP using Cloud SQL and
 Kubernetes.
 
 Prerequisites
@@ -34,7 +34,7 @@ use. Google Cloud only allow letters, numbers, and hyphens.
 
 .. code-block:: bash
 
-   $ PROJECT=edgedb
+   $ PROJECT=gel
 
 Then create a project with this name. Skip this step if your project already
 exists.
@@ -130,19 +130,19 @@ Then use this ``credentials.json`` to authenticate the Kubernetes CLI tool
        --from-literal=password=$PASSWORD \
        --from-literal=instance=${INSTANCE_CONNECTION_NAME}=tcp:5432
 
-Deploy EdgeDB
-=============
+Deploy Gel
+==========
 
-Download the starter EdgeDB Kubernetes configuration file. This file specifies
+Download the starter Gel Kubernetes configuration file. This file specifies
 a persistent volume, a container running a `Cloud SQL authorization proxy
 <https://github.com/GoogleCloudPlatform/cloudsql-proxy>`_, and a container to
-run `EdgeDB itself <https://github.com/edgedb/edgedb-docker>`_. It relies on
+run `Gel itself <https://github.com/geldata/gel-docker>`_. It relies on
 the secrets we declared in the previous step.
 
 .. code-block:: bash
 
    $ wget "https://raw.githubusercontent.com\
-   /edgedb/edgedb-deploy/dev/gcp/deployment.yaml"
+   /geldata/gel-deploy/dev/gcp/deployment.yaml"
 
    $ kubectl apply -f deployment.yaml
 
@@ -152,21 +152,21 @@ Ensure the pods are running.
 
    $ kubectl get pods
    NAME                     READY   STATUS              RESTARTS   AGE
-   edgedb-977b8fdf6-jswlw   0/2     ContainerCreating   0          16s
+   gel-977b8fdf6-jswlw      0/2     ContainerCreating   0          16s
 
 The ``READY  0/2`` tells us neither of the two pods have finished booting.
 Re-run the command until ``2/2`` pods are ``READY``.
 
-If there were errors you can check EdgeDB's logs with:
+If there were errors you can check Gel's logs with:
 
 .. code-block:: bash
 
-   $ kubectl logs deployment/edgedb --container edgedb
+   $ kubectl logs deployment/gel --container gel
 
 Persist TLS Certificate
 =======================
 
-Now that our EdgeDB instance is up and running, we need to download a local
+Now that our Gel instance is up and running, we need to download a local
 copy of its self-signed TLS certificate (which it generated on startup) and
 pass it as a secret into Kubernetes. Then we'll redeploy the pods.
 
@@ -174,24 +174,24 @@ pass it as a secret into Kubernetes. Then we'll redeploy the pods.
 
    $ kubectl create secret generic cloudsql-tls-credentials \
        --from-literal=tlskey="$(
-           kubectl exec deploy/edgedb -c=edgedb -- \
-               edgedb-show-secrets.sh --format=raw EDGEDB_SERVER_TLS_KEY
+           kubectl exec deploy/gel -c=gel -- \
+               gel-show-secrets.sh --format=raw GEL_SERVER_TLS_KEY
        )" \
        --from-literal=tlscert="$(
-           kubectl exec deploy/edgedb -c=edgedb -- \
-               edgedb-show-secrets.sh --format=raw EDGEDB_SERVER_TLS_CERT
+           kubectl exec deploy/gel -c=gel -- \
+               gel-show-secrets.sh --format=raw GEL_SERVER_TLS_CERT
        )"
 
    $ kubectl delete -f deployment.yaml
 
    $ kubectl apply -f deployment.yaml
 
-Expose EdgeDB
-=============
+Expose Gel
+==========
 
 .. code-block:: bash
 
-   $ kubectl expose deploy/edgedb --type LoadBalancer
+   $ kubectl expose deploy/gel --type LoadBalancer
 
 
 Get your instance's DSN
@@ -203,17 +203,17 @@ Get the public-facing IP address of your database.
 
     $ kubectl get service
     NAME         TYPE           CLUSTER-IP  EXTERNAL-IP   PORT(S)
-    edgedb       LoadBalancer   <ip>        <ip>          5656:30841/TCP
+    gel          LoadBalancer   <ip>        <ip>          5656:30841/TCP
 
 
 Copy and paste the ``EXTERNAL-IP`` associated with the service named
-``edgedb``. With this IP address, you can construct your instance's :ref:`DSN
+``gel``. With this IP address, you can construct your instance's :ref:`DSN
 <ref_dsn>`:
 
 .. code-block:: bash
 
-    $ EDGEDB_IP=<copy IP address here>
-    $ EDGEDB_DSN="edgedb://edgedb:${PASSWORD}@${EDGEDB_IP}"
+    $ GEL_IP=<copy IP address here>
+    $ GEL_DSN="gel://admin:${PASSWORD}@${GEL_IP}"
 
 To print the final DSN, you can ``echo`` it. Note that you should only run
 this command on a computer you trust, like a personal laptop or sandboxed
@@ -221,33 +221,33 @@ environment.
 
 .. code-block:: bash
 
-    $ echo $EDGEDB_DSN
+    $ echo $GEL_DSN
 
 The resuling DSN can be used to connect to your instance.
 To test it, try opening a REPL:
 
 .. code-block:: bash
 
-    $ edgedb --dsn $EDGEDB_DSN --tls-security insecure
-    EdgeDB 3.x (repl 3.x)
+    $ gel --dsn $GEL_DSN --tls-security insecure
+    Gel x.x (repl x.x)
     Type \help for help, \quit to quit.
-    edgedb> select "hello world!";
+    gel> select "hello world!";
 
 In development
 --------------
 
 To make this instance easier to work with during local development, create an
-alias using ``edgedb instance link``.
+alias using :gelcmd:`instance link`.
 
 .. note::
 
-   The command groups ``edgedb instance`` and ``edgedb project`` are not
+   The command groups :gelcmd:`instance` and :gelcmd:`project` are not
    intended to manage production instances.
 
 .. code-block:: bash
 
-    $ echo $PASSWORD | edgedb instance link \
-        --dsn $EDGEDB_DSN \
+    $ echo $PASSWORD | gel instance link \
+        --dsn $GEL_DSN \
         --password-from-stdin \
         --non-interactive \
         --trust-tls-cert \
@@ -259,19 +259,19 @@ name is expected; for instance, you can open a REPL:
 
 .. code-block:: bash
 
-   $ edgedb -I gcp_instance
+   $ gel -I gcp_instance
 
 Or apply migrations:
 
 .. code-block:: bash
 
-   $ edgedb -I gcp_instance migrate
+   $ gel -I gcp_instance migrate
 
 In production
 -------------
 
-To connect to this instance in production, set the ``EDGEDB_DSN`` environment
-variable wherever you deploy your application server; EdgeDB's client
+To connect to this instance in production, set the :gelenv:`DSN` environment
+variable wherever you deploy your application server; Gel's client
 libraries read the value of this variable to know how to connect to your
 instance.
 
@@ -279,5 +279,5 @@ Health Checks
 =============
 
 Using an HTTP client, you can perform health checks to monitor the status of
-your EdgeDB instance. Learn how to use them with our :ref:`health checks guide
+your Gel instance. Learn how to use them with our :ref:`health checks guide
 <ref_guide_deployment_health_checks>`.

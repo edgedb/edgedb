@@ -4,6 +4,8 @@
 Indexes
 =======
 
+.. index:: index on, performance, postgres query planner
+
 An index is a data structure used internally to speed up filtering, ordering,
 and grouping operations. Indexes help accomplish this in two key ways:
 
@@ -60,7 +62,7 @@ database can look up a name in the index instead of scanning through all
 ultimately up to the Postgres query planner.
 
 To see if an index can help your query, try adding the :ref:`analyze
-<ref_cli_edgedb_analyze>` keyword before a query with an index compared to one
+<ref_cli_gel_analyze>` keyword before a query with an index compared to one
 without.
 
 .. note::
@@ -100,6 +102,8 @@ references multiple properties of the enclosing object type.
 Index on multiple properties
 ----------------------------
 
+.. index:: tuple
+
 A *composite index* is an index that references multiple properties. This can
 speed up queries that filter, order, or group on both properties.
 
@@ -114,7 +118,7 @@ speed up queries that filter, order, or group on both properties.
     <https://www.postgresql.org/docs/current/indexes-multicolumn.html>`_ to
     learn more about how the query planner uses these indexes.
 
-In EdgeDB, this index is created by indexing on a ``tuple`` of properties.
+In Gel, this index is created by indexing on a ``tuple`` of properties.
 
 .. code-block:: sdl
     :version-lt: 3.0
@@ -136,6 +140,8 @@ In EdgeDB, this index is created by indexing on a ``tuple`` of properties.
 
 Index on a link property
 ------------------------
+
+.. index:: __subject__, linkprops
 
 Link properties can also be indexed.
 
@@ -168,9 +174,11 @@ Link properties can also be indexed.
 Specify a Postgres index type
 -----------------------------
 
+.. index:: pg::hash, pg::btree, pg::gin, pg::gist, pg::spgist, pg::brin
+
 .. versionadded:: 3.0
 
-EdgeDB exposes Postgres indexes that you can use in your schemas. These are
+Gel exposes Postgres indexes that you can use in your schemas. These are
 exposed through the ``pg`` module.
 
 * ``pg::hash``- Index based on a 32-bit hash derived from the indexed value
@@ -201,6 +209,8 @@ You can use them like this:
 Annotate an index
 -----------------
 
+.. index:: annotation
+
 Indexes can be augmented with annotations.
 
 .. code-block:: sdl
@@ -227,8 +237,8 @@ Indexes can be augmented with annotations.
   **Foreign and primary keys**
 
   In SQL databases, indexes are commonly used to index *primary keys* and
-  *foreign keys*. EdgeDB's analog to SQL's primary key is the ``id`` field
-  that gets automatically created for each object, while a link in EdgeDB
+  *foreign keys*. Gel's analog to SQL's primary key is the ``id`` field
+  that gets automatically created for each object, while a link in Gel
   is the analog to SQL's foreign key. Both of these are automatically indexed.
   Moreover, any property with an :eql:constraint:`exclusive` constraint
   is also automatically indexed.

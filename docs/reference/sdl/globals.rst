@@ -109,7 +109,7 @@ The following options are available:
 
 :eql:synopsis:`<name> := <expression>`
     Defines a *computed* global variable.
-    
+
     The provided expression must be a :ref:`Stable <ref_reference_volatility>`
     EdgeQL expression. It can refer to other global variables.
 

@@ -14,17 +14,17 @@ Auth
     magic_link
     webauthn
 
-:edb-alt-title: Using EdgeDB Auth
+:edb-alt-title: Using Gel Auth
 
-EdgeDB Auth is a batteries-included authentication solution for your app built
-into the EdgeDB server. Here's how you can integrate it with your app.
+|Gel| Auth is a batteries-included authentication solution for your app built
+into the Gel server. Here's how you can integrate it with your app.
 
 
 Enable extension in your schema
 ===============================
 
-Auth is an EdgeDB extension. To enable it, you will need to add the extension
-to your app’s schema:
+Auth is an Gel extension. To enable it, you will need to add the extension
+to your app's schema:
 
 .. code-block:: sdl
 
@@ -35,12 +35,12 @@ Extension configuration
 =======================
 
 The best and easiest way to configure the extension for your database is
-to use the built-in UI. To access it, run ``edgedb ui``. If you have the
+to use the built-in UI. To access it, run  :gelcmd:`ui`. If you have the
 extension enabled in your schema as shown above and have migrated that
 schema change, you will see the "Auth Admin" icon in the left-hand toolbar.
 
 .. image:: images/ui-auth.png
-    :alt: The EdgeDB local development server UI highlighting the auth admin
+    :alt: The Gel local development server UI highlighting the auth admin
           icon in the left-hand toolbar. The icon is two nested shield
           outlines, the inner being a light pink color and the outer being
           a light blue when selected.
@@ -99,7 +99,7 @@ To configure via query or script:
 token_time_to_live
 ------------------
 
-This value controls the expiration time on the authentication token’s
+This value controls the expiration time on the authentication token's
 JSON Web Token. This is effectively the “session” time.
 
 To configure via query or script:
@@ -277,7 +277,7 @@ like `Mailpit <https://mailpit.axllent.org/docs/>`__.
 Enabling authentication providers
 =================================
 
-In order to use the auth extension, you’ll need to enable at least one of these
+In order to use the auth extension, you'll need to enable at least one of these
 authentication providers. Providers can be added from the "Providers" section
 of the admin auth UI by clicking "Add Provider." This will add a form to the UI
 allowing for selection of the provider and configuration of the values
@@ -315,8 +315,8 @@ To enable via query or script:
     ``require_verification`` defaults to ``true``.
 
 If you use the Email and Password provider, in addition to the
-``require_verification`` configuration, you’ll need to configure SMTP to allow
-EdgeDB to send email verification and password reset emails on your behalf or
+``require_verification`` configuration, you'll need to configure SMTP to allow
+|Gel| to send email verification and password reset emails on your behalf or
 set up webhooks for the relevant events:
 
 - ``ext::auth::WebhookEvent.EmailVerificationRequested``
@@ -368,8 +368,8 @@ We currently support six different OAuth providers:
 .. lint-on
 
 The instructions for creating an app for each provider can be found on
-each provider’s developer documentation website, which is linked above.
-The important things you’ll need to find and make note of for your
+each provider's developer documentation website, which is linked above.
+The important things you'll need to find and make note of for your
 configuration are the **client ID** and **secret**.
 
 Once you select the OAuth provider in the configuration UI, you will need to
@@ -390,14 +390,14 @@ provide those values and the ``additional_scope``:
         We return this authentication token with this scope from the Identity
         Provider when we return our own authentication token.
 
-You’ll also need to set a callback URL in each provider’s interface. To build
+You'll also need to set a callback URL in each provider's interface. To build
 this callback URL, you will need the hostname, port, and branch name of your
-database. The branch name is ``main`` by default. The hostname and port can
+database. The branch name is |main| by default. The hostname and port can
 be found running this CLI command:
 
 .. code-block:: bash
 
-   $ edgedb instance credentials
+   $ gel instance credentials
 
 This will output a table that includes the hostnames and ports of all your
 instances. Grab those from the row corresponding to the correct instance for
@@ -405,7 +405,7 @@ use in your callback URL, which takes on this format:
 
 .. code-block::
 
-    http[s]://{edgedb_host}[:port]/db/{db_name}/ext/auth/callback
+    http[s]://{gel_host}[:port]/db/{db_name}/ext/auth/callback
 
 To enable the Azure OAuth provider via query or script:
 
@@ -513,7 +513,7 @@ WebAuthn
 
 -  ``relying_party_origin``: This is the URL of the web application handling
    the WebAuthn request. If you're using the built-in UI, it's the origin of
-   the EdgeDB web server.
+   the Gel web server.
 
 -  ``require_verification``: (Default: ``true``) If ``true``, your application
    will not be able to retrieve an authentication token until the user has
@@ -533,8 +533,8 @@ WebAuthn
 .. note::
 
     You will need to configure CORS to allow the client-side script to call the
-    EdgeDB Auth extension's endpoints from the web browser. You can do this by
-    updating the ``cors_allow_origins`` configuration in the EdgeDB server
+    Gel Auth extension's endpoints from the web browser. You can do this by
+    updating the ``cors_allow_origins`` configuration in the Gel server
     configuration.
 
 Here is an example of setting a local SMTP server, in this case using a
@@ -567,7 +567,7 @@ Integrating your application
 ============================
 
 In the end, what we want to end up with is an authentication token
-created by EdgeDB that we can set as a global in any authenticated
+created by Gel that we can set as a global in any authenticated
 queries executed from our application, which will set a computed global linked
 to an ``ext::auth::Identity``.
 
@@ -595,8 +595,8 @@ Select your method for detailed configuration:
 Example usage
 =============
 
-Here’s an example schema that we can use to show how you would use the
-``auth_token`` you get back from EdgeDB to make queries against a
+Here's an example schema that we can use to show how you would use the
+``auth_token`` you get back from Gel to make queries against a
 protected resource, in this case being able to insert a ``Post``.
 
 .. code-block:: sdl
@@ -629,7 +629,7 @@ protected resource, in this case being able to insert a ``Post``.
      }
    }
 
-Let’s now insert a ``Post``.
+Let's now insert a ``Post``.
 
 .. lint-off
 

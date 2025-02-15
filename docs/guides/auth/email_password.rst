@@ -4,7 +4,7 @@
 Email and password
 ==================
 
-:edb-alt-title: Integrating EdgeDB Auth's email and password provider
+:edb-alt-title: Integrating Gel Auth's email and password provider
 
 Along with using the :ref:`built-in UI <ref_guide_auth_built_in_ui>`, you can also
 create your own UI that calls to your own web application backend.
@@ -90,11 +90,11 @@ base64url encode the resulting string. This new string is called the
    import crypto from "node:crypto";
 
    /**
-    * You can get this value by running `edgedb instance credentials`.
+    * You can get this value by running `gel instance credentials`.
     * Value should be:
     * `${protocol}://${host}:${port}/branch/${branch}/ext/auth/
     */
-   const EDGEDB_AUTH_BASE_URL = process.env.EDGEDB_AUTH_BASE_URL;
+   const GEL_AUTH_BASE_URL = process.env.GEL_AUTH_BASE_URL;
    const SERVER_PORT = 3000;
 
    /**
@@ -119,7 +119,7 @@ base64url encode the resulting string. This new string is called the
 
 .. note::
 
-    For EdgeDB versions before 5.0, the value for ``EDGEDB_AUTH_BASE_URL``
+    For |EdgeDB| versions before 5.0, the value for :gelenv:`AUTH_BASE_URL`
     in the above snippet should have the form:
 
     ``${protocol}://${host}:${port}/db/${database}/ext/auth/``
@@ -199,7 +199,7 @@ an existing user.
          return;
        }
 
-       const registerUrl = new URL("register", EDGEDB_AUTH_BASE_URL);
+       const registerUrl = new URL("register", GEL_AUTH_BASE_URL);
        const registerResponse = await fetch(registerUrl.href, {
          method: "post",
          headers: {
@@ -225,7 +225,7 @@ an existing user.
 
        if ("code" in registerJson) {
          // No verification required, we can immediately get an auth token
-         const tokenUrl = new URL("token", EDGEDB_AUTH_BASE_URL);
+         const tokenUrl = new URL("token", GEL_AUTH_BASE_URL);
          tokenUrl.searchParams.set("code", registerJson.code);
          tokenUrl.searchParams.set("verifier", pkce.verifier);
          const tokenResponse = await fetch(tokenUrl.href, {
@@ -241,7 +241,7 @@ an existing user.
 
          const { auth_token } = await tokenResponse.json();
          res.writeHead(204, {
-           "Set-Cookie": `edgedb-auth-token=${auth_token}; HttpOnly; Path=/; Secure; SameSite=Strict`,
+           "Set-Cookie": `gel-auth-token=${auth_token}; HttpOnly; Path=/; Secure; SameSite=Strict`,
          });
 
          res.end();
@@ -282,7 +282,7 @@ an existing user.
          return;
        }
 
-       const authenticateUrl = new URL("authenticate", EDGEDB_AUTH_BASE_URL);
+       const authenticateUrl = new URL("authenticate", GEL_AUTH_BASE_URL);
        const authenticateResponse = await fetch(authenticateUrl.href, {
          method: "post",
          headers: {
@@ -307,7 +307,7 @@ an existing user.
 
        if ("code" in authenticateJson) {
          // User is verified, we can get an auth token
-         const tokenUrl = new URL("token", EDGEDB_AUTH_BASE_URL);
+         const tokenUrl = new URL("token", GEL_AUTH_BASE_URL);
          tokenUrl.searchParams.set("code", authenticateJson.code);
          tokenUrl.searchParams.set("verifier", pkce.verifier);
          const tokenResponse = await fetch(tokenUrl.href, {
@@ -323,7 +323,7 @@ an existing user.
 
          const { auth_token } = await tokenResponse.json();
          res.writeHead(204, {
-           "Set-Cookie": `edgedb-auth-token=${auth_token}; HttpOnly; Path=/; Secure; SameSite=Strict`,
+           "Set-Cookie": `gel-auth-token=${auth_token}; HttpOnly; Path=/; Secure; SameSite=Strict`,
          });
          res.end();
        } else {
@@ -381,7 +381,7 @@ handle the verification flow, we implement an endpoint:
        return;
      }
 
-     const verifyUrl = new URL("verify", EDGEDB_AUTH_BASE_URL);
+     const verifyUrl = new URL("verify", GEL_AUTH_BASE_URL);
      const verifyResponse = await fetch(verifyUrl.href, {
        method: "post",
        headers: {
@@ -404,12 +404,12 @@ handle the verification flow, we implement an endpoint:
 
      const cookies = req.headers.cookie?.split("; ");
      const verifier = cookies
-       ?.find((cookie) => cookie.startsWith("edgedb-pkce-verifier="))
+       ?.find((cookie) => cookie.startsWith("gel-pkce-verifier="))
        ?.split("=")[1];
      if (verifier) {
        // Email verification flow is continuing from the original
        // user agent/browser, so we can immediately get an auth token
-       const tokenUrl = new URL("token", EDGEDB_AUTH_BASE_URL);
+       const tokenUrl = new URL("token", GEL_AUTH_BASE_URL);
        tokenUrl.searchParams.set("code", code);
        tokenUrl.searchParams.set("verifier", verifier);
        const tokenResponse = await fetch(tokenUrl.href, {
@@ -425,7 +425,7 @@ handle the verification flow, we implement an endpoint:
 
        const { auth_token } = await tokenResponse.json();
        res.writeHead(204, {
-         "Set-Cookie": `edgedb-auth-token=${auth_token}; HttpOnly; Path=/; Secure; SameSite=Strict`,
+         "Set-Cookie": `gel-auth-token=${auth_token}; HttpOnly; Path=/; Secure; SameSite=Strict`,
        });
        res.end();
        return;
@@ -532,7 +532,7 @@ that updates the password and logs in the user.
        const provider = "builtin::local_emailpassword";
        const pkce = generatePKCE();
 
-       const sendResetUrl = new URL("send-reset-email", EDGEDB_AUTH_BASE_URL);
+       const sendResetUrl = new URL("send-reset-email", GEL_AUTH_BASE_URL);
        const sendResetResponse = await fetch(sendResetUrl.href, {
          method: "post",
          headers: {
@@ -556,7 +556,7 @@ that updates the password and logs in the user.
        const { email_sent } = await sendResetResponse.json();
 
        res.writeHead(200, {
-         "Set-Cookie": `edgedb-pkce-verifier=${pkce.verifier}; HttpOnly; Path=/; Secure; SameSite=Strict`,
+         "Set-Cookie": `gel-pkce-verifier=${pkce.verifier}; HttpOnly; Path=/; Secure; SameSite=Strict`,
        });
        res.end(`Reset email sent to '${email_sent}'`);
      });
@@ -589,7 +589,7 @@ that updates the password and logs in the user.
    };
 
    /**
-    * Send new password with reset token to EdgeDB Auth.
+    * Send new password with reset token to Gel Auth.
     *
     * @param {Request} req
     * @param {Response} res
@@ -611,7 +611,7 @@ that updates the password and logs in the user.
        const provider = "builtin::local_emailpassword";
        const cookies = req.headers.cookie.split("; ");
        const verifier = cookies
-         .find((cookie) => cookie.startsWith("edgedb-pkce-verifier="))
+         .find((cookie) => cookie.startsWith("gel-pkce-verifier="))
          .split("=")[1];
        if (!verifier) {
          res.status = 400;
@@ -620,7 +620,7 @@ that updates the password and logs in the user.
          );
          return;
        }
-       const resetUrl = new URL("reset-password", EDGEDB_AUTH_BASE_URL);
+       const resetUrl = new URL("reset-password", GEL_AUTH_BASE_URL);
        const resetResponse = await fetch(resetUrl.href, {
          method: "post",
          headers: {
@@ -639,7 +639,7 @@ that updates the password and logs in the user.
          return;
        }
        const { code } = await resetResponse.json();
-       const tokenUrl = new URL("token", EDGEDB_AUTH_BASE_URL);
+       const tokenUrl = new URL("token", GEL_AUTH_BASE_URL);
        tokenUrl.searchParams.set("code", code);
        tokenUrl.searchParams.set("verifier", verifier);
        const tokenResponse = await fetch(tokenUrl.href, {
@@ -653,7 +653,7 @@ that updates the password and logs in the user.
        }
        const { auth_token } = await tokenResponse.json();
        res.writeHead(204, {
-         "Set-Cookie": `edgedb-auth-token=${auth_token}; HttpOnly; Path=/; Secure; SameSite=Strict`,
+         "Set-Cookie": `gel-auth-token=${auth_token}; HttpOnly; Path=/; Secure; SameSite=Strict`,
        });
        res.end();
      });
@@ -661,4 +661,4 @@ that updates the password and logs in the user.
 
 .. lint-on
 
-:ref:`Back to the EdgeDB Auth guide <ref_guide_auth>`
+:ref:`Back to the Gel Auth guide <ref_guide_auth>`

@@ -4,6 +4,10 @@
 Constraints
 ===========
 
+.. index:: constraint, validation, exclusive, expression on, one_of, max_value,
+           max_ex_value, min_value, min_ex_value, max_len_value, min_len_value,
+           regexp, __subject__
+
 .. important::
 
   This section assumes a basic understanding of EdgeQL.
@@ -202,6 +206,8 @@ Constraints can be defined on computed properties.
 Composite constraints
 ^^^^^^^^^^^^^^^^^^^^^
 
+.. index:: tuple
+
 To define a composite constraint, create an ``exclusive`` constraint on a
 tuple of properties or links.
 
@@ -238,6 +244,8 @@ Partial constraints
 ^^^^^^^^^^^^^^^^^^^
 
 .. versionadded:: 2.0
+
+.. index:: constraint exclusive on, except
 
 Constraints on object types can be made partial, so that they don't apply
 when some condition holds.
@@ -333,6 +341,8 @@ Link ``@source`` and ``@target`` constraints
 
 .. versionadded:: 4.0
 
+.. index:: constraint exclusive on, @source, @target
+
 .. note::
 
     ``@source`` and ``@target`` are available starting with version 4.3.
@@ -412,6 +422,8 @@ using arbitrary EdgeQL expressions. The example below uses the built-in
 Constraints and type inheritence
 --------------------------------
 
+.. index:: delegated constraint
+
 If you define a constraint on a type and then extend that type, the constraint
 will *not* be applied individually to each extending type. Instead, it will
 apply globally across all the types that inherited the constraint.
@@ -446,14 +458,14 @@ apply globally across all the types that inherited the constraint.
     db> insert Moderator {
     ...   name := 'Jan'
     ... };
-    edgedb error: ConstraintViolationError: name violates exclusivity
+    gel error: ConstraintViolationError: name violates exclusivity
     constraint
       Detail: value of property 'name' of object type 'default::Moderator'
       violates exclusivity constraint
     db> insert User {
     ...   name := 'Jan'
     ... };
-    edgedb error: ConstraintViolationError: name violates exclusivity
+    gel error: ConstraintViolationError: name violates exclusivity
     constraint
       Detail: value of property 'name' of object type 'default::User'
       violates exclusivity constraint
@@ -506,7 +518,7 @@ on each of the inheriting types.
     db> insert Moderator {
     ...   name := 'Jan'
     ... };
-    edgedb error: ConstraintViolationError: name violates exclusivity
+    gel error: ConstraintViolationError: name violates exclusivity
     constraint
       Detail: value of property 'name' of object type 'default::Moderator'
       violates exclusivity constraint
@@ -526,5 +538,3 @@ name as the one we had just inserted.
   * - :ref:`Introspection > Constraints
       <ref_datamodel_introspection_constraints>`
   * - :ref:`Standard Library > Constraints <ref_std_constraints>`
-  * - `Tutorial > Advanced EdgeQL > Constraints
-      </tutorial/advanced-edgeql/constraints>`_

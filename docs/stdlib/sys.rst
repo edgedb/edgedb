@@ -102,7 +102,7 @@ System
 
     .. versionadded:: 5.0
 
-        In EdgeDB 5.0+, this function will return the name of the current
+        In |EdgeDB| 5, this function will return the name of the current
         database branch.
 
 
@@ -183,7 +183,7 @@ System
         ``max_exec_time``).
 
     All queries have to be planned by the backend before execution. The planned
-    statements are cached (managed by the EdgeDB server) and reused if the same
+    statements are cached (managed by the Gel server) and reused if the same
     query is executed multiple times.
 
     :eql:synopsis:`plans -> int64`

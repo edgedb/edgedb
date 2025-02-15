@@ -15,7 +15,7 @@ Base Objects
 
 
 ``std::BaseObject`` is the root of the object type hierarchy and all object
-types in EdgeDB, including system types, extend it either directly or
+types in Gel, including system types, extend it either directly or
 indirectly.  User-defined object types extend from :eql:type:`std::Object`
 type, which is a subtype of ``std::BaseObject``.
 

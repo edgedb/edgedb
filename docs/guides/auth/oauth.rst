@@ -4,7 +4,7 @@
 OAuth
 =====
 
-:edb-alt-title: Integrating EdgeDB Auth's OAuth provider
+:edb-alt-title: Integrating Gel Auth's OAuth provider
 
 Along with using the :ref:`built-in UI <ref_guide_auth_built_in_ui>`, you can also
 create your own UI that calls to your own web application backend.
@@ -86,11 +86,11 @@ base64url encode the resulting string. This new string is called the
    import crypto from "node:crypto";
 
    /**
-    * You can get this value by running `edgedb instance credentials`.
+    * You can get this value by running `gel instance credentials`.
     * Value should be:
     * `${protocol}://${host}:${port}/branch/${branch}/ext/auth/
     */
-   const EDGEDB_AUTH_BASE_URL = process.env.EDGEDB_AUTH_BASE_URL;
+   const GEL_AUTH_BASE_URL = process.env.GEL_AUTH_BASE_URL;
    const SERVER_PORT = 3000;
 
    /**
@@ -114,7 +114,7 @@ base64url encode the resulting string. This new string is called the
 
 .. note::
 
-    For EdgeDB versions before 5.0, the value for ``EDGEDB_AUTH_BASE_URL``
+    For |EdgeDB| versions before 5.0, the value for :gelenv:`AUTH_BASE_URL`
     in the above snippet should have the form:
 
     ``${protocol}://${host}:${port}/db/${database}/ext/auth/``
@@ -154,7 +154,7 @@ the end user's browser to the Identity Provider with the proper setup.
    });
 
    /**
-    * Redirects OAuth requests to EdgeDB Auth OAuth authorize redirect
+    * Redirects OAuth requests to Gel Auth OAuth authorize redirect
     * with the PKCE challenge, and saves PKCE verifier in an HttpOnly
     * cookie for later retrieval.
     *
@@ -172,7 +172,7 @@ the end user's browser to the Identity Provider with the proper setup.
      }
 
      const pkce = generatePKCE();
-     const redirectUrl = new URL("authorize", EDGEDB_AUTH_BASE_URL);
+     const redirectUrl = new URL("authorize", GEL_AUTH_BASE_URL);
      redirectUrl.searchParams.set("provider", provider);
      redirectUrl.searchParams.set("challenge", pkce.challenge);
      redirectUrl.searchParams.set(
@@ -185,7 +185,7 @@ the end user's browser to the Identity Provider with the proper setup.
      );
 
      res.writeHead(302, {
-       "Set-Cookie": `edgedb-pkce-verifier=${pkce.verifier}; HttpOnly; Path=/; Secure; SameSite=Strict`,
+       "Set-Cookie": `gel-pkce-verifier=${pkce.verifier}; HttpOnly; Path=/; Secure; SameSite=Strict`,
        Location: redirectUrl.href,
      });
      res.end();
@@ -197,12 +197,13 @@ the end user's browser to the Identity Provider with the proper setup.
 Retrieve ``auth_token``
 -----------------------
 
-At the very end of the flow, the EdgeDB server will redirect the user's browser
+At the very end of the flow, the Gel server will redirect the user's browser
 to the ``redirect_to`` address with a single query parameter: ``code``. This
 route should be a server route that has access to the ``verifier``. You then
-take that ``code`` and look up the ``verifier`` in the ``edgedb-pkce-verifier``
-cookie, and make a request to the EdgeDB Auth extension to exchange these two
-pieces of data for an ``auth_token``.
+take that ``code`` and look up the ``verifier`` in the ``gel-pkce-verifier``
+cookie (``gel-pkce-verifier`` with |EdgeDB| <= 5), and make a request to
+the Gel Auth extension to exchange these two pieces of data for an
+``auth_token``.
 
 .. lint-off
 
@@ -230,7 +231,7 @@ pieces of data for an ``auth_token``.
 
      const cookies = req.headers.cookie?.split("; ");
      const verifier = cookies
-       ?.find((cookie) => cookie.startsWith("edgedb-pkce-verifier="))
+       ?.find((cookie) => cookie.startsWith("gel-pkce-verifier="))
        ?.split("=")[1];
      if (!verifier) {
        res.status = 400;
@@ -240,7 +241,7 @@ pieces of data for an ``auth_token``.
        return;
      }
 
-     const codeExchangeUrl = new URL("token", EDGEDB_AUTH_BASE_URL);
+     const codeExchangeUrl = new URL("token", GEL_AUTH_BASE_URL);
      codeExchangeUrl.searchParams.set("code", code);
      codeExchangeUrl.searchParams.set("verifier", verifier);
      const codeExchangeResponse = await fetch(codeExchangeUrl.href, {
@@ -256,7 +257,7 @@ pieces of data for an ``auth_token``.
 
      const { auth_token } = await codeExchangeResponse.json();
      res.writeHead(204, {
-       "Set-Cookie": `edgedb-auth-token=${auth_token}; HttpOnly; Path=/; Secure; SameSite=Strict`,
+       "Set-Cookie": `gel-auth-token=${auth_token}; HttpOnly; Path=/; Secure; SameSite=Strict`,
      });
      res.end();
    };
@@ -313,7 +314,7 @@ Identity which sets a search parameter on the URL to ``isSignUp=true``:
    + }
    +
      res.writeHead(204, {
-       "Set-Cookie": `edgedb-auth-token=${auth_token}; HttpOnly; Path=/; Secure; SameSite=Strict`,
+       "Set-Cookie": `gel-auth-token=${auth_token}; HttpOnly; Path=/; Secure; SameSite=Strict`,
      });
 
 
@@ -414,7 +415,7 @@ it:
      }
 
      res.writeHead(204, {
-       "Set-Cookie": `edgedb-auth-token=${auth_token}; HttpOnly; Path=/; Secure; SameSite=Strict`,
+       "Set-Cookie": `gel-auth-token=${auth_token}; HttpOnly; Path=/; Secure; SameSite=Strict`,
      });
 
-:ref:`Back to the EdgeDB Auth guide <ref_guide_auth>`
+:ref:`Back to the Gel Auth guide <ref_guide_auth>`

@@ -24,7 +24,7 @@ containing the following schema:
         }
     }
 
-From the schema above, EdgeDB will expose to GraphQL:
+From the schema above, |Gel| will expose to GraphQL:
 
 * object types ``Author`` and ``Book``
 * scalars ``String`` and ``ID``

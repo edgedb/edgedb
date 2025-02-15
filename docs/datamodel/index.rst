@@ -32,36 +32,22 @@ Schema
     introspection/index
 
 
-EdgeDB schemas are declared using **SDL** (EdgeDB's Schema Definition
+|Gel| schemas are declared using **SDL** (Gel's Schema Definition
 Language).
 
 SDL
 ---
 
-Your schema is defined inside ``.esdl`` files. It's common to define your
-entire schema in a single file called ``default.esdl``, but you can split it
+Your schema is defined inside |.gel| files. It's common to define your
+entire schema in a single file called :dotgel:`default`, but you can split it
 across multiple files if you wish.
 
 By convention, your schema files should live in a directory called ``dbschema``
 in the root of your project.
 
 .. code-block:: sdl
-    :version-lt: 3.0
 
-    # dbschema/default.esdl
-
-    type Movie {
-      required property title -> str;
-      required link director -> Person;
-    }
-
-    type Person {
-      required property name -> str;
-    }
-
-.. code-block:: sdl
-
-    # dbschema/default.esdl
+    # dbschema/default.gel
 
     type Movie {
       required title: str;
@@ -74,26 +60,26 @@ in the root of your project.
 
 .. important::
 
-  Syntax highlighter packages/extensions for ``.esdl`` files are available for
+  Syntax highlighter packages/extensions for |.gel| files are available for
   `Visual Studio Code <https://marketplace.visualstudio.com/
   itemdetails?itemName=magicstack.edgedb>`_,
   `Sublime Text <https://packagecontrol.io/packages/EdgeDB>`_,
   `Atom <https://atom.io/packages/edgedb>`_, and `Vim <https://github.com/
-  edgedb/edgedb-vim>`_.
+  geldata/edgedb-vim>`_.
 
 Migrations
 ----------
 
-EdgeDB's baked-in migration system lets you painlessly evolve your schema over
-time. Just update the contents of your ``.esdl`` file(s) and use the EdgeDB CLI
+Gel's baked-in migration system lets you painlessly evolve your schema over
+time. Just update the contents of your |.gel| file(s) and use the |Gel| CLI
 to *create* and *apply* migrations.
 
 .. code-block:: bash
 
-  $ edgedb migration create
-  Created dbschema/migrations/00001.esdl
-  $ edgedb migrate
-  Applied dbschema/migrations/00001.esdl.
+  $ gel migration create
+  Created dbschema/migrations/00001.edgeql
+  $ gel migrate
+  Applied dbschema/migrations/00001.edgeql
 
 For a full guide on migrations, refer to the :ref:`Creating and applying
 migrations <ref_intro_migrations>` guide.
@@ -116,33 +102,24 @@ Terminology
 Instance
 ^^^^^^^^
 
-An EdgeDB **instance** is a running EdgeDB process. Instances can be created,
-started, stopped, and destroyed locally with the :ref:`EdgeDB CLI
+A |Gel| **instance** is a running Gel process. Instances can be created,
+started, stopped, and destroyed locally with the :ref:`Gel CLI
 <ref_cli_overview>`.
 
+.. _ref_datamodel_databases:
 .. _ref_datamodel_branches:
 
-Branches
-^^^^^^^^
+Branch
+^^^^^^
 
 .. versionadded:: 5.0
+
+   Prior to |EdgeDB| 5 and Gel, *branches* were called "databases"
+   (and "databases" is what Gel branches map to in PostgreSQL).
 
 Instances can be branched when working on new features, similar to branches in
 your VCS. Each branch has its own schema and data.
 
-.. _ref_datamodel_databases:
-
-Database
-^^^^^^^^
-
-.. versionadded:: 5.0
-
-    In EdgeDB 5, databases were replaced by branches.
-
-Each instance can contain several **databases**, each with a unique name. At
-the time of creation, all instances contain a single default database called
-``edgedb``. All incoming queries are executed
-against it unless otherwise specified.
 
 .. _ref_datamodel_modules:
 
@@ -187,9 +164,7 @@ schema inside a single module called ``default``.
         }
 
     Here we have a ``dracula`` module containing a ``Person`` type. Nested in
-    the ``dracula`` module we have a ``combat`` module which will be used for
-    all the combat functionality for our game based on Bram Stoker's Dracula we
-    built in the `Easy EdgeDB textbook </easy-edgedb>`_.
+    the ``dracula`` module we have a ``combat`` module.
 
 .. _ref_name_resolution:
 
@@ -198,7 +173,7 @@ schema inside a single module called ``default``.
   When referencing schema objects from another module, you must use
   a *fully-qualified* name in the form ``module_name::object_name``.
 
-The following module names are reserved by EdgeDB and contain pre-defined
+The following module names are reserved by |Gel| and contain pre-defined
 types, utility functions, and operators.
 
 * ``std``: standard types, functions, and operators in the :ref:`standard

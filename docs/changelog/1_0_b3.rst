@@ -7,7 +7,7 @@
 ==========
 
 This changelog summarizes new features and breaking changes in
-EdgeDB 1.0 beta 3 "Ross".
+|EdgeDB| 1.0 beta 3 "Ross".
 
 
 Migrations
@@ -166,14 +166,14 @@ Command-Line Tools
 
 We've changed some of the CLI `commands and groupings <rfc1006_>`_.
 There are some top-level "frequently used" commands such as
-:ref:`ref_cli_edgedb_dump`, :ref:`ref_cli_edgedb_restore`,
-:ref:`ref_cli_edgedb_migrate`, :ref:`ref_cli_edgedb_query`,
-:ref:`ref_cli_edgedb_info` and :ref:`ref_cli_edgedb_cli_upgrade`. Other
+:ref:`ref_cli_gel_dump`, :ref:`ref_cli_gel_restore`,
+:ref:`ref_cli_gel_migrate`, :ref:`ref_cli_gel_query`,
+:ref:`ref_cli_gel_info` and :ref:`ref_cli_gel_cli_upgrade`. Other
 commands are grouped into categories:
-:ref:`ref_cli_edgedb_configure`, :ref:`ref_cli_edgedb_migration`,
-:ref:`ref_cli_edgedb_list`, :ref:`ref_cli_edgedb_describe`,
-:ref:`ref_cli_edgedb_instance`, :ref:`ref_cli_edgedb_project` and
-:ref:`ref_cli_edgedb_server`.
+:ref:`ref_cli_gel_configure`, :ref:`ref_cli_gel_migration`,
+:ref:`ref_cli_gel_list`, :ref:`ref_cli_gel_describe`,
+:ref:`ref_cli_gel_instance`, :ref:`ref_cli_gel_project` and
+:ref:`ref_cli_gel_server`.
 
 Here's a more comprehensive list of the CLI commands:
 

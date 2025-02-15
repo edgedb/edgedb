@@ -4,21 +4,21 @@
 ChatGPT
 =======
 
-:edb-alt-title: Build your own documentation chatbot with ChatGPT and EdgeDB
+:edb-alt-title: Build your own documentation chatbot with ChatGPT and Gel
 
 *For additional context, check out* `our blog post about why and how we use
 ChatGPT via embeddings`_ *to create our “Ask AI” bot which answers questions
-related to the EdgeDB docs.*
+related to the Gel docs.*
 
 .. lint-off
 
 .. _our blog post about why and how we use ChatGPT via embeddings:
-  https://www.edgedb.com/blog/chit-chatting-with-edgedb-docs-via-chatgpt-and-pgvector
+  https://www.geldata.com/blog/chit-chatting-with-edgedb-docs-via-chatgpt-and-pgvector
 
 .. lint-on
 
 In this tutorial we're going to build a documentation chatbot with
-`Next.js <https://nextjs.org/>`_, `OpenAI <https://openai.com/>`_, and EdgeDB.
+`Next.js <https://nextjs.org/>`_, `OpenAI <https://openai.com/>`_, and Gel.
 
 .. warning::
 
@@ -81,7 +81,7 @@ Embedding generation requires two steps:
 
 1. create embeddings for each section using `OpenAI's embeddings API
    <https://platform.openai.com/docs/guides/embeddings>`_
-2. store the embeddings data in EdgeDB using pgvector
+2. store the embeddings data in Gel using pgvector
 
 Each time a user asks a question, our app will:
 
@@ -185,69 +185,45 @@ will make it easier to import them.
 
 .. lint-on
 
-Now, we'll create an instance of EdgeDB for our project, but first, we need to
-install EdgeDB!
+Now, we'll create an instance of Gel for our project.
 
 
-Install the EdgeDB CLI
-----------------------
+Create a local Gel instance
+---------------------------
 
-*If you already have EdgeDB installed, you can skip to creating an instance.*
-
-Before we can create an instance for our project, we need to install the EdgeDB
-CLI. On Linux or MacOS, run the following in your terminal and follow the
-on-screen instructions:
-
-.. code-block:: bash
-
-    $ curl --proto '=https' --tlsv1.2 -sSf https://sh.edgedb.com | sh
-
-Windows Powershell users can use this command:
-
-.. code-block:: powershell
-
-    PS> iwr https://ps1.edgedb.com -useb | iex
-
-For other installation scenarios, see the "Additional installation methods"
-section of `our "Install" page <https://www.edgedb.com/install>`_.
-
-
-Create a local EdgeDB instance
-------------------------------
-
-To create our instance, let's initialize our project as an EdgeDB project. Run
+To create our instance, let's initialize our project as an Gel project. Run
 the following in the root of the project:
 
 .. code-block:: bash
 
-    $ edgedb project init
-    No `edgedb.toml` found in `/<path>/<to>/<project>/docs-chatbot`
+    $ npx gel project init
+    No `gel.toml` found in `/<path>/<to>/<project>/docs-chatbot`
     or above
 
     Do you want to initialize a new project? [Y/n]
     > Y
 
-    Specify the name of EdgeDB instance to use with this project
+    Specify the name of Gel instance to use with this project
     [default: docs_chatbot]:
     > docs_chatbot
 
-    Checking EdgeDB versions...
-    Specify the version of EdgeDB to use with this project
+    Checking Gel versions...
+    Specify the version of Gel to use with this project
     [default: 3.2]:
     > 3.2
 
-The CLI should set up an EdgeDB project, an instance, and a default branch on
+The CLI should set up an Gel project, an instance, and a default branch on
 that instance.
 
-- Confirm project creation by checking for an ``edgedb.toml`` file and a
+- Confirm project creation by checking for an |gel.toml| file and a
   ``dbschema`` directory in the project root.
-- Confirm the instance is running with the ``edgedb instance list`` command.
+- Confirm the instance is running with the :gelcmd:`instance list` command.
   Search for the name of the instance you've just created (``docs_chatbot`` if
   you're following along) and check the status. (Don't worry if the status is
   "inactive"; the status will change to "running" automatically when you
   connect to the instance.)
-- Confirm you can connect to the created instance by running ``edgedb`` in the
-  terminal to connect to it via REPL or by running ``edgedb ui`` to connect
+- Confirm you can connect to the created instance by running |gelcmd| in the
+  terminal to connect to it via REPL or by running :gelcmd:`ui` to connect
   using the UI.
 
 
@@ -260,33 +236,33 @@ Create a ``.env.local`` file in the root of your new Next.js project.
 
     $ touch .env.local
 
-We're going to add a couple of variables to that file to configure the EdgeDB
+We're going to add a couple of variables to that file to configure the Gel
 client. We'll need to run a command on our new instance to get the value for
 one of those. Since we'll be using the `Edge runtime
 <https://nextjs.org/docs/app/api-reference/edge>`_ in our Next.js project, the
-edgedb-js client won't be able to access the Node.js filesystem APIs it usually
+gel-js client won't be able to access the Node.js filesystem APIs it usually
 uses to automatically find your instance, so we need to provide the DSN for the
 instance instead. To get that, run this command:
 
 .. code-block:: bash
 
-    $ edgedb instance credentials --insecure-dsn
+    $ npx gel instance credentials --insecure-dsn
 
 Copy what it logs out. Open the ``.env.local`` file in your text editor and add
 this to it:
 
 .. code-block:: typescript
 
-    EDGEDB_DSN=<your-dsn>
-    EDGEDB_CLIENT_TLS_SECURITY="insecure"
+    GEL_DSN=<your-dsn>
+    GEL_CLIENT_TLS_SECURITY="insecure"
 
 Replace ``<your-dsn>`` with the value you copied earlier.
 
-We're going to be using the EdgeDB HTTP client a bit later to connect to our
+We're going to be using the Gel HTTP client a bit later to connect to our
 database, but it requires a trusted TLS/SSL certificate. Local development
 instances use self signed certificates, and using HTTPS with these certificates
 will result in an error. To work around this error, we allow the client to
-ignore TLS by setting the ``EDGEDB_CLIENT_TLS_SECURITY`` variable to
+ignore TLS by setting the :gelenv:`CLIENT_TLS_SECURITY` variable to
 ``"insecure"``. Bear in mind that this is only for local development, and you
 should always use TLS in production.
 
@@ -313,8 +289,8 @@ Copy the new key. Re-open your ``.env.local`` file and add it like this:
 
 .. code-block:: typescript-diff
 
-      EDGEDB_DSN=<your-dsn>
-      EDGEDB_CLIENT_TLS_SECURITY="insecure"
+      GEL_DSN=<your-dsn>
+      GEL_CLIENT_TLS_SECURITY="insecure"
     + OPENAI_API_KEY="<your-openai-api-key>"
 
 Instead of ``<your-openai-api-key>``, paste in the key you just created.
@@ -366,7 +342,7 @@ since they are straightforward for OpenAI's language models to use.
 Create a ``docs`` folder in the root of the project. Here we will place our
 Markdown documentation files. You can grab the files we use from `the example
 project's GitHub repo
-<https://github.com/edgedb/edgedb-examples/tree/main/docs-chatbot/docs>`_ or
+<https://github.com/geldata/gel-examples/tree/main/docs-chatbot/docs>`_ or
 add your own. (If you use your own, you may also want to adjust the system
 message we send to OpenAI later.)
 
@@ -439,20 +415,20 @@ gives us context to feed to the LLM. We will need the token count later when
 calculating how many related sections fit inside the prompt context while
 staying under the model's token limit.
 
-Open the empty schema file that was generated when we initialized the EdgeDB
-project (located at ``dbschema/default.esdl`` from the project directory).
+Open the empty schema file that was generated when we initialized the Gel
+project (located at :dotgel:`dbschema/default` from the project directory).
 We'll walk through what we'll add to it, one step at a time. First, add this at
 the top of the file (above ``module default {``):
 
 .. code-block:: sdl
-    :caption: dbschema/default.esdl
+    :caption: dbschema/default.gel
 
     using extension pgvector;
     module default {
       # Schema will go here
     }
 
-We are able to store embeddings and find similar embeddings in the EdgeDB
+We are able to store embeddings and find similar embeddings in the Gel
 database because of the ``pgvector`` extension. In order to use it in our
 schema, we have to activate the ``ext::pgvector`` module with ``using extension
 pgvector`` at the beginning of the schema file. This module gives us access to
@@ -465,7 +441,7 @@ Just below that, we can start building our module by creating a new scalar
 type.
 
 .. code-block:: sdl
-    :caption: dbschema/default.esdl
+    :caption: dbschema/default.gel
 
     using extension pgvector;
     module default {
@@ -487,7 +463,7 @@ in our schema for this custom scalar.
 Now, the ``Section`` type:
 
 .. code-block:: sdl
-    :caption: dbschema/default.esdl
+    :caption: dbschema/default.gel
 
     using extension pgvector;
     module default {
@@ -524,7 +500,7 @@ index.
 Put that all together, and your entire schema file should look like this:
 
 .. code-block:: sdl
-    :caption: dbschema/default.esdl
+    :caption: dbschema/default.gel
 
     using extension pgvector;
 
@@ -546,8 +522,8 @@ We apply this schema by creating and running a migration.
 
 .. code-block:: bash
 
-    $ edgedb migration create
-    $ edgedb migrate
+    $ npx gel migration create
+    $ npx gel migrate
 
 .. note::
 
@@ -570,7 +546,7 @@ We apply this schema by creating and running a migration.
     to support this:
 
     .. code-block:: sdl-diff
-        :caption: dbschema/default.esdl
+        :caption: dbschema/default.gel
 
           type Section {
         +   required path: str {
@@ -593,23 +569,23 @@ libraries that will help us.
 
 .. code-block:: bash
 
-    $ npm install openai edgedb
+    $ npm install openai gel
     $ npm install \
-        @edgedb/generate \
+        @gel/generate \
         gpt-tokenizer \
         dotenv \
         tsx \
         --save-dev
 
-The ``@edgedb/generate`` package provides a set of code generation tools that
-are useful when developing an EdgeDB-backed applications with
+The ``@gel/generate`` package provides a set of code generation tools that
+are useful when developing an Gel-backed applications with
 TypeScript/JavaScript. We're going to write queries using our
-:ref:`query builder <edgedb-js-qb>`, but before we can, we
+:ref:`query builder <gel-js-qb>`, but before we can, we
 need to run the query builder generator.
 
 .. code-block:: bash
 
-    $ npx @edgedb/generate edgeql-js
+    $ npx @gel/generate edgeql-js
 
 Answer "y" when asked about adding the query builder to ``.gitignore``.
 
@@ -642,7 +618,7 @@ tasks we need to perform.
     import { join } from "path";
     import dotenv from "dotenv";
     import { encode } from "gpt-tokenizer";
-    import * as edgedb from "edgedb";
+    import * as gel from "gel";
     import e from "dbschema/edgeql-js";
     import { initOpenAIClient } from "./utils";
 
@@ -811,7 +787,7 @@ Now, we generate embeddings from the content. We need to be careful about how
 we approach the API calls to generate the embeddings since they could have a
 big impact on how long generation takes, especially as your documentation
 grows. The simplest solution would be to make a single request to the API for
-each section, but in the case of EdgeDB's documentation, which has around 3,000
+each section, but in the case of Gel's documentation, which has around 3,000
 pages, this would take about half an hour.
 
 Since OpenAI's embeddings API can take not only a *single* string but also an
@@ -917,7 +893,7 @@ Again, we'll break the ``storeEmbeddings`` function apart and walk through it.
 
     // …
     async function storeEmbeddings() {
-      const client = edgedb.createClient();
+      const client = gel.createClient();
 
       const sectionPaths = await walk("docs");
 
@@ -929,7 +905,7 @@ Again, we'll break the ``storeEmbeddings`` function apart and walk through it.
     }
     // …
 
-We create our EdgeDB client and get our documentation paths by calling
+We create our Gel client and get our documentation paths by calling
 ``walk``. We also log out some debug information showing how many sections were
 discovered. Then, we prep our ``Section`` objects by calling the
 ``prepareSectionsData`` function we just walked through and passing in the
@@ -947,7 +923,7 @@ Next, we'll store this data.
       // Delete old data from the DB.
       await e.delete(e.Section).run(client);
 
-      // Bulk-insert all data into EdgeDB database.
+      // Bulk-insert all data into Gel database.
       const query = e.params({ sections: e.json }, ({ sections }) => {
         return e.for(e.json_array_unpack(sections), (section) => {
           return e.insert(e.Section, {
@@ -976,7 +952,7 @@ Here's what the whole function looks like:
 
     // …
     async function storeEmbeddings() {
-      const client = edgedb.createClient();
+      const client = gel.createClient();
 
       const sectionPaths = await walk("docs");
 
@@ -987,7 +963,7 @@ Here's what the whole function looks like:
       // Delete old data from the DB.
       await e.delete(e.Section).run(client);
 
-      // Bulk-insert all data into EdgeDB database.
+      // Bulk-insert all data into Gel database.
       const query = e.params({ sections: e.json }, ({ sections }) => {
         return e.for(e.json_array_unpack(sections), (section) => {
           return e.insert(e.Section, {
@@ -1017,7 +993,7 @@ into your ``generate-embeddings.ts`` file.
     import { join } from "path";
     import dotenv from "dotenv";
     import { encode } from "gpt-tokenizer";
-    import * as edgedb from "edgedb";
+    import * as gel from "gel";
     import e from "dbschema/edgeql-js";
     import { initOpenAIClient } from "@/utils";
 
@@ -1079,7 +1055,7 @@ into your ``generate-embeddings.ts`` file.
     }
 
     async function storeEmbeddings() {
-      const client = edgedb.createClient();
+      const client = gel.createClient();
 
       const sectionPaths = await walk("docs");
 
@@ -1090,7 +1066,7 @@ into your ``generate-embeddings.ts`` file.
       // Delete old data from the DB.
       await e.delete(e.Section).run(client);
 
-      // Bulk-insert all data into EdgeDB database.
+      // Bulk-insert all data into Gel database.
       const query = e.params({ sections: e.json }, ({ sections }) => {
         return e.for(e.json_array_unpack(sections), (section) => {
           return e.insert(e.Section, {
@@ -1116,6 +1092,7 @@ Running the script
 Let's add a script to ``package.json`` that will invoke and execute
 ``generate-embeddings.ts``.
 
+.. XXX gel version - fix
 .. code-block:: json-diff
 
       {
@@ -1131,7 +1108,7 @@ Let's add a script to ``package.json`` that will invoke and execute
     +     "embeddings": "tsx generate-embeddings.ts"
         },
         "dependencies": {
-          "edgedb": "^1.3.5",
+          "gel": "^1.3.5",
           "next": "^13.4.19",
           "openai": "^4.0.1",
           "react": "18.2.0",
@@ -1139,7 +1116,7 @@ Let's add a script to ``package.json`` that will invoke and execute
           "typescript": "5.1.6"
         },
         "devDependencies": {
-          "@edgedb/generate": "^0.3.3",
+          "@gel/generate": "^0.3.3",
           "@types/node": "20.4.8",
           "@types/react": "18.2.18",
           "@types/react-dom": "18.2.7",
@@ -1161,11 +1138,11 @@ a simple command:
 
    $ npm run embeddings
 
-After the script finishes, open the EdgeDB UI.
+After the script finishes, open the Gel UI.
 
 .. code-block:: bash
 
-  $ edgedb ui
+   $ npx gel ui
 
 Open your "main" branch and switch to the Data Explorer tab. You should see
 that the database has been updated with the embeddings and other relevant data.
@@ -1234,7 +1211,7 @@ when we create the prompt from user's question and related sections.
 Let's talk briefly about runtimes. In the context of Next.js, "runtime" refers
 to the set of libraries, APIs, and general functionality available to your code
 during execution. Next.js supports `Node.js and Edge runtimes`_. (The "Edge"
-runtime is coincidentally named but is not related to EdgeDB.)
+runtime is coincidentally named but is not related to Gel.)
 
 Streaming is supported within both runtimes, but the implementation is a bit
 simpler when using Edge, so that's what we will use here. The Edge runtime is
@@ -1260,7 +1237,7 @@ writing some configuration.
     :caption: app/api/generate-answer/route.ts
 
     import { stripIndents, oneLineTrim } from "common-tags";
-    import * as edgedb from "edgedb";
+    import * as gel from "gel";
     import e from "dbschema/edgeql-js";
     import { errors } from "../../constants";
     import { initOpenAIClient } from "@/utils";
@@ -1269,7 +1246,7 @@ writing some configuration.
 
     const openai = initOpenAIClient();
 
-    const client = edgedb.createHttpClient();
+    const client = gel.createHttpClient();
 
     export async function POST(req: Request) {
         // …
@@ -1279,7 +1256,7 @@ writing some configuration.
 
 
 The first imports are templates from the ``common-tags`` library we installed
-earlier. Then, we import the EdgeDB binding. The third import is the query
+earlier. Then, we import the Gel binding. The third import is the query
 builder we described previously. We also import our errors and our OpenAI API
 client initializer function.
 
@@ -1342,7 +1319,7 @@ build toward an answer.
 2. If the query fails, we throw. If it passes, we generate embeddings for it
    using the OpenAI embedding API. This is handled by our ``getEmbedding``
    function.
-3. We get related documentation sections from the EdgeDB database. This is
+3. We get related documentation sections from the Gel database. This is
    handled by ``getContext``.
 4. We create the full prompt as our input to the chat completions API by
    combining the question, related documentation sections, and a system
@@ -1473,7 +1450,7 @@ a variable named ``getSectionsQuery``.
         }
     );
 
-In the above code, we use EdgeDB's TypeScript query builder to create a query.
+In the above code, we use Gel's TypeScript query builder to create a query.
 The query takes a few parameters:
 
 * ``target``: Embedding array to compare against to find related sections. In
@@ -1494,7 +1471,7 @@ ordering, and limit clause.
 
 We use the ``cosine_distance`` function to calculate the similarity between the
 user's question and our documentation sections. We have access to this function
-through EdgeDB's pgvector extension. We then filter on that property by
+through Gel's pgvector extension. We then filter on that property by
 comparing it to the ``matchThreshold`` value we will pass when executing the
 query.
 
@@ -1580,8 +1557,8 @@ response. We'll combine all of these parts in a function called
 
     function createFullPrompt(query: string, context: string) {
         const systemMessage = `
-            As an enthusiastic EdgeDB expert keen to assist,
-            respond to questions referencing the given EdgeDB
+            As an enthusiastic Gel expert keen to assist,
+            respond to questions referencing the given Gel
             sections.
 
             If unable to help based on documentation, respond
@@ -1590,7 +1567,7 @@ response. We'll combine all of these parts in a function called
         return stripIndents`
             ${oneLineTrim`${systemMessage}`}
 
-            EdgeDB sections: """
+            Gel sections: """
             ${context}
             """
 
@@ -1664,7 +1641,7 @@ Now, let's take a look at the whole thing. Copy and paste this into your
     :caption: app/api/generate-answer/route.ts
 
     import { stripIndents, oneLineTrim } from "common-tags";
-    import * as edgedb from "edgedb";
+    import * as gel from "gel";
     import e from "dbschema/edgeql-js";
     import { errors } from "../../constants";
     import { initOpenAIClient } from "@/utils";
@@ -1673,7 +1650,7 @@ Now, let's take a look at the whole thing. Copy and paste this into your
 
     const openai = initOpenAIClient();
 
-    const client = edgedb.createHttpClient();
+    const client = gel.createHttpClient();
 
     export async function POST(req: Request) {
       try {
@@ -1795,8 +1772,8 @@ Now, let's take a look at the whole thing. Copy and paste this into your
 
     function createFullPrompt(query: string, context: string) {
       const systemMessage = `
-            As an enthusiastic EdgeDB expert keen to assist,
-            respond to questions referencing the given EdgeDB
+            As an enthusiastic Gel expert keen to assist,
+            respond to questions referencing the given Gel
             sections.
 
             If unable to help based on documentation, respond
@@ -1805,7 +1782,7 @@ Now, let's take a look at the whole thing. Copy and paste this into your
       return stripIndents`
             ${oneLineTrim`${systemMessage}`}
 
-            EdgeDB sections: """
+            Gel sections: """
             ${context}
             """
 
@@ -2294,15 +2271,15 @@ try tweaking:
   function in ``app/api/generate-answer/route.ts``
 
 You can see the finished source code for this build in `our examples repo on
-GitHub <https://github.com/edgedb/edgedb-examples/tree/main/docs-chatbot>`_.
+GitHub <https://github.com/geldata/gel-examples/tree/main/docs-chatbot>`_.
 You might also find our actual implementation interesting. You'll find it in
-`our website repo <https://github.com/edgedb/website>`_. Pay close attention to
+`our website repo <https://github.com/geldata/website>`_. Pay close attention to
 the contents of `buildTools/gpt
-<https://github.com/edgedb/website/tree/main/buildTools/gpt>`_, where the
+<https://github.com/geldata/website/tree/main/buildTools/gpt>`_, where the
 embedding generation happens and `components/gpt
-<https://github.com/edgedb/website/tree/main/components/gpt>`_, which contains
+<https://github.com/geldata/website/tree/main/components/gpt>`_, which contains
 most of the UI for our chatbot.
 
-If you have trouble with the build or just want to hang out with other EdgeDB
+If you have trouble with the build or just want to hang out with other Gel
 users, please join `our awesome community on Discord
 <https://discord.gg/umUueND6ag>`_!

@@ -1,11 +1,11 @@
 .. _index_toplevel:
 
 
-====================
-EdgeDB documentation
-====================
+=================
+Gel documentation
+=================
 
-Welcome to the EdgeDB |version| documentation.
+Welcome to the |Gel| |version| documentation.
 
 
 .. !!! DO NOT CHANGE :maxdepth: egdedb.com/docs depends on it !!!
@@ -24,3 +24,4 @@ Welcome to the EdgeDB |version| documentation.
     reference/index
     cheatsheets/index
     changelog/index
+    cloud/index

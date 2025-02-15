@@ -4,7 +4,7 @@
 Casts
 =====
 
-This section describes introspection of EdgeDB :eql:op:`type casts
+This section describes introspection of Gel :eql:op:`type casts
 <cast>`. Features like whether the casts are implicit can be
 discovered by introspecting ``schema::Cast``.
 
@@ -112,7 +112,7 @@ of those types:
     {1.0, 2.0}
 
 What happens if there's no implicit cast between a couple of scalars
-in this type of example? EdgeDB checks whether there's a scalar type
+in this type of example? Gel checks whether there's a scalar type
 such that all of the set elements can be implicitly cast into that:
 
 .. code-block:: edgeql-repl

@@ -6,6 +6,9 @@
 Triggers
 ========
 
+.. index:: trigger, after insert, after update, after delete, for each, for all,
+           when, do, __new__, __old__
+
 .. edb:youtube-embed:: ImgMfb_jCJQ?start=41
 
 Triggers allow you to define an expression to be executed whenever a given
@@ -150,9 +153,9 @@ Now, whenever we run a query, we get a log entry as well:
 .. note::
 
     In some cases, a trigger can cause another trigger to fire. When this
-    happens, EdgeDB completes all the triggers fired by the initial query
+    happens, Gel completes all the triggers fired by the initial query
     before kicking off a new "stage" of triggers. In the second stage, any
-    triggers fired by the initial stage of triggers will fire. EdgeDB will
+    triggers fired by the initial stage of triggers will fire. Gel will
     continue adding trigger stages until all triggers are complete.
 
     The exception to this is when triggers would cause a loop or would cause
@@ -297,6 +300,8 @@ object instead of one ``Log`` object per row:
 Validation using triggers
 =========================
 
+.. index:: trigger, validate, assert
+
 Triggers may also be used for validation by calling :eql:func:`assert` inside
 the trigger. In this example, the ``Person`` type has two multi links to other
 ``Person`` objects named ``friends`` and ``enemies``. These two links should be
@@ -342,7 +347,7 @@ both a friend and an enemy of any other person.
     ...     select detached Person filter .name = 'Dracula'
     ...   )
     ... };
-    edgedb error: EdgeDBError: Invalid frenemies
+    gel error: GelError: Invalid frenemies
 
 
 .. list-table::

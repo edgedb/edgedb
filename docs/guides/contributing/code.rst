@@ -4,9 +4,9 @@
 Code
 ====
 
-:edb-alt-title: Developing EdgeDB
+:edb-alt-title: Developing Gel
 
-This section describes how to build EdgeDB locally, how to use its
+This section describes how to build Gel locally, how to use its
 internal tools, and how to contribute to it.
 
 .. warning::
@@ -74,7 +74,7 @@ be built with the following ``shell.nix`` file.
 
    with import <nixpkgs> {};
    pkgs.mkShell {
-       name = "edgedb dev shell";
+       name = "gel dev shell";
        venvDir = "./venv";
 
        buildInputs = with pkgs; [
@@ -116,8 +116,8 @@ be built with the following ``shell.nix`` file.
 The easiest way to set up a development environment is to create a
 Python "venv" with all dependencies and commands installed into it.
 
-#. Make a new directory that will contain checkouts of `edgedb <edgedb_>`_
-   and `edgedb-python <edgedbpy_>`_.  The name of the directory is
+#. Make a new directory that will contain checkouts of `gel <gel_>`_
+   and `gel-python <gelpy_>`_.  The name of the directory is
    arbitrary, we will use "dev" in this guide:
 
    .. code-block:: bash
@@ -125,29 +125,29 @@ Python "venv" with all dependencies and commands installed into it.
       $ mkdir ~/dev
       $ cd ~/dev
 
-#. Clone the edgedb repository using ``--recursive``
+#. Clone the gel repository using ``--recursive``
    to clone all submodules:
 
    .. code-block:: bash
 
-      $ git clone --recursive https://github.com/edgedb/edgedb.git
+      $ git clone --recursive https://github.com/geldata/gel.git
 
 #. Create a Python 3.12 virtual environment and activate it:
 
    .. code-block:: bash
 
-      $ python3.12 -m venv edgedb-dev
-      $ source edgedb-dev/bin/activate
+      $ python3.12 -m venv gel-dev
+      $ source gel-dev/bin/activate
 
-#. Build edgedb (the build will take a while):
+#. Build gel (the build will take a while):
 
    .. code-block:: bash
 
-      $ cd edgedb
+      $ cd gel
       $ pip install -v -e ".[test]"
 
-   In addition to compiling EdgeDB and all dependencies, this will also
-   install the ``edb`` and ``edgedb`` command line tools into the current
+   In addition to compiling Gel and all dependencies, this will also
+   install the ``edb`` and |gelcmd| command line tools into the current
    Python virtual environment.
 
    It will also install libraries used during development.
@@ -165,7 +165,7 @@ activated at any time.
 Running Tests
 =============
 
-To run all EdgeDB tests simply use the ``$ edb test`` command without
+To run all Gel tests simply use the ``$ edb test`` command without
 arguments.
 
 The command also supports running a few selected tests.  To run all
@@ -196,7 +196,7 @@ Dev Server
 Use the ``$ edb server`` command to start the development server.
 
 You can then use another terminal to open a REPL to the server using the
-``$ edgedb`` command, or connect to it using one of the language bindings.
+|gelcmd| command, or connect to it using one of the language bindings.
 
 
 Test Branches
@@ -206,5 +206,5 @@ Use the ``$ edb inittestdb`` command to create and populate branches that are
 used by unit tests.
 
 .. _rst: https://www.sphinx-doc.org/en/master/usage/restructuredtext/index.html
-.. _edgedbpy: https://github.com/edgedb/edgedb-python
-.. _edgedb: https://github.com/edgedb/edgedb
+.. _gelpy: https://github.com/geldata/gel-python
+.. _gel: https://github.com/geldata/gel

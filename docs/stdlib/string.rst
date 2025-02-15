@@ -111,8 +111,8 @@ Strings
         {'42'}
         db> select <bool>'true';
         {true}
-        db> select "I ❤️ EdgeDB";
-        {'I ❤️ EdgeDB'}
+        db> select "I ❤️ Gel";
+        {'I ❤️ Gel'}
 
     Note that when a :eql:type:`str` is cast into a :eql:type:`json`,
     the result is a JSON string value. The same applies for casting back
@@ -165,11 +165,11 @@ Strings
 
     .. versionadded:: 6.0
 
-    Regular strings may use ``\(expr)`` to interpolate the value of
-    ``expr`` into the string. The value will be cast to ``str`` if it
-    is not already. For example:
+      Regular strings may use ``\(expr)`` to interpolate the value of
+      ``expr`` into the string. The value will be cast to ``str`` if it
+      is not already. For example:
 
-    .. code-block:: edgeql-repl
+      .. code-block:: edgeql-repl
 
         db> select '1 + 1 = \(1+1)';
         {'1 + 1 = 2'}
@@ -190,6 +190,8 @@ Strings
 
 
 .. eql:operator:: stridx: str [ int64 ] -> str
+
+    :index: [int], index access
 
     String indexing.
 
@@ -229,6 +231,8 @@ Strings
 
 .. eql:operator:: strslice: str [ int64 : int64 ] -> str
 
+    :index: [int:int]
+
     String slicing.
 
     Indexing starts at 0. Negative indexes are also valid and count from
@@ -261,6 +265,8 @@ Strings
 
 .. eql:operator:: strplus: str ++ str -> str
 
+    :index: ++, string, concatenate, join, add
+
     String concatenation.
 
     .. code-block:: edgeql-repl
@@ -274,6 +280,8 @@ Strings
 
 .. eql:operator:: like: str like str -> bool
                         str not like str -> bool
+
+    :index: like, not like, case sensitive, string matching, comparison, compare
 
     Case-sensitive simple string matching.
 
@@ -324,6 +332,8 @@ Strings
 
 .. eql:operator:: ilike: str ilike str -> bool
                          str not ilike str -> bool
+
+    :index: ilike, not ilike, case insensitive, string matching, comparison, compare
 
     Case-insensitive simple string matching.
 
@@ -775,7 +785,7 @@ Strings
         db> select to_str(b'\xe3\x83\x86');
         {'テ'}
         db> select to_str(b'\xe3\x83');
-        edgedb error: InvalidValueError: invalid byte sequence for
+        gel error: InvalidValueError: invalid byte sequence for
         encoding "UTF8": 0xe3 0x83
 
 
@@ -787,9 +797,9 @@ Strings
 Regular Expressions
 -------------------
 
-EdgeDB supports Regular expressions (REs), as defined in POSIX 1003.2.
+|Gel| supports Regular expressions (REs), as defined in POSIX 1003.2.
 They come in two forms: BRE (basic RE) and ERE (extended RE). In
-addition, EdgeDB supports certain common extensions to the POSIX
+addition, Gel supports certain common extensions to the POSIX
 standard commonly known as ARE (advanced RE). More details about
 BRE, ERE, and ARE support can be found in `PostgreSQL documentation`_.
 
@@ -835,7 +845,7 @@ Formatting
 ----------
 
 ..
-    Portions Copyright (c) 2019 MagicStack Inc. and the EdgeDB authors.
+    Portions Copyright (c) 2019 MagicStack Inc. and the Gel authors.
 
     Portions Copyright (c) 1996-2018, PostgreSQL Global Development Group
     Portions Copyright (c) 1994, The Regents of the University of California

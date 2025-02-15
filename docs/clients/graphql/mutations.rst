@@ -4,7 +4,7 @@
 Mutations
 =========
 
-EdgeDB provides GraphQL mutations to perform ``delete``, ``insert``
+|Gel| provides GraphQL mutations to perform ``delete``, ``insert``
 and ``update`` operations.
 
 

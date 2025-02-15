@@ -6,24 +6,15 @@ SDL
 :edb-alt-title: Schema Definition Language
 
 
-This section describes the high-level language used to define EdgeDB
-schema.  It is called the EdgeDB *schema definition language* or
+This section describes the high-level language used to define Gel
+schema.  It is called the Gel *schema definition language* or
 *SDL*.  There's a correspondence between this declarative high-level
 language and the imperative low-level :ref:`DDL <ref_eql_ddl>`.
 
-.. versionchanged:: _default
-
-    SDL is a declarative language optimized for human readability and
-    expressing the state of the EdgeDB schema without getting into the details
-    of how to arrive at that state.  Each *SDL* block represents the complete
-    schema state for a given :ref:`database <ref_datamodel_databases>`.
-
-.. versionchanged:: 5.0
-
-    SDL is a declarative language optimized for human readability and
-    expressing the state of the EdgeDB schema without getting into the details
-    of how to arrive at that state.  Each *SDL* block represents the complete
-    schema state for a given :ref:`branch <ref_datamodel_branches>`.
+SDL is a declarative language optimized for human readability and
+expressing the state of the Gel schema without getting into the details
+of how to arrive at that state.  Each *SDL* block represents the complete
+schema state for a given :ref:`branch <ref_datamodel_branches>`.
 
 Syntactically, an SDL declaration mirrors the ``create`` DDL for the
 corresponding entity, but with all of the ``create`` and ``set``
@@ -33,7 +24,7 @@ nested in their respective modules.
 
 .. versionadded:: 3.0
 
-    EdgeDB 3.0 introduces a new SDL syntax which diverges slightly from DDL.
+    |EdgeDB| 3.0 introduces a new SDL syntax which diverges slightly from DDL.
     The old SDL syntax is still fully supported, but the new syntax allows for
     cleaner and less verbose expression of your schemas.
 
@@ -50,7 +41,7 @@ nested in their respective modules.
           required property email -> str;
         }
 
-    could be replaced with this equivalent one in EdgeDB 3+:
+    could be replaced with this equivalent one in |EdgeDB| 3+ / Gel:
 
     .. code-block:: sdl
 
@@ -66,7 +57,7 @@ nested in their respective modules.
 Since SDL is declarative in nature, the specific order of
 declarations of module blocks or individual items does not matter.
 
-The built-in :ref:`migration tools<ref_cli_edgedb_migration>` expect
+The built-in :ref:`migration tools<ref_cli_gel_migration>` expect
 the schema to be given in SDL format. For example:
 
 .. code-block:: sdl

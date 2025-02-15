@@ -4,7 +4,7 @@
 Health Checks
 =============
 
-EdgeDB exposes HTTP endpoints to check for aliveness and readiness of your
+|Gel| exposes HTTP endpoints to check for aliveness and readiness of your
 database instance. You can make GET requests to these endpoints to check the
 instance status.
 

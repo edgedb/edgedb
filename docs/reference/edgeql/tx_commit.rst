@@ -1,5 +1,5 @@
 ..
-    Portions Copyright (c) 2019 MagicStack Inc. and the EdgeDB authors.
+    Portions Copyright (c) 2019 MagicStack Inc. and the Gel authors.
 
     Portions Copyright (c) 1996-2018, PostgreSQL Global Development Group
     Portions Copyright (c) 1994, The Regents of the University of California

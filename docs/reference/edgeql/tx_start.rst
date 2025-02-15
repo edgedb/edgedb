@@ -1,5 +1,5 @@
 ..
-    Portions Copyright (c) 2019 MagicStack Inc. and the EdgeDB authors.
+    Portions Copyright (c) 2019 MagicStack Inc. and the Gel authors.
 
     Portions Copyright (c) 1996-2018, PostgreSQL Global Development Group
     Portions Copyright (c) 1994, The Regents of the University of California
@@ -48,7 +48,7 @@ Description
 
 This command starts a new transaction block.
 
-Any EdgeDB command outside of an explicit transaction block starts
+Any Gel command outside of an explicit transaction block starts
 an implicit transaction block; the transaction is then automatically
 committed if the command was executed successfully, or automatically
 rollbacked if there was an error.  This behavior is often called
@@ -61,12 +61,12 @@ Parameters
 The :eql:synopsis:`<transaction-mode>` can be one of the following:
 
 :eql:synopsis:`isolation serializable`
-    All statements in the current transaction can only see data 
-    changes that were committed before the first query or data 
-    modification statement was executed within this transaction. 
+    All statements in the current transaction can only see data
+    changes that were committed before the first query or data
+    modification statement was executed within this transaction.
     If a pattern of reads and writes among concurrent serializable
-    transactions creates a situation that could not have occurred 
-    in any serial (one-at-a-time) execution of those transactions, 
+    transactions creates a situation that could not have occurred
+    in any serial (one-at-a-time) execution of those transactions,
     one of them will be rolled back with a serialization_failure error.
 
 :eql:synopsis:`read write`

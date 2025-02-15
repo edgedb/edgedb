@@ -6,7 +6,7 @@
 1.0 RC 5
 ========
 
-This changelog summarizes changes and bugfixes in EdgeDB 1.0 Release
+This changelog summarizes changes and bugfixes in |EdgeDB| 1.0 Release
 Candidate 5 "Tau Ceti". Compared to other releases this is a very
 small one as we're closing in on the stable version.
 

@@ -7,7 +7,7 @@
 ==========
 
 This changelog summarizes new features and breaking changes in
-EdgeDB 1.0 beta 2 "Luyten".
+|EdgeDB| 1.0 beta 2 "Luyten".
 
 
 Migrations
@@ -59,7 +59,7 @@ EdgeQL
 
 * Drop the deprecated ``Port``. The more general
   :ref:`extension <ref_datamodel_extensions>` mechanism introduced in
-  EdgeDB 1.0 beta 1 should be used (:eql:gh:`#2262`).
+  |EdgeDB| 1.0 beta 1 should be used (:eql:gh:`#2262`).
 * Reduce the maximum length for names of databases and roles to 51
   characters (:eql:gh:`#2465`).
 * Enable ``br`` (or ``rb``) as a valid bytes literal prefix
@@ -109,7 +109,7 @@ GraphQL
 Command-Line Tools
 ==================
 
-We've added ``edgedb project init`` command to help manage EdgeDB
+We've added ``edgedb project init`` command to help manage |EdgeDB|
 credentials for your project. Running this in a new project directory
 will setup an EdgeDB instance, create a schema and migrations
 directory and link the credentials for that instance to the project
@@ -117,7 +117,7 @@ directory.
 
 .. code-block:: bash
 
-    $ edgedb project init
+    $ gel project init
     No `edgedb.toml` found in `/home/username/dev/hw` or above
     Do you want to initialize a new project? [Y/n]
     > Y
@@ -157,7 +157,7 @@ running ``edgedb project init`` in the existing project's directory:
 
 .. code-block:: bash
 
-    $ edgedb project init
+    $ gel project init
     No `edgedb.toml` found in `/home/username/dev/myproject` or above
     Do you want to initialize a new project? [Y/n]
     > Y

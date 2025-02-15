@@ -4,7 +4,10 @@
 Inheritance
 ===========
 
-Inheritance is a crucial aspect of schema modeling in EdgeDB. Schema items can
+.. index:: abstract, extending, extends, subtype, supertype, parent type,
+           child type
+
+Inheritance is a crucial aspect of schema modeling in Gel. Schema items can
 *extend* one or more parent types. When extending, the child (subclass)
 inherits the definition of its parents (superclass).
 
@@ -94,6 +97,8 @@ Polymorphic queries <ref_eql_select_polymorphic>`.
 Multiple Inheritance
 ^^^^^^^^^^^^^^^^^^^^
 
+.. index:: Multiple Inheritance
+
 Object types can :ref:`extend more
 than one type <ref_eql_sdl_object_types_inheritance>` — that's called
 *multiple inheritance*. This mechanism allows building complex object
@@ -135,6 +140,8 @@ types out of combinations of more basic types.
 
 Overloading
 ^^^^^^^^^^^
+
+.. index:: overloaded
 
 An object type can overload an inherited property or link. All overloaded
 declarations must be prefixed with the ``overloaded`` prefix to avoid

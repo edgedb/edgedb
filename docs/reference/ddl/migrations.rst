@@ -10,7 +10,7 @@ This section describes the DDL commands pertaining to migrations.
 
     Like all DDL commands, ``start migration`` and other migration
     commands are considered low-level. Users are encouraged to use the
-    built-in :ref:`migration tools <ref_cli_edgedb_migration>`
+    built-in :ref:`migration tools <ref_cli_gel_migration>`
     instead.
 
 Start migration
@@ -31,7 +31,7 @@ Parameters
 ----------
 
 :eql:synopsis:`<sdl-declaration>`
-    Complete schema defined with the declarative :ref:`EdgeDB schema
+    Complete schema defined with the declarative :ref:`Gel schema
     definition language<ref_eql_sdl>`.
 
 Description
@@ -70,7 +70,7 @@ available:
 Examples
 --------
 
-Create a new migration to a target schema specified by the EdgeDB Schema
+Create a new migration to a target schema specified by the Gel Schema
 syntax:
 
 .. code-block:: edgeql
@@ -102,17 +102,9 @@ Create a new migration using an explicit EdgeQL script.
 Parameters
 ----------
 
-.. versionchanged:: _default
-
-    :eql:synopsis:`<edgeql-statement>`
-        Any valid EdgeQL statement, except ``database``, ``role``, ``configure``,
-        ``migration``, or ``transaction`` statements.
-
-.. versionchanged:: 5.0
-
-    :eql:synopsis:`<edgeql-statement>`
-        Any valid EdgeQL statement, except ``database``, ``branch``, ``role``,
-        ``configure``, ``migration``, or ``transaction`` statements.
+:eql:synopsis:`<edgeql-statement>`
+    Any valid EdgeQL statement, except ``database``, ``branch``, ``role``,
+    ``configure``, ``migration``, or ``transaction`` statements.
 
 
 Description
@@ -125,7 +117,7 @@ and records the migration into the system migration log.
 Examples
 --------
 
-Create a new migration to a target schema specified by the EdgeDB Schema
+Create a new migration to a target schema specified by the Gel Schema
 syntax:
 
 .. code-block:: edgeql

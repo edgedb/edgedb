@@ -27,7 +27,7 @@ Create a new branch without schema or data.
 Description
 -----------
 
-The command ``create empty branch`` creates a new EdgeDB branch without schema
+The command ``create empty branch`` creates a new Gel branch without schema
 or data, aside from standard schemas.
 
 Examples
@@ -54,7 +54,7 @@ Create a new branch copying the schema of an existing branch.
 Description
 -----------
 
-The command ``create schema branch`` creates a new EdgeDB branch with schema
+The command ``create schema branch`` creates a new Gel branch with schema
 copied from an already existing branch.
 
 Examples
@@ -81,7 +81,7 @@ Create a new branch copying the schema and data of an existing branch.
 Description
 -----------
 
-The command ``create data branch`` creates a new EdgeDB branch with schema and
+The command ``create data branch`` creates a new Gel branch with schema and
 data copied from an already existing branch.
 
 Examples

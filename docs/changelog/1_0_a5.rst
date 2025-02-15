@@ -108,7 +108,7 @@ CLI
 Bindings
 ========
 
-* Add transaction :ref:`API <edgedb-js-api-transaction>` to JS binding
+* Add transaction :ref:`API <gel-js-api-transaction>` to JS binding
   (`#61 <https://github.com/edgedb/edgedb-js/pull/61>`_). Here's an
   example of using transactions:
 

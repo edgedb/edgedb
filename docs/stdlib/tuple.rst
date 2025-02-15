@@ -49,14 +49,14 @@ Examples:
 
 .. code-block:: edgeql-repl
 
-    db> select (1, 'EdgeDB').0;
+    db> select (1, 'Gel').0;
     {1}
 
-    db> select (number := 1, name := 'EdgeDB').name;
-    {"EdgeDB"}
+    db> select (number := 1, name := 'Gel').name;
+    {"Gel"}
 
-    db> select (number := 1, name := 'EdgeDB').1;
-    {"EdgeDB"}
+    db> select (number := 1, name := 'Gel').1;
+    {"Gel"}
 
 Nesting tuples
 --------------

@@ -4,7 +4,7 @@
 Date/Time Handling
 ==================
 
-EdgeDB has 6 types related to date and time handling:
+|Gel| has 6 types related to date and time handling:
 
 * :eql:type:`datetime` (:ref:`binary format <ref_protocol_fmt_datetime>`)
 * :eql:type:`duration` (:ref:`binary format <ref_protocol_fmt_duration>`)
@@ -21,7 +21,7 @@ Usually we try to map those types to the respective language-native types,
 with the following caveats:
 
 * The type in standard library
-* It has enough range (EdgeDB has timestamps from year 1 to 9999)
+* It has enough range (Gel has timestamps from year 1 to 9999)
 * And it has good enough precision (at least microseconds)
 
 If any of the above criteria is not met, we usually provide a custom type in
@@ -40,7 +40,7 @@ Precision
 
 This means that if language-native type have a bigger precision such as
 nanosecond, client library has to round that timestamp when encoding it for
-EdgeDB.
+|Gel|.
 
 We use **rouding to the nearest even** for that operation. Here are some
 examples of timetamps with high precision, and how they are stored in the
@@ -68,8 +68,7 @@ database::
 Note as described in :ref:`datetime protocol documentation
 <ref_protocol_fmt_datetime>` the value is encoded as a *signed* microseconds
 delta since a fixed time. Some care must be taken when rounding negative
-microsecond values. See `tests for Rust implementation`_ for a good set of
-test cases.
+microsecond values.
 
 Rounding to the nearest even applies to all operations that client libraries
 perform, in particular:
@@ -80,13 +79,7 @@ perform, in particular:
 2. Decoding timestamps *and* time deltas from the binary format is precision
    of native type is lower than microseconds (applies for JavaScript for
    example)
-3. Converting from EdgeDB specific type (if there is one) to native type and
+3. Converting from Gel specific type (if there is one) to native type and
    back (depending on the difference in precision)
-4. Parsing a string to an EdgeDB specific type (this operation is optional to
+4. Parsing a string to an Gel specific type (this operation is optional to
    implement, but if it is implemented, it must obey the rules)
-
-.. lint-off
-
-.. _tests for Rust implementation: https://github.com/edgedb/edgedb-rust/tree/master/edgedb-protocol/tests/datetime_chrono.rs
-
-.. lint-on

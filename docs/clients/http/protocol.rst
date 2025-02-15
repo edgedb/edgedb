@@ -4,7 +4,7 @@
 Protocol
 ========
 
-EdgeDB supports GET and POST methods for handling EdgeQL over HTTP
+|Gel| supports GET and POST methods for handling EdgeQL over HTTP
 protocol. Both GET and POST methods use the following fields:
 
 - ``query`` - contains the EdgeQL query string

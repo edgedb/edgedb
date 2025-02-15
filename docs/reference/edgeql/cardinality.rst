@@ -12,12 +12,12 @@ Terminology
 -----------
 
 The term **cardinality** is used to refer to both the *exact* number of
-elements in a given set or a *range* of possible values. Internally, EdgeDB
+elements in a given set or a *range* of possible values. Internally, Gel
 tracks 5 different cardinality ranges: ``Empty`` (zero elements), ``One`` (a
 singleton set), ``AtMostOne`` (zero or one elements), ``AtLeastOne`` (one or
 more elements), and ``Many`` (any number of elements).
 
-EdgeDB uses this information to statically check queries for validity. For
+|Gel| uses this information to statically check queries for validity. For
 instance, when assigning to a ``required multi`` link, the value being
 assigned in question *must* have a cardinality of ``One`` or ``AtLeastOne``
 (as empty sets are not permitted).
@@ -27,14 +27,14 @@ assigned in question *must* have a cardinality of ``One`` or ``AtLeastOne``
 Functions and operators
 -----------------------
 
-It's often useful to think of EdgeDB functions/operators as either
+It's often useful to think of Gel functions/operators as either
 *element-wise* or *aggregate*. Element-wise operations are applied to *each
 item* in a set. Aggregate operations operate on sets *as a whole*.
 
 .. note::
 
   This is a simplification, but it's a useful mental model when getting
-  started with EdgeDB.
+  started with Gel.
 
 .. _ref_reference_cardinality_aggregate:
 
@@ -95,7 +95,7 @@ operation is applied to a cartesian product of all the input sets.
   {true, true, true, false}
 
 By extension, if any of the input sets are empty, the result of applying an
-element-wise function is also empty. In effect, when EdgeDB detects an empty
+element-wise function is also empty. In effect, when Gel detects an empty
 set, it "short-circuits" and returns an empty set without applying the
 operation.
 

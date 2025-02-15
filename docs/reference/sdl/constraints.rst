@@ -113,7 +113,7 @@ This declaration defines a new constraint with the following options:
 :eql:synopsis:`on ( <subject-expr> )`
     An optional expression defining the *subject* of the constraint.
     If not specified, the subject is the value of the schema item on
-    which the concrete constraint is defined. 
+    which the concrete constraint is defined.
 
     The expression must refer to the original subject of the constraint as
     ``__subject__``. The expression must be
@@ -156,7 +156,7 @@ The valid SDL sub-declarations are listed below:
       defined.
 
     If the content of curly braces does not match any variables,
-    the curly braces are emitted as-is. They can also be escaped by 
+    the curly braces are emitted as-is. They can also be escaped by
     using double curly braces.
 
 :sdl:synopsis:`<annotation-declarations>`
@@ -173,5 +173,3 @@ The valid SDL sub-declarations are listed below:
   * - :ref:`Introspection > Constraints
       <ref_datamodel_introspection_constraints>`
   * - :ref:`Standard Library > Constraints <ref_std_constraints>`
-  * - `Tutorial > Advanced EdgeQL > Constraints
-      </tutorial/advanced-edgeql/constraints>`_

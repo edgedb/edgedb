@@ -4,13 +4,13 @@ Backend high-availability
 =========================
 
 High availability is a sophisticated and systematic challenge, especially for
-databases. To address the problem, EdgeDB server now supports selected
+databases. To address the problem, Gel server now supports selected
 highly-available backend Postgres clusters, namely in 2 categories:
 
 * API-based HA
 * Adaptive HA without API
 
-When the backend HA feature is enabled in EdgeDB, EdgeDB server will try its
+When the backend HA feature is enabled in Gel, Gel server will try its
 best to detect and react to backend failovers, whether a proper API is
 available or not.
 
@@ -23,32 +23,32 @@ connection is restored and the query can be properly resolved.
 API-based HA
 ------------
 
-EdgeDB server accepts different types of backends by looking into the protocol
-of the ``--backend-dsn`` command-line parameter. EdgeDB supports the following
+|Gel| server accepts different types of backends by looking into the protocol
+of the ``--backend-dsn`` command-line parameter. Gel supports the following
 DSN protocols currently:
 
 * ``stolon+consul+http://``
 * ``stolon+consul+https://``
 
-When using these protocols, EdgeDB builds the actual DSN of the cluster's
+When using these protocols, Gel builds the actual DSN of the cluster's
 leader node by calling the corresponding API using credentials in the
 ``--backend-dsn`` and subscribes to that API for failover events. Once failover
-is detected, EdgeDB drops all backend connections and routes all new backend
+is detected, Gel drops all backend connections and routes all new backend
 connections to the new leader node.
 
 `Stolon <https://github.com/sorintlab/stolon/>`_ is an open-source cloud native
-PostgreSQL manager for PostgreSQL high availability. Currently, EdgeDB supports
-using a Stolon cluster as the backend in a Consul-based setup, where EdgeDB
+PostgreSQL manager for PostgreSQL high availability. Currently, Gel supports
+using a Stolon cluster as the backend in a Consul-based setup, where Gel
 acts as a Stolon proxy. This way, you only need to manage Stolon sentinels and
-keepers, plus a Consul deployment. To use a Stolon cluster, run EdgeDB server
+keepers, plus a Consul deployment. To use a Stolon cluster, run Gel server
 with a DSN, like so:
 
 .. code-block:: bash
 
-    $ edgedb-server \
+    $ gel-server \
         --backend-dsn stolon+consul+http://localhost:8500/my-cluster
 
-EdgeDB will connect to the Consul HTTP service at ``localhost:8500``, and
+|Gel| will connect to the Consul HTTP service at ``localhost:8500``, and
 subscribe to the updates of the cluster named ``my-cluster``.
 
 Using a regular ``postgres://`` DSN disables API-based HA.
@@ -57,25 +57,25 @@ Using a regular ``postgres://`` DSN disables API-based HA.
 Adaptive HA
 -----------
 
-EdgeDB also supports DNS-based generic HA backends. This may be a cloud
+|Gel| also supports DNS-based generic HA backends. This may be a cloud
 database with multi-AZ failover or some custom HA Postgres cluster that keeps
 a DNS name always resolved to the leader node. Adaptive HA can be enabled with
 a switch in addition to a regular backend DSN:
 
 .. code-block:: bash
 
-    $ edgedb-server \
+    $ gel-server \
         --backend-dsn postgres://xxx.rds.amazonaws.com \
         --enable-backend-adaptive-ha
 
-Once enabled, EdgeDB server will keep track of unusual backend events like
+Once enabled, Gel server will keep track of unusual backend events like
 unexpected disconnects or Postgres shutdown notifications. When a threshold is
-reached, EdgeDB considers the backend to be in the "failover" state. It then
+reached, Gel considers the backend to be in the "failover" state. It then
 drops all current backend connections and try to re-establish new connections
-with the same backend DSN. Because EdgeDB doesn't cache resolved DNS values,
+with the same backend DSN. Because Gel doesn't cache resolved DNS values,
 the new connections will be established with the new leader node.
 
-Under the hood of adaptive HA, EdgeDB maintains a state machine to avoid
+Under the hood of adaptive HA, Gel maintains a state machine to avoid
 endless switch-overs in an unstable network. State changes only happen when
 certain conditions are met.
 
@@ -94,12 +94,12 @@ certain conditions are met.
 ``Unhealthy`` -> ``Failover``
 
 * More than 60% (configurable with environment variable
-  ``EDGEDB_SERVER_BACKEND_ADAPTIVE_HA_DISCONNECT_PERCENT``) of existing pgcons
+  :gelenv:`SERVER_BACKEND_ADAPTIVE_HA_DISCONNECT_PERCENT`) of existing pgcons
   are "unexpectedly disconnected" (number of existing pgcons is captured at the
   moment we change to ``Unhealthy`` state, and maintained on "expected
   disconnects" too).
 * (and) In ``Unhealthy`` state for more than 30 seconds
-  (``EDGEDB_SERVER_BACKEND_ADAPTIVE_HA_UNHEALTHY_MIN_TIME``).
+  (:gelenv:`SERVER_BACKEND_ADAPTIVE_HA_UNHEALTHY_MIN_TIME`).
 * (and) sys_pgcon is down.
 * (or) Postgres shutdown/hot-standby notification received.
 
@@ -117,4 +117,4 @@ certain conditions are met.
 * (and) sys_pgcon is healthy.
 
 ("pgcon" is a code name for backend connections, and "sys_pgcon" is a special
-backend connection which EdgeDB uses to talk to the "EdgeDB system database".)
+backend connection which Gel uses to talk to the "Gel system database".)

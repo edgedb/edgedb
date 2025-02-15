@@ -167,7 +167,7 @@
 0x_F0_01_00_00   WarningMessage
 
 
-#### Suggested errors for EdgeDB clients
+#### Suggested errors for Gel clients
 
 0x_FF_00_00_00   ClientError
 0x_FF_01_00_00   ClientConnectionError

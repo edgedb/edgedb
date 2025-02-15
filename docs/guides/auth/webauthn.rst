@@ -4,13 +4,13 @@
 WebAuthn
 ========
 
-:edb-alt-title: Integrating EdgeDB Auth's WebAuthn provider
+:edb-alt-title: Integrating Gel Auth's WebAuthn provider
 
 WebAuthn, short for Web Authentication, is a web standard published by the
 World Wide Web Consortium (W3C) for secure and passwordless authentication on
 the web. It allows users to log in using biometrics, mobile devices, or FIDO2
 security keys instead of traditional passwords. This guide will walk you
-through integrating WebAuthn authentication with your application using EdgeDB
+through integrating WebAuthn authentication with your application using Gel
 Auth.
 
 Why choose WebAuthn?
@@ -33,14 +33,14 @@ and aim to simplify the user experience further by leveraging cloud
 synchronization of credentials.
 
 Many operating systems and password managers have added support for Passkeys,
-making it easier for users to manage their credentials across devices. EdgeDB
+making it easier for users to manage their credentials across devices. Gel
 Auth's WebAuthn provider supports Passkeys, allowing users to log in to your
 application using their Passkeys.
 
 Security considerations
 =======================
 
-For maximum flexibility, EdgeDB Auth's WebAuthn provider allows multiple
+For maximum flexibility, Gel Auth's WebAuthn provider allows multiple
 WebAuthn credentials per email. This means that it's very important to verify
 the email before trusting a WebAuthn credential. This can be done by setting
 the ``require_verification`` option to ``true`` (which is the default) in your
@@ -109,11 +109,11 @@ base64url encode the resulting string. This new string is called the
    import crypto from "node:crypto";
 
    /**
-    * You can get this value by running `edgedb instance credentials`.
+    * You can get this value by running `gel instance credentials`.
     * Value should be:
     * `${protocol}://${host}:${port}/branch/${branch}/ext/auth/
     */
-   const EDGEDB_AUTH_BASE_URL = process.env.EDGEDB_AUTH_BASE_URL;
+   const GEL_AUTH_BASE_URL = process.env.GEL_AUTH_BASE_URL;
    const SERVER_PORT = 3000;
 
    /**
@@ -191,7 +191,7 @@ Handle register and authenticate options
 The first step in the WebAuthn flow is to get the options for registering a new
 credential or authenticating an existing credential. The server generates a
 JSON object that is used to configure the WebAuthn registration or
-authentication ceremony. The EdgeDB Auth extension provides these endpoints
+authentication ceremony. The Gel Auth extension provides these endpoints
 directly, so you can either proxy the request to the Auth extension or redirect
 the user to the Auth extension's URL. We'll show the proxy option here.
 
@@ -214,7 +214,10 @@ the user to the Auth extension's URL. We'll show the proxy option here.
          return;
        }
 
-       const registerUrl = new URL("webauthn/register/options", EDGEDB_AUTH_BASE_URL);
+       const registerUrl = new URL(
+         "webauthn/register/options",
+         GEL_AUTH_BASE_URL
+       );
        registerUrl.searchParams.set("email", email);
 
        const registerResponse = await fetch(registerUrl.href);
@@ -248,7 +251,10 @@ the user to the Auth extension's URL. We'll show the proxy option here.
          return;
        }
 
-       const authenticateUrl = new URL("webauthn/authenticate/options", EDGEDB_AUTH_BASE_URL);
+       const authenticateUrl = new URL(
+         "webauthn/authenticate/options",
+         GEL_AUTH_BASE_URL
+       );
        authenticateUrl.searchParams.set("email", email);
 
        const authenticateResponse = await fetch(authenticateUrl.href);
@@ -274,7 +280,7 @@ Register a new credential
 
 The client script will call the Web Authentication API to create a new
 credential payload and send it to this endpoint. This endpoints job will be to
-forward the serialized credential payload to the EdgeDB Auth extension for
+forward the serialized credential payload to the Gel Auth extension for
 verification, and then associate the credential with the user's email address.
 
 .. lint-off
@@ -297,7 +303,7 @@ verification, and then associate the credential with the user's email address.
         return;
       }
 
-      const registerUrl = new URL("webauthn/register", EDGEDB_AUTH_BASE_URL);
+      const registerUrl = new URL("webauthn/register", GEL_AUTH_BASE_URL);
 
       const registerResponse = await fetch(registerUrl.href, {
         method: "post",
@@ -323,7 +329,7 @@ verification, and then associate the credential with the user's email address.
 
       const registerData = await registerResponse.json();
       if ("code" in registerData) {
-        const tokenUrl = new URL("token", EDGEDB_AUTH_BASE_URL);
+        const tokenUrl = new URL("token", GEL_AUTH_BASE_URL);
         tokenUrl.searchParams.set("code", registerData.code);
         tokenUrl.searchParams.set("verifier", verifier);
         const tokenResponse = await fetch(tokenUrl.href, {
@@ -339,12 +345,12 @@ verification, and then associate the credential with the user's email address.
 
         const { auth_token } = await tokenResponse.json();
         res.writeHead(204, {
-          "Set-Cookie": `edgedb-auth-token=${auth_token}; HttpOnly; Path=/; Secure; SameSite=Strict`,
+          "Set-Cookie": `gel-auth-token=${auth_token}; HttpOnly; Path=/; Secure; SameSite=Strict`,
         });
         res.end();
       } else {
         res.writeHead(204, {
-          "Set-Cookie": `edgedb-pkce-verifier=${pkce.verifier}; HttpOnly; Path=/; Secure; SameSite=Strict`,
+          "Set-Cookie": `gel-pkce-verifier=${pkce.verifier}; HttpOnly; Path=/; Secure; SameSite=Strict`,
         });
         res.end();
       }
@@ -358,7 +364,7 @@ Authenticate with an existing credential
 
 The client script will call the Web Authentication API to authenticate with an
 existing credential and send the assertion to this endpoint. This endpoint's
-job will be to forward the serialized assertion to the EdgeDB Auth extension
+job will be to forward the serialized assertion to the Gel Auth extension
 for verification.
 
 .. lint-off
@@ -381,7 +387,7 @@ for verification.
         return;
       }
 
-      const authenticateUrl = new URL("webauthn/authenticate", EDGEDB_AUTH_BASE_URL);
+      const authenticateUrl = new URL("webauthn/authenticate", GEL_AUTH_BASE_URL);
 
       const authenticateResponse = await fetch(authenticateUrl.href, {
         method: "post",
@@ -405,7 +411,7 @@ for verification.
 
       const authenticateData = await authenticateResponse.json();
       if ("code" in authenticateData) {
-        const tokenUrl = new URL("token", EDGEDB_AUTH_BASE_URL);
+        const tokenUrl = new URL("token", GEL_AUTH_BASE_URL);
         tokenUrl.searchParams.set("code", authenticateData.code);
         const tokenResponse = await fetch(tokenUrl.href, {
           method: "get",
@@ -420,7 +426,7 @@ for verification.
 
         const { auth_token } = await tokenResponse.json();
         res.writeHead(204, {
-          "Set-Cookie": `edgedb-auth-token=${auth_token}; HttpOnly; Path=/; Secure; SameSite=Strict`,
+          "Set-Cookie": `gel-auth-token=${auth_token}; HttpOnly; Path=/; Secure; SameSite=Strict`,
         });
         res.end();
       } else {
@@ -470,7 +476,7 @@ handle the verification flow, we implement an endpoint:
 
      const cookies = req.headers.cookie?.split("; ");
      const verifier = cookies
-       ?.find((cookie) => cookie.startsWith("edgedb-pkce-verifier="))
+       ?.find((cookie) => cookie.startsWith("gel-pkce-verifier="))
        ?.split("=")[1];
      if (!verifier) {
        res.status = 400;
@@ -480,7 +486,7 @@ handle the verification flow, we implement an endpoint:
        return;
      }
 
-     const verifyUrl = new URL("verify", EDGEDB_AUTH_BASE_URL);
+     const verifyUrl = new URL("verify", GEL_AUTH_BASE_URL);
      const verifyResponse = await fetch(verifyUrl.href, {
        method: "post",
        headers: {
@@ -502,7 +508,7 @@ handle the verification flow, we implement an endpoint:
 
      const { code } = await verifyResponse.json();
 
-     const tokenUrl = new URL("token", EDGEDB_AUTH_BASE_URL);
+     const tokenUrl = new URL("token", GEL_AUTH_BASE_URL);
      tokenUrl.searchParams.set("code", code);
      tokenUrl.searchParams.set("verifier", verifier);
      const tokenResponse = await fetch(tokenUrl.href, {
@@ -518,7 +524,7 @@ handle the verification flow, we implement an endpoint:
 
      const { auth_token } = await tokenResponse.json();
      res.writeHead(204, {
-       "Set-Cookie": `edgedb-auth-token=${auth_token}; HttpOnly; Path=/; Secure; SameSite=Strict`,
+       "Set-Cookie": `gel-auth-token=${auth_token}; HttpOnly; Path=/; Secure; SameSite=Strict`,
      });
      res.end();
    };
@@ -529,12 +535,12 @@ Client-side script
 ------------------
 
 On the client-side, you will need to write a script that retrieves the options
-from the EdgeDB Auth extension, calls the Web Authentication API, and sends the
+from the Gel Auth extension, calls the Web Authentication API, and sends the
 resulting credential or assertion to the server. Writing out the low-level
 handling of serialization and deserialization of the WebAuthn data is beyond the
 scope of this guide, but we publish a WebAuthn client library that you can use
 to simlify this process. The library is available on npm as part of our
-``@edgedb/auth-core`` library. Here is an example of how you might set up a form
+``@gel/auth-core`` library. Here is an example of how you might set up a form
 with appropriate click handlers to perform the WebAuthn sign in and sign up
 ceremonies.
 
@@ -542,7 +548,7 @@ ceremonies.
 
 .. code-block:: javascript
 
-  import { WebAuthnClient } from "@edgedb/auth-core/webauthn";
+  import { WebAuthnClient } from "@gel/auth-core/webauthn";
 
   const webAuthnClient = new WebAuthnClient({
     signupOptionsUrl: "http://localhost:3000/auth/webauthn/register/options",

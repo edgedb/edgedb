@@ -4,7 +4,7 @@
 Operators
 =========
 
-This section describes introspection of EdgeDB operators. Much like
+This section describes introspection of Gel operators. Much like
 functions, operators have parameters and return types as well as a few
 other features.
 

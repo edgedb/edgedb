@@ -4,39 +4,39 @@
 Python
 ======
 
-:edb-alt-title: EdgeDB AI's Python package
+:edb-alt-title: Gel AI's Python package
 
-The ``edgedb.ai`` package is an optional binding of the AI extension in EdgeDB.
-To use the AI binding, you need to install ``edgedb-python`` with the ``ai``
-extra dependencies:
+The ``gel.ai`` package is an optional binding of the AI extension in |Gel|.
+To use the AI binding, you need to install ``gel`` Python package with the
+``ai`` extra dependencies:
 
 .. code-block:: bash
 
-  $ pip install 'edgedb[ai]'
+  $ pip install 'gel[ai]'
 
 
 Usage
 =====
 
-Start by importing ``edgedb`` and ``edgedb.ai``:
+Start by importing ``gel`` and ``gel.ai``:
 
 .. code-block:: python
 
-    import edgedb
-    import edgedb.ai
+    import gel
+    import gel.ai
 
 
 Blocking
 --------
 
-The AI binding is built on top of the regular EdgeDB client objects, providing
+The AI binding is built on top of the regular |Gel| client objects, providing
 both blocking and asynchronous versions of its API. For example, a blocking AI
 client is initialized like this:
 
 .. code-block:: python
 
-    client = edgedb.create_client()
-    gpt4ai = edgedb.ai.create_ai(
+    client = gel.create_client()
+    gpt4ai = gel.ai.create_ai(
         client,
         model="gpt-4-turbo-preview"
     )
@@ -76,12 +76,12 @@ To use an async client instead, do this:
 
 .. code-block:: python
 
-    import asyncio  # alongside the EdgeDB imports
+    import asyncio  # alongside the Gel imports
 
-    client = edgedb.create_async_client()
+    client = gel.create_async_client()
 
     async def main():
-        gpt4ai = await edgedb.ai.create_async_ai(
+        gpt4ai = await gel.ai.create_async_ai(
             client,
             model="gpt-4-turbo-preview"
         )
@@ -103,15 +103,15 @@ To use an async client instead, do this:
 API reference
 =============
 
-.. py:function:: create_ai(client, **kwargs) -> EdgeDBAI
+.. py:function:: create_ai(client, **kwargs) -> GelAI
 
-   Creates an instance of ``EdgeDBAI`` with the specified client and options.
+   Creates an instance of ``GelAI`` with the specified client and options.
 
    This function ensures that the client is connected before initializing the
    AI with the specified options.
 
    :param client:
-       An EdgeDB client instance.
+       A |Gel| client instance.
 
    :param kwargs:
        Keyword arguments that are passed to the ``AIOptions`` data class to
@@ -122,15 +122,15 @@ API reference
          ``None`` will result in the client using the default prompt.
          (default: ``None``)
 
-.. py:function:: create_async_ai(client, **kwargs) -> AsyncEdgeDBAI
+.. py:function:: create_async_ai(client, **kwargs) -> AsyncGelAI
 
-   Creates an instance of ``AsyncEdgeDBAI`` w/ the specified client & options.
+   Creates an instance of ``AsyncGelAI`` w/ the specified client & options.
 
    This function ensures that the client is connected asynchronously before
    initializing the AI with the specified options.
 
    :param client:
-       An asynchronous EdgeDB client instance.
+       An asynchronous |Gel| client instance.
 
    :param kwargs:
        Keyword arguments that are passed to the ``AIOptions`` data class to
@@ -144,12 +144,12 @@ AI client classes
 -----------------
 
 
-BaseEdgeDBAI
-^^^^^^^^^^^^
+BaseGelAI
+^^^^^^^^^
 
-.. py:class:: BaseEdgeDBAI
+.. py:class:: BaseGelAI
 
-   The base class for EdgeDB AI clients.
+   The base class for |Gel| AI clients.
 
    This class handles the initialization and configuration of AI clients and
    provides methods to modify their configuration and context dynamically.
@@ -168,7 +168,7 @@ BaseEdgeDBAI
        A placeholder for the client class, should be implemented by subclasses.
 
    :param client:
-       An instance of EdgeDB client, which could be either a synchronous or
+       An instance of |Gel| client, which could be either a synchronous or
        asynchronous client.
 
    :param options:
@@ -210,12 +210,12 @@ BaseEdgeDBAI
          objects returned by the query.
 
 
-EdgeDBAI
-^^^^^^^^
+GelAI
+^^^^^
 
-.. py:class:: EdgeDBAI
+.. py:class:: GelAI
 
-   A synchronous class for creating EdgeDB AI clients.
+   A synchronous class for creating |Gel| AI clients.
 
    This class provides methods to send queries and receive responses using both
    blocking and streaming communication modes synchronously.
@@ -254,12 +254,12 @@ EdgeDBAI
        instance.
 
 
-AsyncEdgeDBAI
-^^^^^^^^^^^^^
+AsyncGelAI
+^^^^^^^^^^
 
-.. py:class:: AsyncEdgeDBAI
+.. py:class:: AsyncGelAI
 
-   An asynchronous class for creating EdgeDB AI clients.
+   An asynchronous class for creating |Gel| AI clients.
 
    This class provides methods to send queries and receive responses using both
    blocking and streaming communication modes asynchronously.

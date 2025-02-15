@@ -5,7 +5,7 @@
 Types
 =====
 
-The foundation of EdgeQL is EdgeDB's rigorous type system. There is a set of
+The foundation of EdgeQL is Gel's rigorous type system. There is a set of
 EdgeQL operators and functions for changing, introspecting, and filtering by
 types.
 
@@ -13,6 +13,8 @@ types.
 
 Type expressions
 ----------------
+
+.. index:: array< >, tuple< >
 
 Type expressions are exactly what they sound like: EdgeQL expressions that
 refer to a type. Most commonly, these are simply the *names* of established
@@ -37,6 +39,8 @@ For additional details on type syntax, see :ref:`Schema > Primitive Types
 
 Type casting
 ------------
+
+.. index:: casts, < >, find object by id
 
 Type casting is used to convert primitive values into another type. Casts are
 indicated with angle brackets containing a type expression.
@@ -104,7 +108,7 @@ typed; you can't simply convert an object to an object of a different type.
     .. code-block:: edgeql-repl
 
         db> select <Hero><uuid>'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
-        edgedb error: CardinalityViolationError: 'default::Hero' with id 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa' does not exist
+        gel error: CardinalityViolationError: 'default::Hero' with id 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa' does not exist
 
 .. lint-on
 
@@ -113,6 +117,8 @@ typed; you can't simply convert an object to an object of a different type.
 
 Type intersections
 ------------------
+
+.. index:: [is ]
 
 All elements of a given set have the same type; however, in the context of
 *sets of objects*, this type might be ``abstract`` and contain elements of
@@ -160,6 +166,8 @@ a "filter" that removes all elements that aren't of type ``Movie``.
 Type checking
 -------------
 
+.. index:: is
+
 The ``[is foo]`` "type intersection" syntax should not be confused with the
 *type checking* operator :eql:op:`is`.
 
@@ -176,6 +184,8 @@ The ``[is foo]`` "type intersection" syntax should not be confused with the
 The ``typeof`` operator
 -----------------------
 
+.. index:: typeof
+
 The type of any expression can be extracted with the :eql:op:`typeof`
 operator. This can be used in any expression that expects a type.
 
@@ -189,9 +199,7 @@ operator. This can be used in any expression that expects a type.
 Introspection
 -------------
 
-The entire type system of EdgeDB is *stored inside EdgeDB*. All types are
+The entire type system of Gel is *stored inside Gel*. All types are
 introspectable as instances of the ``schema::Type`` type. For a set of
 introspection examples, see :ref:`Guides > Introspection
-<ref_datamodel_introspection>`. To try introspection for yourself, see `our
-interactive introspection tutorial
-</tutorial/advanced-edgeql/introspection>`_.
+<ref_datamodel_introspection>`.

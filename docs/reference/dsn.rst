@@ -6,46 +6,22 @@ DSN specification
 DSNs (data source names) are a convenient and flexible way to specify
 connection information with a simple string. It takes the following form:
 
-.. versionchanged:: _default
+* :geluri:`USERNAME:PASSWORD@HOSTNAME:PORT/BRANCH`
+* e.g.: :geluri:`alice:pa$$w0rd@example.com:1234/my_branch`
 
-    .. code-block::
-
-      edgedb://USERNAME:PASSWORD@HOSTNAME:PORT/DATABASE
-
-    For instance, here is a typical DSN:
-    ``edgedb://alice:pa$$w0rd@example.com:1234/my_db``.
-
-.. versionchanged:: 5.0
-
-    .. code-block::
-
-      edgedb://USERNAME:PASSWORD@HOSTNAME:PORT/BRANCH
-
-    For instance, here is a typical DSN:
-    ``edgedb://alice:pa$$w0rd@example.com:1234/my_branch``.
-
-All components of the DSN are optional; in fact, ``edgedb://`` is a valid DSN.
+All components of the DSN are optional; in fact, |geluri| is a valid DSN.
 Any unspecified values will fall back to their defaults:
 
-.. versionchanged:: _default
+The defaults for urername and branch are: |admin| and |main|.
 
-    .. code-block::
+The defaults are:
 
-      Host: "localhost"
-      Port: 5656
-      User: "edgedb"
-      Password: null
-      Database name: "edgedb"
+* Host: "localhost"
+* Port: 5656
+* User: |admin|
+* Password: null
+* Branch: |main|
 
-.. versionchanged:: 5.0
-
-    .. code-block::
-
-      Host: "localhost"
-      Port: 5656
-      User: "edgedb"
-      Password: null
-      Branch name: "main"
 
 Query parameters
 ----------------
@@ -61,63 +37,37 @@ containing the value (``?host_file=./hostname.txt``).
   For a breakdown of these configuration options, see :ref:`Reference >
   Connection Parameters <ref_reference_connection_granular>`.
 
-.. versionchanged:: _default
+  .. list-table::
 
-    .. list-table::
+    * - **Plain param**
+      - **File param**
+      - **Environment param**
+    * - ``host``
+      - ``host_file``
+      - ``host_env``
+    * - ``port``
+      - ``port_file``
+      - ``port_env``
+    * - ``branch``
+      - ``branch_file``
+      - ``branch_env``
+    * - ``user``
+      - ``user_file``
+      - ``user_env``
+    * - ``password``
+      - ``password_file``
+      - ``password_env``
+    * - ``tls_ca_file``
+      - ``tls_ca_file_file``
+      - ``tls_ca_file_env``
+    * - ``tls_security``
+      - ``tls_security_file``
+      - ``tls_security_env``
 
-      * - **Plain param**
-        - **File param**
-        - **Environment param**
-      * - ``host``
-        - ``host_file``
-        - ``host_env``
-      * - ``port``
-        - ``port_file``
-        - ``port_env``
-      * - ``database``
-        - ``database_file``
-        - ``database_env``
-      * - ``user``
-        - ``user_file``
-        - ``user_env``
-      * - ``password``
-        - ``password_file``
-        - ``password_env``
-      * - ``tls_ca_file``
-        - ``tls_ca_file_file``
-        - ``tls_ca_file_env``
-      * - ``tls_security``
-        - ``tls_security_file``
-        - ``tls_security_env``
-
-.. versionchanged:: 5.0
-
-    .. list-table::
-
-      * - **Plain param**
-        - **File param**
-        - **Environment param**
-      * - ``host``
-        - ``host_file``
-        - ``host_env``
-      * - ``port``
-        - ``port_file``
-        - ``port_env``
-      * - ``branch``
-        - ``branch_file``
-        - ``branch_env``
-      * - ``user``
-        - ``user_file``
-        - ``user_env``
-      * - ``password``
-        - ``password_file``
-        - ``password_env``
-      * - ``tls_ca_file``
-        - ``tls_ca_file_file``
-        - ``tls_ca_file_env``
-      * - ``tls_security``
-        - ``tls_security_file``
-        - ``tls_security_env``
+.. note::
+    Prior to |Gel| and |EdgeDB| 5.0 *branches* were called *databases*.
+    If you're using or composing a DSN for an older version of |EdgeDB|
+    you should change ``branch*`` options to ``database*``.
 
 **Plain params**
   These "plain" parameters can be used to provide values for options that can't
@@ -125,11 +75,8 @@ containing the value (``?host_file=./hostname.txt``).
   detail below).
 
   You can't specify the same setting both in the body of the DSN and in a query
-  parameter. For instance, the DSN below is invalid, as the port is ambiguous.
-
-  .. code-block::
-
-    edgedb://hostname.com:1234?port=5678
+  parameter. For instance, this DSN is invalid, as the port is ambiguous:
+  :geluri:`hostname.com:1234?port=5678`.
 
 **File params**
   If you prefer to store sensitive credentials in local files, you can use file
@@ -138,7 +85,7 @@ containing the value (``?host_file=./hostname.txt``).
 
   .. code-block::
 
-    edgedb://hostname.com:1234?user_file=./username.txt
+    gel://hostname.com:1234?user_file=./username.txt
 
     # ./username.txt
     my_username
@@ -154,5 +101,5 @@ containing the value (``?host_file=./hostname.txt``).
   .. code-block::
 
     MY_PASSWORD=p@$$w0rd
-    EDGEDB_DSN=edgedb://hostname.com:1234?password_env=MY_PASSWORD
+    GEL_DSN=gel://hostname.com:1234?password_env=MY_PASSWORD
 
