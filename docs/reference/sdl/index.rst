@@ -112,7 +112,6 @@ to the previous migration:
     annotations
     globals
     access_policies
-    functions
     triggers
     mutation_rewrites
     extensions

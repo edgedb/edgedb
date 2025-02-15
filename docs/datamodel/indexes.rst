@@ -190,8 +190,8 @@ Indexes can include annotations:
 
 .. _ref_eql_sdl_indexes:
 
-SDL declarations
-================
+Declaring indexes
+=================
 
 |Gel's| Schema Definition Language (SDL) supports inline index declarations,
 as seen above. The following syntax details how to declare an index in SDL.
