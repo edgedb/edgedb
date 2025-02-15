@@ -81,7 +81,7 @@ mechanism can be configured by adjusting which
 
 If :eql:type:`cfg::JWT` is used, the requests should contain these headers:
 
-* ``X-Gel-User``: The |Gel| username.
+* ``X-EdgeDB-User``: The |Gel| username.
 
 * ``Authorization``: The JWT authorization token prefixed by ``Bearer``.
 
