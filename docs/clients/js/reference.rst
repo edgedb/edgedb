@@ -128,7 +128,7 @@ Client
     :js:func:`createClient` should be used instead.
 
 
-    .. _edgedb-js-api-async-optargs:
+    .. _gel-js-api-async-optargs:
 
     .. note::
 
@@ -152,7 +152,7 @@ Client
         :param query: Query text.
 
         This method takes :ref:`optional query arguments
-        <edgedb-js-api-async-optargs>`.
+        <gel-js-api-async-optargs>`.
 
         Example:
 
@@ -173,7 +173,7 @@ Client
         This method **always** returns an array.
 
         This method takes :ref:`optional query arguments
-        <edgedb-js-api-async-optargs>`.
+        <gel-js-api-async-optargs>`.
 
     .. js:method:: queryRequired<T>( \
             query: string, \
@@ -184,7 +184,7 @@ Client
         array.
 
         This method takes :ref:`optional query arguments
-        <edgedb-js-api-async-optargs>`.
+        <gel-js-api-async-optargs>`.
 
         The *query* must return at least one element. If the query less than one
         element, a ``ResultCardinalityMismatchError`` error is thrown.
@@ -197,7 +197,7 @@ Client
         Run an optional singleton-returning query and return the result.
 
         This method takes :ref:`optional query arguments
-        <edgedb-js-api-async-optargs>`.
+        <gel-js-api-async-optargs>`.
 
         The *query* must return no more than one element. If the query returns
         more than one element, a ``ResultCardinalityMismatchError`` error is
@@ -211,7 +211,7 @@ Client
         Run a singleton-returning query and return the result.
 
         This method takes :ref:`optional query arguments
-        <edgedb-js-api-async-optargs>`.
+        <gel-js-api-async-optargs>`.
 
         The *query* must return exactly one element. If the query returns
         more than one element, a ``ResultCardinalityMismatchError`` error is
@@ -223,7 +223,7 @@ Client
         Run a query and return the results as a JSON-encoded string.
 
         This method takes :ref:`optional query arguments
-        <edgedb-js-api-async-optargs>`.
+        <gel-js-api-async-optargs>`.
 
         .. note::
 
@@ -247,7 +247,7 @@ Client
         JSON-encoded string.
 
         This method takes :ref:`optional query arguments
-        <edgedb-js-api-async-optargs>`.
+        <gel-js-api-async-optargs>`.
 
         The *query* must return at least one element. If the query less than one
         element, a ``ResultCardinalityMismatchError`` error is thrown.
@@ -274,7 +274,7 @@ Client
         as a JSON-encoded string.
 
         This method takes :ref:`optional query arguments
-        <edgedb-js-api-async-optargs>`.
+        <gel-js-api-async-optargs>`.
 
         The *query* must return at most one element.  If the query returns
         more than one element, an ``ResultCardinalityMismatchError`` error
@@ -302,7 +302,7 @@ Client
         JSON-encoded string.
 
         This method takes :ref:`optional query arguments
-        <edgedb-js-api-async-optargs>`.
+        <gel-js-api-async-optargs>`.
 
         The *query* must return exactly one element.  If the query returns
         more than one element, a ``ResultCardinalityMismatchError`` error
