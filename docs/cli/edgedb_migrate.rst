@@ -14,5 +14,5 @@ database using this command.
     instance, do not use :gelcmd:`login` to authenticate. Instead, you should
     generate a secret key in the Gel Cloud UI or by running
     :ref:`ref_cli_gel_cloud_secretkey_create` and set the
-    ``EDGEDB_SECRET_KEY`` environment variable to your secret key. Once this
+    :gelenv:`SECRET_KEY` environment variable to your secret key. Once this
     variable is set to your secret key, logging in is no longer required.

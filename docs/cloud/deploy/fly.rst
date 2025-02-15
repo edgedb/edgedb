@@ -11,7 +11,7 @@ Fly.io
 3. Run ``flyctl launch`` to create a new app on Fly.io and configure it.
    It will ask you to select a region and a name for your app. When done it will
    create a ``fly.toml`` file and a ``Dockerfile`` in your project directory.
-4. Set ``EDGEDB_INSTANCE`` and ``EDGEDB_SECRET_KEY`` as secrets in your Fly.io
+4. Set :gelenv:`INSTANCE` and :gelenv:`SECRET_KEY` as secrets in your Fly.io
    app.
 
    For **runtime secrets**, you can do this by running the following commands:

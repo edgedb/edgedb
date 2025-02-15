@@ -125,7 +125,7 @@ Persist the SSL certificate. We have configured Gel to generate a self
 signed SSL certificate when it starts. However, if the container is restarted a
 new certificate would be generated. To preserve the certificate across failures
 or reboots copy the certificate files and use their contents in the
-``EDGEDB_SERVER_TLS_KEY`` and ``EDGEDB_SERVER_TLS_CERT`` environment variables.
+:gelenv:`SERVER_TLS_KEY` and :gelenv:`SERVER_TLS_CERT` environment variables.
 
 .. code-block:: bash
 

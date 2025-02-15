@@ -50,7 +50,7 @@ Client
         If not specified, the following will be tried, in order:
 
         - host address(es) parsed from the *dsn* argument,
-        - the value of the ``EDGEDB_HOST`` environment variable,
+        - the value of the :gelenv:`HOST` environment variable,
         - ``"localhost"``.
 
     :param port:
@@ -61,27 +61,27 @@ Client
         addresses.
 
         If not specified, the value parsed from the *dsn* argument is used,
-        or the value of the ``EDGEDB_PORT`` environment variable, or ``5656``
+        or the value of the :gelenv:`PORT` environment variable, or ``5656``
         if neither is specified.
 
     :param user:
         The name of the database role used for authentication.
 
         If not specified, the value parsed from the *dsn* argument is used,
-        or the value of the ``EDGEDB_USER`` environment variable, or the
+        or the value of the :gelenv:`USER` environment variable, or the
         operating system name of the user running the application.
 
     :param database:
         The name of the database to connect to.
 
         If not specified, the value parsed from the *dsn* argument is used,
-        or the value of the ``EDGEDB_DATABASE`` environment variable, or the
+        or the value of the :gelenv:`DATABASE` environment variable, or the
         operating system name of the user running the application.
 
     :param password:
         Password to be used for authentication, if the server requires
         one.  If not specified, the value parsed from the *dsn* argument
-        is used, or the value of the ``EDGEDB_PASSWORD`` environment variable.
+        is used, or the value of the :gelenv:`PASSWORD` environment variable.
         Note that the use of the environment variable is discouraged as
         other users and applications may be able to read it without needing
         specific privileges.
@@ -89,7 +89,7 @@ Client
     :param secret_key:
         Secret key to be used for authentication, if the server requires one.
         If not specified, the value parsed from the *dsn* argument is used,
-        or the value of the ``EDGEDB_SECRET_KEY`` environment variable.
+        or the value of the :gelenv:`SECRET_KEY` environment variable.
         Note that the use of the environment variable is discouraged as
         other users and applications may be able to read it without needing
         specific privileges.

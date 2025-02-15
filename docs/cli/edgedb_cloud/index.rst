@@ -33,7 +33,7 @@ offers tools to manage your instances running on our Gel Cloud.
     intended for use in scripting and CI. Instead, you should generate a secret
     key in the |Gel| Cloud UI or by running
     :ref:`ref_cli_gel_cloud_secretkey_create` and set the
-    ``EDGEDB_SECRET_KEY`` environment variable to your secret key. Once this
+    :gelenv:`SECRET_KEY` environment variable to your secret key. Once this
     variable is set to your secret key, logging in and out are no longer
     required.
 

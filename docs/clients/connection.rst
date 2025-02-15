@@ -14,12 +14,12 @@ library.
   Follow the :ref:`Using projects <ref_guide_using_projects>` guide to get
   started.
 
-- Set the ``EDGEDB_DSN`` environment variable to a valid DSN (connection
+- Set the :gelenv:`DSN` environment variable to a valid DSN (connection
   string). This is the recommended approach in *production*. A DSN is a
   connection URL of the form :geluri:`user:pass@host:port/branch`. For a
   guide to DSNs, see the :ref:`DSN Specification <ref_dsn>`.
 
-- Set the ``EDGEDB_INSTANCE`` environment variable to a :ref:`name
+- Set the :gelenv:`INSTANCE` environment variable to a :ref:`name
   <ref_reference_connection_instance_name>` of a local instance, remote linked
   instance, or a |Gel| Cloud instance. (:ref:`More info on |Gel| Cloud
   connection details below. <gel_client_connection_cloud>`) You can create
@@ -55,8 +55,8 @@ Gel Cloud
 =========
 
 To provide client connection information for a |Gel| Cloud instance, set the
-``EDGEDB_INSTANCE`` variable to the instance name
+:gelenv:`INSTANCE` variable to the instance name
 (``<org-name>/<instance-name>`` where ``<instance-name>`` is the name you set
-when you created the Gel Cloud instance) and the ``EDGEDB_SECRET_KEY``
+when you created the Gel Cloud instance) and the :gelenv:`SECRET_KEY`
 variable to your secret key which can be created in the Gel Cloud UI or by
 running :ref:`ref_cli_gel_cloud_secretkey_create` via the CLI.
