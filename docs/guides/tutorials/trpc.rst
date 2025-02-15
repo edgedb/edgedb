@@ -13,7 +13,7 @@ client and server.
 
 You can reference the following repositories for more context:
 
-- `create-t3-turbo-edgedb <https://github.com/edgedb/create-t3-turbo-edgedb>`_ -
+- `create-t3-turbo-gel <https://github.com/geldata/create-t3-turbo-gel>`_ -
   A monorepo template using the `T3 stack <https://init.tips/>`_,
   `Turborepo <https://turbo.build/>`_, and Gel.
 - `LookFeel Project <https://github.com/LewTrn/lookfeel>`_ - A real-world
@@ -32,7 +32,7 @@ package manager:
 
 .. code-block:: bash
 
-   $ pnpm dlx edgedb project init # or npx edgedb project init
+   $ pnpm dlx gel project init # or `npx gel project init`
 
 This will create an Gel project and set up a schema to start with.
 
@@ -81,15 +81,15 @@ First, install the **Gel** client using your package manager:
    $ # or npm install gel
    $ # or bun add gel
 
-Then, create a client instance in a ``edgedb.ts`` file:
+Then, create a client instance in a ``gel.ts`` file:
 
 .. code-block:: typescript
-   :caption: src/edgedb.ts
+   :caption: src/gel.ts
 
-   import { createClient } from 'edgedb';
+   import { createClient } from 'gel';
 
-   const edgedbClient = createClient();
-   export default edgedbClient;
+   const gelClient = createClient();
+   export default gelClient;
 
 This client will be used to interact with the database and execute queries.
 
@@ -130,13 +130,13 @@ Here's how to define a simple tRPC query that interacts with **Gel**:
    :caption: server/routers/_app.ts
 
    import { initTRPC } from '@trpc/server';
-   import edgedbClient from './edgedb';
+   import gelClient from './gel';
 
    const t = initTRPC.create();
 
    export const appRouter = t.router({
      getUsers: t.procedure.query(async () => {
-       const users = await edgedbClient.query('SELECT User { name, email }');
+       const users = await gelClient.query('SELECT User { name, email }');
        return users;
      }),
    });
@@ -286,14 +286,14 @@ context that provides the user session and Gel client to the tRPC API.
 
    .. code-block:: typescript
 
-      import { createClient } from "edgedb";
+      import { createClient } from "gel";
       import createAuth from "@gel/auth-nextjs/app";
 
       // Initialize Gel client
-      export const edgedbClient = createClient();
+      export const gelClient = createClient();
 
       // Initialize Gel Auth
-      export const auth = createAuth(edgedbClient, {
+      export const auth = createAuth(gelClient, {
         baseUrl: process.env.VERCEL_ENV === "production"
           ? "https://production.yourapp.com"
           : "http://localhost:3000",
@@ -309,7 +309,7 @@ context that provides the user session and Gel client to the tRPC API.
 
       import { initTRPC } from '@trpc/server';
       import { headers } from "next/headers";
-      import { auth } from "src/edgedb.ts";
+      import { auth } from "src/gel.ts";
 
       // Create tRPC context with session and Gel client
       export const createTRPCContext = async () => {
@@ -374,14 +374,14 @@ authentication and context for tRPC procedures.
 
    .. code-block:: typescript
 
-      import { createClient } from "edgedb";
+      import { createClient } from "gel";
       import createExpressAuth from "@gel/auth-express";
 
       // Initialize Gel client
-      const edgedbClient = createClient();
+      const gelClient = createClient();
 
       // Initialize Gel Auth for Express
-      export const auth = createExpressAuth(edgedbClient, {
+      export const auth = createExpressAuth(gelClient, {
         baseUrl: `http://localhost:${process.env.PORT || 3000}`,
       });
 
@@ -403,7 +403,7 @@ authentication and context for tRPC procedures.
         const session = req.auth?.session(); // Get authenticated session
         req.context = {
           session, // Add session to context
-          edgedbClient, // Add Gel client to context
+          gelClient, // Add Gel client to context
         };
         next();
       };
@@ -472,7 +472,7 @@ user authentication and protecting routes.
 
 You can also reference these projects for further examples:
 
-- `create-t3-turbo-edgedb <https://github.com/edgedb/create-t3-turbo-edgedb>`_ -
+- `create-t3-turbo-gel <https://github.com/geldata/create-t3-turbo-gel>`_ -
   A monorepo template using the `T3 stack <https://init.tips/>`_,
   `Turborepo <https://turbo.build/>`_, and Gel.
 - `LookFeel Project <https://github.com/LewTrn/lookfeel>`_ - A real-world

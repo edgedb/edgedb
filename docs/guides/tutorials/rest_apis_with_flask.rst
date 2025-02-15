@@ -34,8 +34,8 @@ directory.
 
 .. code-block:: bash
 
-    $ git clone git@github.com:edgedb/edgedb-examples.git
-    $ cd edgedb-examples/flask-crud
+    $ git clone git@github.com:geldata/gel-examples.git
+    $ cd gel-examples/flask-crud
 
 Create a Python 3.10 virtual environment, activate it, and install the
 dependencies with this command:
