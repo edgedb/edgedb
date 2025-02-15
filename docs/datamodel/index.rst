@@ -102,7 +102,7 @@ Terminology
 Instance
 ^^^^^^^^
 
-An |Gel| **instance** is a running Gel process. Instances can be created,
+A |Gel| **instance** is a running Gel process. Instances can be created,
 started, stopped, and destroyed locally with the :ref:`Gel CLI
 <ref_cli_overview>`.
 

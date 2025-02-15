@@ -5,7 +5,7 @@
 gel instance stop
 =================
 
-Stop an |Gel| instance.
+Stop a |Gel| instance.
 
 .. cli:synopsis::
 

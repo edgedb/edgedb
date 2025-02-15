@@ -44,7 +44,7 @@ Your instance can now receive EdgeQL queries over HTTP at
       want to query another branch instead, simply use that branch name
       in the URL.
 
-    To determine the URL of an |Gel| Cloud instance, find the host by running
+    To determine the URL of a |Gel| Cloud instance, find the host by running
     :gelcmd:`instance credentials -I <org-name>/<instance-name>`. Use the
     ``host`` and ``port`` from that table in the URL format above this note.
     Change the protocol to ``https`` since Gel Cloud instances are secured
@@ -70,7 +70,7 @@ By default, the HTTP endpoint uses :eql:type:`cfg::Password` based
 authentication, in which
 `HTTP Basic Authentication
 <https://developer.mozilla.org/en-US/docs/Web/HTTP/Authentication#basic_authentication_scheme>`_
-is used to provide an |Gel| username and password.
+is used to provide a |Gel| username and password.
 
 .. lint-on
 

@@ -5,7 +5,7 @@
 gel dump
 ========
 
-Backup an |Gel| branch (or database pre-v5) to a file.
+Backup a |Gel| branch (or database pre-v5) to a file.
 
 .. cli:synopsis::
 

@@ -28,7 +28,7 @@ Start by importing ``createClient`` from ``gel`` and ``createAI`` from
     import { createClient } from "gel";
     import { createAI } from "@gel/ai";
 
-Create an |Gel| client. Create an instance of the AI client by passing in the
+Create a |Gel| client. Create an instance of the AI client by passing in the
 Gel client and any options for the AI provider (like the text generation
 model):
 

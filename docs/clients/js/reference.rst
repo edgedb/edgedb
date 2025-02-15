@@ -763,7 +763,7 @@ Local Date
         month: number, \
         day: number)
 
-    A JavaScript representation of an |Gel| ``local_date`` value. Implements
+    A JavaScript representation of a |Gel| ``local_date`` value. Implements
     a subset of the `TC39 Temporal Proposal`_ ``PlainDate`` type.
 
     Assumes the calendar is always `ISO 8601`_.
@@ -909,7 +909,7 @@ Local Date and Time
         microsecond: number = 0, \
         nanosecond: number = 0) extends LocalDate, LocalTime
 
-    A JavaScript representation of an |Gel| ``local_datetime`` value.
+    A JavaScript representation of a |Gel| ``local_datetime`` value.
     Implements a subset of the `TC39 Temporal Proposal`_ ``PlainDateTime``
     type.
 

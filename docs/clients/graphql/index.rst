@@ -72,7 +72,7 @@ To execute a GraphQL query against the |main| branch on the instance
 named ``inst2``, we would send an HTTP request to
 ``http://localhost:10702/branch/gel/main``.
 
-To determine the URL of an |Gel| Cloud instance, find the host by running
+To determine the URL of a |Gel| Cloud instance, find the host by running
 :gelcmd:`instance credentials -I <org-name>/<instance-name>`. Use the
 ``host`` and ``port`` from that table in the URL format at the top of this
 section. Change the protocol to ``https`` since Gel Cloud instances are
