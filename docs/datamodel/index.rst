@@ -76,9 +76,9 @@ to *create* and *apply* migrations.
 
 .. code-block:: bash
 
-  $ edgedb migration create
+  $ gel migration create
   Created dbschema/migrations/00001.esdl
-  $ edgedb migrate
+  $ gel migrate
   Applied dbschema/migrations/00001.esdl.
 
 For a full guide on migrations, refer to the :ref:`Creating and applying

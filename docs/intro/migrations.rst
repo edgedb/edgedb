@@ -114,7 +114,7 @@ create`.
 
 .. code-block:: bash
 
-  $ edgedb migration create
+  $ gel migration create
 
 
 The CLI reads your schema file and sends it to the active Gel instance. The
@@ -130,7 +130,7 @@ advanced options.
 
 .. code-block:: bash
 
-  $ edgedb migration create
+  $ gel migration create
   did you create object type 'default::Comment'? [y,n,l,c,b,s,q,?]
   > y
   did you create object type 'default::User'? [y,n,l,c,b,s,q,?]
@@ -161,7 +161,7 @@ of the process of applying the migration. That's handled by :gelcmd:`migrate`.
 
 .. code-block:: bash
 
-  $ edgedb migrate
+  $ gel migrate
   Applied m1virjowa... (00002.edgeql)
 
 Once your migration is applied, you'll see the schema changes reflected in your
@@ -218,7 +218,7 @@ new schema.
 
 .. code-block:: bash
 
-  $ edgedb migration create
+  $ gel migration create
   did you create property 'body' of object type
   'default::Post'? [y,n,l,c,b,s,q,?]
   > y

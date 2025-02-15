@@ -171,7 +171,7 @@ To test this, run the |gelcmd| command to open a REPL to the linked instance.
 
 .. code-block:: bash
 
-  $ edgedb
+  $ gel
   Gel x.x (repl x.x)
   Type \help for help, \quit to quit.
   gel> select 2 + 2;
@@ -237,7 +237,7 @@ the REPL.
 
 .. code-block:: bash
 
-  $ edgedb
+  $ gel
   Gel x.x (repl x.x)
   Type \help for help, \quit to quit.
   gel>
