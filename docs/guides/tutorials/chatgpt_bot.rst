@@ -1165,7 +1165,7 @@ After the script finishes, open the Gel UI.
 
 .. code-block:: bash
 
-  $ edgedb ui
+  $ gel ui
 
 Open your "main" branch and switch to the Data Explorer tab. You should see
 that the database has been updated with the embeddings and other relevant data.
