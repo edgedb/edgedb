@@ -67,10 +67,10 @@ Commands
     * - ``\ds, \describe schema``
       - Describe the entire schema.
 
-    * - ``\list databases``
+    * - ``\list branches``
 
         ``alias: \l``
-      - List databases.
+      - List |branches|.
     * - ``\list scalars [-sI] [pattern]``
 
         ``alias: \ls``
@@ -101,10 +101,10 @@ Commands
       - List indexes.
 
     * - ``\dump <filename>``
-      - Dump the current database to file.
+      - Dump the current |branch| to file.
 
     * - ``\restore <filename>``
-      - Restore the database from a dump file.
+      - Restore the |branch| from a dump file.
 
     * - ``\s, \history``
       - Show query history
@@ -120,18 +120,18 @@ Commands
         Type ``\set`` to see all available settings.
 
     * - ``\c, \connect [<dbname>]``
-      - Connect to a particular database.
+      - Connect to a particular |branch|.
 
 
 Sample usage
 ^^^^^^^^^^^^
 
-List databases:
+List |branches|:
 
 .. code-block:: edgeql-repl
 
     db> \ls
-    List of databases:
+    List of branches:
       db
       tutorial
 
@@ -140,7 +140,7 @@ List databases:
 ----------
 
 
-Connect to a database:
+Connect to a |branch|:
 
 .. code-block:: edgeql-repl
 

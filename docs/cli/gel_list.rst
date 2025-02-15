@@ -31,9 +31,6 @@ Types
 :cli:synopsis:`gel list branches`
     Display list of branches.
 
-:cli:synopsis:`gel list databases`
-    Display list of databases in the server instance.
-
 :cli:synopsis:`gel list indexes`
     Display list of indexes defined in the schema.
 
@@ -52,7 +49,7 @@ Types
 Options
 =======
 
-The ``list`` command runs in the database it is connected to. For
+The ``list`` command runs in the |branch| it is connected to. For
 specifying the connection target see :ref:`connection options
 <ref_cli_gel_connopts>`.
 

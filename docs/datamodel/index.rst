@@ -126,7 +126,7 @@ your VCS. Each branch has its own schema and data.
 Module
 ^^^^^^
 
-Each branch (or database pre-v5) has a schema consisting of several
+Each |branch| has a schema consisting of several
 **modules**, each with a unique name. Modules can be used to organize large
 schemas into logical units. In practice, though, most users put their entire
 schema inside a single module called ``default``.

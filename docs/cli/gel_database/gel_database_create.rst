@@ -5,6 +5,11 @@
 gel database create
 ===================
 
+.. warning::
+
+    This command is deprecated in |Gel|.
+    Use :ref:`ref_cli_gel_branch_create` instead.
+
 Create a new :ref:`database <ref_datamodel_databases>`.
 
 .. cli:synopsis::

@@ -13,12 +13,13 @@ Change the currently active :ref:`branch <ref_datamodel_branches>`
 
 .. note::
 
-    This CLI command requires |Gel| version 5.0 or later. Earlier versions did
-    not feature branches and instead featured databases.
+    This CLI command requires |Gel| (or |EdgeDB| version 5.0 or later.)
+    Earlier versions did not feature branches and instead featured
+    **databases**.
 
     Databases offered no direct analog to switching.
 
-    - To run a single command on a different database, use the ``-d <dbname>``
+    - To run a single command on a different |branch|, use the ``-d <dbname>``
       or ``--database=<dbname>`` options described in
       :ref:`ref_cli_gel_connopts`
     - To change the database for *all* commands, set the :gelenv:`DATABASE`
@@ -42,7 +43,7 @@ connected to. For specifying the connection target see
 :ref:`connection options <ref_cli_gel_connopts>`.
 
 :cli:synopsis:`<name>`
-    The name of the new branch.
+    The name of the new |branch|.
 
 :cli:synopsis:`-c, --create`
     Create the branch if it doesn't exist.

@@ -5,6 +5,11 @@
 gel database drop
 =================
 
+.. warning::
+
+    This command is deprecated in |Gel|.
+    Use :ref:`ref_cli_gel_branch_drop` instead.
+
 Drop a :ref:`database <ref_datamodel_databases>`.
 
 .. cli:synopsis::
