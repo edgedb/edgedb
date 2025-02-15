@@ -186,13 +186,13 @@ but effectively "uninitializes" the project. The |gel.toml| and
 
 .. code-block:: bash
 
-    $ edgedb project unlink
+    $ gel project unlink
 
 If you wish to delete the instance as well, use the ``-D`` flag.
 
 .. code-block:: bash
 
-    $ edgedb project unlink -D
+    $ gel project unlink -D
 
 Upgrading
 ^^^^^^^^^

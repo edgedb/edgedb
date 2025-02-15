@@ -732,7 +732,7 @@ the same as with our previous squash:
 
 .. code-block:: bash
 
-    $ edgedb migration create --squash
+    $ gel migration create --squash
     Current database revision:
     m16awk2tzhtbupjrzoc4fikgw5okxpfnaazupb6rxudxwin2qfgy5q
     While squashing migrations is non-destructive,
@@ -792,7 +792,7 @@ We'll take its suggestion to apply the migration:
 
 .. code-block:: bash
 
-    $ edgedb migrate
+    $ gel migrate
 
     Applied m1v3vqmwif4ml3ucbzi555mjgm4myxs2husqemopo2sz2m7otr22ka
     (m16awk2tzhtbupjrzoc4fikgw5okxpfnaazupb6rxudxwin2qfgy5q-

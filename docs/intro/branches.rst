@@ -27,10 +27,10 @@ to a corresponding branch in Gel using the CLI.
 
 .. code-block:: bash
 
-    $ edgedb branch create feature
+    $ gel branch create feature
     Creating branch 'feature'...
     OK: CREATE BRANCH
-    $ edgedb branch switch feature
+    $ gel branch switch feature
     Switching from 'main' to 'feature'
 
 .. note::
@@ -85,7 +85,7 @@ Now, do the same for your database, also from ``feature``:
 
 .. code-block:: bash
 
-    $ edgedb branch rebase main
+    $ gel branch rebase main
 
 
 5. Merge ``feature`` onto "main"
@@ -102,9 +102,9 @@ Switch back to both |main| branches and merge ``feature``.
 
 .. code-block:: bash
 
-    $ edgedb branch switch main
+    $ gel branch switch main
     Switching from 'feature' to 'main'
-    $ edgedb branch merge feature
+    $ gel branch merge feature
 
 Now, your feature and its schema have been successfully merged! 🎉
 

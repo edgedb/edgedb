@@ -42,12 +42,12 @@ file we proceed with our first migration:
 
 .. code-block:: bash
 
-    $ edgedb migration create
+    $ gel migration create
     did you create object type 'default::Event'? [y,n,l,c,b,s,q,?]
     > y
     Created ./dbschema/migrations/00001.edgeql, id:
     m1v3ahcx5f43y6mlsdmlz2agnf6msbc7rt3zstiqmezaqx4ev2qovq
-    $ edgedb migrate
+    $ gel migrate
     Applied m1v3ahcx5f43y6mlsdmlz2agnf6msbc7rt3zstiqmezaqx4ev2qovq
     (00001.edgeql)
 
@@ -103,13 +103,13 @@ The migration is straightforward enough:
 
 .. code-block:: bash
 
-    $ edgedb migration create
+    $ gel migration create
     did you create link 'next' of object type 'default::Event'?
     [y,n,l,c,b,s,q,?]
     > y
     Created ./dbschema/migrations/00002.edgeql, id:
     m1qpukyvw2m4lmomoseni7vdmevk4wzgsbviojacyrqgiyqjp5sdsa
-    $ edgedb migrate
+    $ gel migrate
     Applied m1qpukyvw2m4lmomoseni7vdmevk4wzgsbviojacyrqgiyqjp5sdsa
     (00002.edgeql)
 
@@ -187,13 +187,13 @@ cardinality:
 
 .. code-block:: bash
 
-    $ edgedb migration create
+    $ gel migration create
     did you create constraint 'std::exclusive' of link 'prev'?
     [y,n,l,c,b,s,q,?]
     > y
     Created ./dbschema/migrations/00003.edgeql, id:
     m17or2bfywuckdqeornjmjh7c2voxgatspcewyefcd4p2vbdepimoa
-    $ edgedb migrate
+    $ gel migrate
     Applied m17or2bfywuckdqeornjmjh7c2voxgatspcewyefcd4p2vbdepimoa
     (00003.edgeql)
 
@@ -244,12 +244,12 @@ way of identifying users.
 
 .. code-block:: bash
 
-    $ edgedb migration create
+    $ gel migration create
     did you create object type 'default::User'? [y,n,l,c,b,s,q,?]
     > y
     Created ./dbschema/migrations/00001.edgeql, id:
     m14gwyorqqipfg7riexvbdq5dhgv7x6buqw2jaaulilcmywinmakzq
-    $ edgedb migrate
+    $ gel migrate
     Applied m14gwyorqqipfg7riexvbdq5dhgv7x6buqw2jaaulilcmywinmakzq
     (00001.edgeql)
 
@@ -275,7 +275,7 @@ Next we try to migrate:
 
 .. code-block:: bash
 
-    $ edgedb migration create
+    $ gel migration create
     did you make property 'name' of object type 'default::User' required?
     [y,n,l,c,b,s,q,?]
     > y
@@ -330,13 +330,13 @@ Now we proceed with the migration:
 
 .. code-block:: bash
 
-    $ edgedb migration create
+    $ gel migration create
     did you create constraint 'std::exclusive' of property 'name'?
     [y,n,l,c,b,s,q,?]
     > y
     Created ./dbschema/migrations/00003.edgeql, id:
     m1dxs3xbk4f3vhmqh6mjzetojafddtwlphp5a3kfbfuyvupjafevya
-    $ edgedb migrate
+    $ gel migrate
     gel error: ConstraintViolationError: name violates exclusivity
     constraint
 
@@ -384,7 +384,7 @@ And then we apply the migration:
 
 .. code-block:: bash
 
-    $ edgedb migrate
+    $ gel migrate
     gel error: could not read migrations in ./dbschema/migrations: could not
     read migration file ./dbschema/migrations/00003.edgeql: migration name
     should be `m1t6slgcfne35vir2lcgnqkmaxsxylzvn2hanr6mijbj5esefsp7za` but `
@@ -458,14 +458,14 @@ We edit the schema file and perform our first migration:
 
 .. code-block:: bash
 
-    $ edgedb migration create
+    $ gel migration create
     did you create scalar type 'default::CharacterClass'? [y,n,l,c,b,s,q,?]
     > y
     did you create object type 'default::Character'? [y,n,l,c,b,s,q,?]
     > y
     Created ./dbschema/migrations/00001.edgeql, id:
     m1fg76t7fbvguwhkmzrx7jwki6jxr6dvkswzeepd5v66oxg27ymkcq
-    $ edgedb migrate
+    $ gel migrate
     Applied m1fg76t7fbvguwhkmzrx7jwki6jxr6dvkswzeepd5v66oxg27ymkcq
     (00001.edgeql)
 
@@ -523,7 +523,7 @@ We update the schema file and migrate to the new state:
 
 .. code-block:: bash
 
-    $ edgedb migration create
+    $ gel migration create
     did you create object type 'default::NewClass'? [y,n,l,c,b,s,q,?]
     > y
     did you create link 'new_class' of object type 'default::Character'?
@@ -531,7 +531,7 @@ We update the schema file and migrate to the new state:
     > y
     Created ./dbschema/migrations/00002.edgeql, id:
     m1uttd6f7fpiwiwikhdh6qyijb6pcji747ccg2cyt5357i3wsj3l3q
-    $ edgedb migrate
+    $ gel migrate
     Applied m1uttd6f7fpiwiwikhdh6qyijb6pcji747ccg2cyt5357i3wsj3l3q
     (00002.edgeql)
 
@@ -542,7 +542,7 @@ empty migration:
 
 .. code-block:: bash
 
-    $ edgedb migration create --allow-empty
+    $ gel migration create --allow-empty
     Created ./dbschema/migrations/00003.edgeql, id:
     m1iztxroh3ifoeqmvxncy77whnaei6tp5j3sewyxtrfysronjkxgga
 
@@ -580,7 +580,7 @@ reminder:
 
 .. code-block:: bash
 
-    $ edgedb migrate
+    $ gel migrate
     gel error: could not read migrations in ./dbschema/migrations:
     could not read migration file ./dbschema/migrations/00003.edgeql:
     migration name should be
@@ -662,7 +662,7 @@ just removed:
 
 .. code-block:: bash
 
-    $ edgedb migration create
+    $ gel migration create
     did you drop property 'class' of object type 'default::Character'?
     [y,n,l,c,b,s,q,?]
     > y
@@ -670,7 +670,7 @@ just removed:
     > y
     Created ./dbschema/migrations/00004.edgeql, id:
     m1jdnz5bxjj6kjz2pylvudli5rvw4jyr2ilpb4hit3yutwi3bq34ha
-    $ edgedb migrate
+    $ gel migrate
     Applied m1jdnz5bxjj6kjz2pylvudli5rvw4jyr2ilpb4hit3yutwi3bq34ha
     (00004.edgeql)
 
@@ -711,7 +711,7 @@ and deleting of closely interacting entities in the same migration.
 
 .. code-block:: bash
 
-    $ edgedb migration create
+    $ gel migration create
     did you rename object type 'default::NewClass' to
     'default::CharacterClass'? [y,n,l,c,b,s,q,?]
     > y
@@ -720,7 +720,7 @@ and deleting of closely interacting entities in the same migration.
     > y
     Created ./dbschema/migrations/00005.edgeql, id:
     m1ra4fhx2erkygbhi7qjxt27yup5aw5hkr5bekn5y5jeam5yn57vsa
-    $ edgedb migrate
+    $ gel migrate
     Applied m1ra4fhx2erkygbhi7qjxt27yup5aw5hkr5bekn5y5jeam5yn57vsa
     (00005.edgeql)
 
@@ -786,12 +786,12 @@ We edit the schema file and perform our first migration:
 
 .. code-block:: bash
 
-    $ edgedb migration create
+    $ gel migration create
     did you create object type 'default::Character'? [y,n,l,c,b,s,q,?]
     > y
     Created ./dbschema/migrations/00001.edgeql, id:
     m1paw3ogpsdtxaoywd6pl6beg2g64zj4ykhd43zby4eqh64yjad47a
-    $ edgedb migrate
+    $ gel migrate
     Applied m1paw3ogpsdtxaoywd6pl6beg2g64zj4ykhd43zby4eqh64yjad47a
     (00001.edgeql)
 
@@ -831,13 +831,13 @@ The migration gives us this:
 
 .. code-block:: bash
 
-    $ edgedb migration create
+    $ gel migration create
     did you rename property 'description' of object type 'default::Character'
     to 'class'? [y,n,l,c,b,s,q,?]
     > y
     Created ./dbschema/migrations/00002.edgeql, id:
     m1ljrgrofsqkvo5hsxc62mnztdhlerxp6ucdto262se6dinhuj4mqq
-    $ edgedb migrate
+    $ gel migrate
     Applied m1ljrgrofsqkvo5hsxc62mnztdhlerxp6ucdto262se6dinhuj4mqq
     (00002.edgeql)
 
@@ -861,7 +861,7 @@ applied across several developers, we will make it in the form of a
 
 .. code-block:: bash
 
-    $ edgedb migration create --allow-empty
+    $ gel migration create --allow-empty
     Created ./dbschema/migrations/00003.edgeql, id:
     m1qv2pdksjxxzlnujfed4b6to2ppuodj3xqax4p3r75yfef7kd7jna
 
@@ -885,7 +885,7 @@ We're ready to apply the migration:
 
 .. code-block:: bash
 
-    $ edgedb migrate
+    $ gel migrate
     gel error: could not read migrations in ./dbschema/migrations:
     could not read migration file ./dbschema/migrations/00003.edgeql:
     migration name should be
@@ -935,7 +935,7 @@ order for the type change to work.
 
 .. code-block:: bash
 
-    $ edgedb migration create
+    $ gel migration create
     did you create scalar type 'default::CharacterClass'? [y,n,l,c,b,s,q,?]
     > y
     did you alter the type of property 'class' of object type
@@ -943,7 +943,7 @@ order for the type change to work.
     > y
     Created ./dbschema/migrations/00004.edgeql, id:
     m1hc4yynkejef2hh7fvymvg3f26nmynpffksg7yvfksqufif6lulgq
-    $ edgedb migrate
+    $ gel migrate
     Applied m1hc4yynkejef2hh7fvymvg3f26nmynpffksg7yvfksqufif6lulgq
     (00004.edgeql)
 
@@ -983,12 +983,12 @@ We edit the schema file and perform our first migration:
 
 .. code-block:: bash
 
-    $ edgedb migration create
+    $ gel migration create
     did you create object type 'default::Character'? [y,n,l,c,b,s,q,?]
     > y
     Created ./dbschema/migrations/00001.edgeql, id:
     m1xvu7o4z5f5xfwuun2vee2cryvvzh5lfilwgkulmqpifo5m3dnd6a
-    $ edgedb migrate
+    $ gel migrate
     Applied m1xvu7o4z5f5xfwuun2vee2cryvvzh5lfilwgkulmqpifo5m3dnd6a
     (00001.edgeql)
 
@@ -998,7 +998,7 @@ and fill it out as we like:
 
 .. code-block:: bash
 
-    $ edgedb migration create --allow-empty
+    $ gel migration create --allow-empty
     Created ./dbschema/migrations/00002.edgeql, id:
     m1lclvwdpwitjj4xqm45wp74y4wjyadljct5o6bsctlnh5xbto74iq
 
@@ -1024,7 +1024,7 @@ reminder:
 
 .. code-block:: bash
 
-    $ edgedb migrate
+    $ gel migrate
     gel error: could not read migrations in ./dbschema/migrations:
     could not read migration file ./dbschema/migrations/00002.edgeql:
     migration name should be
@@ -1100,7 +1100,7 @@ We go ahead and try to apply this new schema:
 
 .. code-block:: bash
 
-    $ edgedb migration create
+    $ gel migration create
     did you create object type 'default::CharacterClass'? [y,n,l,c,b,s,q,?]
     > y
     did you create link 'class' of object type 'default::Character'?
@@ -1147,7 +1147,7 @@ it right away:
 
 .. code-block:: bash
 
-    $ edgedb migration create
+    $ gel migration create
     did you create object type 'default::CharacterClass'? [y,n,l,c,b,s,q,?]
     > y
     did you create link 'class' of object type 'default::Character'?
@@ -1285,7 +1285,7 @@ And we perform our final migration:
 
 .. code-block:: bash
 
-    $ edgedb migration create
+    $ gel migration create
     did you make link 'class' of object type 'default::Character' required?
     [y,n,l,c,b,s,q,?]
     > y
@@ -1319,7 +1319,7 @@ Our attempt at migrating fails as we expected:
 
 .. code-block:: bash
 
-    $ edgedb migrate
+    $ gel migrate
     gel error: MissingRequiredError: missing value for required link
     'class' of object type 'default::Character'
       Detail: Failing object id is 'ee604992-c1b1-11ec-ad59-4f878963769f'.
@@ -1328,7 +1328,7 @@ After removing the bugged ``Character``, we can migrate without any problems:
 
 .. code-block:: bash
 
-    $ edgedb migrate
+    $ gel migrate
     Applied m14yblybdo77c7bjtm6nugiy5cs6pl6rnuzo5b27gamy4zhuwjifia
     (00004.edgeql)
 
