@@ -16,16 +16,6 @@ events.
 We'll start with this schema:
 
 .. code-block:: sdl
-    :version-lt: 3.0
-
-    type Event {
-      required property name -> str;
-      link prev -> Event;
-
-      # ... more properties and links
-    }
-
-.. code-block:: sdl
 
     type Event {
       required name: str;
@@ -69,26 +59,6 @@ events like these:
 It seems like having a ``next`` link would be useful, too. So we can
 define it as a computed link by using :ref:`backlink
 <ref_datamodel_links>` notation:
-
-.. code-block:: sdl
-    :version-lt: 3.0
-
-    type Event {
-      required property name -> str;
-
-      link prev -> Event;
-      link next := .<prev[is Event];
-    }
-
-.. code-block:: sdl
-    :version-lt: 4.0
-
-    type Event {
-      required name: str;
-
-      prev: Event;
-      link next := .<prev[is Event];
-    }
 
 .. code-block:: sdl
 
@@ -147,30 +117,6 @@ Let's fix that by making the link ``prev`` a one-to-one, after all
 we're interested in building event chains, not trees.
 
 .. code-block:: sdl
-    :version-lt: 3.0
-
-    type Event {
-      required property name -> str;
-
-      link prev -> Event {
-        constraint exclusive;
-      };
-      link next := .<prev[is Event];
-    }
-
-.. code-block:: sdl
-    :version-lt: 4.0
-
-    type Event {
-      required name: str;
-
-      prev: Event {
-        constraint exclusive;
-      };
-      link next := .<prev[is Event];
-    }
-
-.. code-block:: sdl
 
     type Event {
       required name: str;
@@ -226,13 +172,6 @@ as the needs of the project evolve.
 We'll start with a fairly simple schema:
 
 .. code-block:: sdl
-    :version-lt: 3.0
-
-    type User {
-      property name -> str;
-    }
-
-.. code-block:: sdl
 
     type User {
       name: str;
@@ -257,13 +196,6 @@ We've got our first migration to set up the schema. Now after using
 that for a little while we realize that we want to make ``name`` a
 *required property*. So we make the following change in the schema
 file:
-
-.. code-block:: sdl
-    :version-lt: 3.0
-
-    type User {
-      required property name -> str;
-    }
 
 .. code-block:: sdl
 
@@ -308,15 +240,6 @@ We then run :ref:`ref_cli_gel_migrate` to apply the changes.
 Next we realize that we actually want to make names unique, perhaps to
 avoid confusion or to use them as reliable human-readable identifiers
 (unlike ``id``). We update the schema again:
-
-.. code-block:: sdl
-    :version-lt: 3.0
-
-    type User {
-      required property name -> str {
-        constraint exclusive;
-      }
-    }
 
 .. code-block:: sdl
 
@@ -436,16 +359,6 @@ character in an adventure game as the type of data we will evolve.
 Let's start with this schema:
 
 .. code-block:: sdl
-    :version-lt: 3.0
-
-    scalar type CharacterClass extending enum<warrior, scholar, rogue>;
-
-    type Character {
-      required property name -> str;
-      required property class -> CharacterClass;
-    }
-
-.. code-block:: sdl
 
     scalar type CharacterClass extending enum<warrior, scholar, rogue>;
 
@@ -487,22 +400,6 @@ This way instead of a property ``class`` we want to end up with a link
 :eql:op:`cast <cast>` a scalar into an object, we'll need to convert
 between the two explicitly. This means that we will need to have both
 the old and the new "class" information to begin with:
-
-.. code-block:: sdl
-    :version-lt: 3.0
-
-    scalar type CharacterClass extending enum<warrior, scholar, rogue>;
-
-    type NewClass {
-      required property name -> str;
-      multi property skills -> str;
-    }
-
-    type Character {
-      required property name -> str;
-      required property class -> CharacterClass;
-      link new_class -> NewClass;
-    }
 
 .. code-block:: sdl
 
@@ -633,19 +530,6 @@ Everything seems to be in order. It is time to clean up the old
 property and ``CharacterClass`` :eql:type:`enum`:
 
 .. code-block:: sdl
-    :version-lt: 3.0
-
-    type NewClass {
-      required property name -> str;
-      multi property skills -> str;
-    }
-
-    type Character {
-      required property name -> str;
-      link new_class -> NewClass;
-    }
-
-.. code-block:: sdl
 
     type NewClass {
       required name: str;
@@ -677,19 +561,6 @@ just removed:
 Now that the original property and scalar type are gone, we can rename
 the "new" components, so that they become ``class`` link and
 ``CharacterClass`` type, respectively:
-
-.. code-block:: sdl
-    :version-lt: 3.0
-
-    type CharacterClass {
-      required property name -> str;
-      multi property skills -> str;
-    }
-
-    type Character {
-      required property name -> str;
-      link class -> CharacterClass;
-    }
 
 .. code-block:: sdl
 
@@ -768,14 +639,6 @@ character in an adventure game as the type of data we will evolve.
 Let's start with this schema:
 
 .. code-block:: sdl
-    :version-lt: 3.0
-
-    type Character {
-      required property name -> str;
-      required property description -> str;
-    }
-
-.. code-block:: sdl
 
     type Character {
       required name: str;
@@ -811,14 +674,6 @@ determining some game actions. Se we end up with something like this:
 However, as we keep developing our game it becomes apparent that this
 is less of a "description" and more of a "character class", so at
 first we just rename the property to reflect that:
-
-.. code-block:: sdl
-    :version-lt: 3.0
-
-    type Character {
-      required property name -> str;
-      required property class -> str;
-    }
 
 .. code-block:: sdl
 
@@ -910,16 +765,6 @@ be a :eql:type:`str` anymore, instead we can use an :eql:type:`enum`
 to make sure that we don't accidentally use some invalid value for it.
 
 .. code-block:: sdl
-    :version-lt: 3.0
-
-    scalar type CharacterClass extending enum<warrior, scholar, rogue>;
-
-    type Character {
-      required property name -> str;
-      required property class -> CharacterClass;
-    }
-
-.. code-block:: sdl
 
     scalar type CharacterClass extending enum<warrior, scholar, rogue>;
 
@@ -965,13 +810,6 @@ This example shows how to setup a required link. We'll use a
 character in an adventure game as the type of data we will evolve.
 
 Let's start with this schema:
-
-.. code-block:: sdl
-    :version-lt: 3.0
-
-    type Character {
-      required property name -> str;
-    }
 
 .. code-block:: sdl
 
@@ -1072,19 +910,6 @@ without any intermediate properties. So we end up with a schema
 like this:
 
 .. code-block:: sdl
-    :version-lt: 3.0
-
-    type CharacterClass {
-      required property name -> str;
-      multi property skills -> str;
-    }
-
-    type Character {
-      required property name -> str;
-      required link class -> CharacterClass;
-    }
-
-.. code-block:: sdl
 
     type CharacterClass {
       required name: str;
@@ -1116,19 +941,6 @@ every character. So we should abort this migration attempt and rethink
 our strategy. We need a separate step where the ``class`` link is
 not *required* so that we can write some custom queries to handle
 the character classes:
-
-.. code-block:: sdl
-    :version-lt: 3.0
-
-    type CharacterClass {
-      required property name -> str;
-      multi property skills -> str;
-    }
-
-    type Character {
-      required property name -> str;
-      link class -> CharacterClass;
-    }
 
 .. code-block:: sdl
 
@@ -1255,19 +1067,6 @@ classes:
 
 We're finally ready to make the ``class`` link *required*. We update
 the schema:
-
-.. code-block:: sdl
-    :version-lt: 3.0
-
-    type CharacterClass {
-      required property name -> str;
-      multi property skills -> str;
-    }
-
-    type Character {
-      required property name -> str;
-      required link class -> CharacterClass;
-    }
 
 .. code-block:: sdl
 

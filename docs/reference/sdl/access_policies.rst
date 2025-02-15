@@ -14,31 +14,6 @@ Examples
 Declare a schema where users can only see their own profiles:
 
 .. code-block:: sdl
-    :version-lt: 3.0
-
-    # Declare some global variables to store "current user"
-    # information.
-    global current_user_id -> uuid;
-    global current_user := (
-        select User filter .id = global current_user_id
-    );
-
-    type User {
-        required property name -> str;
-    }
-
-    type Profile {
-        link owner -> User;
-
-        # Only allow reading to the owner, but also
-        # ensure that a user cannot set the "owner" link
-        # to anything but themselves.
-        access policy owner_only
-            allow all using (.owner = global current_user)
-            { errmessage := 'Profile may only be accessed by the owner'; }
-    }
-
-.. code-block:: sdl
 
     # Declare some global variables to store "current user"
     # information.
@@ -68,26 +43,6 @@ Syntax
 
 Define a new access policy corresponding to the :ref:`more explicit DDL
 commands <ref_eql_ddl_access_policies>`.
-
-.. sdl:synopsis::
-    :version-lt: 3.0
-
-    # Access policy used inside a type declaration:
-    access policy <name>
-      [ when (<condition>) ]
-      { allow | deny } <action> [, <action> ... ]
-      [ using (<expr>) ]
-      [ "{"
-         [ errmessage := value ; ]
-         [ <annotation-declarations> ]
-        "}" ] ;
-
-    # where <action> is one of
-    all
-    select
-    insert
-    delete
-    update [{ read | write }]
 
 .. sdl:synopsis::
 

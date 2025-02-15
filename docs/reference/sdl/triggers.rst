@@ -58,17 +58,6 @@ Define a new trigger corresponding to the :ref:`more explicit DDL
 commands <ref_eql_ddl_triggers>`.
 
 .. sdl:synopsis::
-    :version-lt: 4.0
-
-    type <type-name> "{"
-      trigger <name>
-      after
-        {insert | update | delete} [, ...]
-        for {each | all}
-        do <expr>
-    "}"
-
-.. sdl:synopsis::
 
     type <type-name> "{"
       trigger <name>

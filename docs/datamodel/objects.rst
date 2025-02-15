@@ -15,13 +15,6 @@ For the full documentation on properties,
 see :ref:`Properties <ref_datamodel_props>`.
 
 .. code-block:: sdl
-    :version-lt: 3.0
-
-    type Person {
-      property email -> str;
-    }
-
-.. code-block:: sdl
 
     type Person {
       email: str;
@@ -29,13 +22,6 @@ see :ref:`Properties <ref_datamodel_props>`.
 
 Links are used to define relationships between object types. For the full
 documentation on links, see :ref:`Links <ref_datamodel_links>`.
-
-.. code-block:: sdl
-    :version-lt: 3.0
-
-    type Person {
-      link best_friend -> Person;
-    }
 
 .. code-block:: sdl
 
@@ -65,14 +51,6 @@ but they're a useful way to share functionality and structure among
 other object types.
 
 .. code-block:: sdl
-    :version-lt: 3.0
-
-    abstract type HasName {
-      property first_name -> str;
-      property last_name -> str;
-    }
-
-.. code-block:: sdl
 
     abstract type HasName {
       first_name: str;
@@ -93,17 +71,6 @@ Object types can *extend* other object types. The extending type (AKA the
 *supertypes*.
 
 .. code-block:: sdl
-    :version-lt: 3.0
-
-    abstract type Animal {
-      property species -> str;
-    }
-
-    type Dog extending Animal {
-      property breed -> str;
-    }
-
-.. code-block:: sdl
 
     abstract type Animal {
       species: str;
@@ -122,22 +89,6 @@ Object types can :ref:`extend more
 than one type <ref_eql_sdl_object_types_inheritance>` — that's called
 *multiple inheritance*. This mechanism allows building complex object
 types out of combinations of more basic types.
-
-.. code-block:: sdl
-    :version-lt: 3.0
-
-    abstract type HasName {
-      property first_name -> str;
-      property last_name -> str;
-    }
-
-    abstract type HasEmail {
-      property email -> str;
-    }
-
-    type Person extending HasName, HasEmail {
-      property profession -> str;
-    }
 
 .. code-block:: sdl
 

@@ -61,24 +61,6 @@ The built-in :ref:`migration tools<ref_cli_gel_migration>` expect
 the schema to be given in SDL format. For example:
 
 .. code-block:: sdl
-    :version-lt: 3.0
-
-    # "default" module block
-    module default {
-        type Movie {
-            required property title -> str;
-            # the year of release
-            property year -> int64;
-            required link director -> Person;
-            required multi link actors -> Person;
-        }
-        type Person {
-            required property first_name -> str;
-            required property last_name -> str;
-        }
-    }
-
-.. code-block:: sdl
 
     # "default" module block
     module default {
@@ -100,22 +82,6 @@ declarations must use :ref:`fully-qualified names
 <ref_name_resolution>` so that they can be assigned
 to their respective modules. For example, the following is equivalent
 to the previous migration:
-
-.. code-block:: sdl
-    :version-lt: 3.0
-
-    # no module block
-    type default::Movie {
-        required property title -> str;
-        # the year of release
-        property year -> int64;
-        required link director -> default::Person;
-        required multi link actors -> default::Person;
-    }
-    type default::Person {
-        required property first_name -> str;
-        required property last_name -> str;
-    }
 
 .. code-block:: sdl
 

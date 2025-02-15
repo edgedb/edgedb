@@ -19,17 +19,6 @@ Create trigger
 :ref:`Define <ref_eql_sdl_triggers>` a new trigger.
 
 .. eql:synopsis::
-    :version-lt: 4.0
-
-    {create | alter} type <type-name> "{"
-      create trigger <name>
-        after
-        {insert | update | delete} [, ...]
-        for {each | all}
-        do <expr>
-    "}"
-
-.. eql:synopsis::
 
     {create | alter} type <type-name> "{"
       create trigger <name>
