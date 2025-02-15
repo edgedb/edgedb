@@ -547,9 +547,9 @@ and used a client library.
 
 .. XXX:
 .. - For guided tours of major concepts, check out the showcase pages for `Data
-..   Modeling <https://www.edgedb.com/showcase/data-modeling>`_, `EdgeQL
-..   <https://www.edgedb.com/showcase/edgeql>`_, and `Migrations
-..   <https://www.edgedb.com/showcase/migrations>`_.
+..   Modeling <https://www.geldata.com/showcase/data-modeling>`_, `EdgeQL
+..   <https://www.geldata.com/showcase/edgeql>`_, and `Migrations
+..   <https://www.geldata.com/showcase/migrations>`_.
 
 - To start building an application using the language of your choice, check out
   our client libraries:
