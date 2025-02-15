@@ -87,7 +87,7 @@ base64url encode the resulting string. This new string is called the
     * Value should be:
     * `${protocol}://${host}:${port}/branch/${branch}/ext/auth/
     */
-   const EDGEDB_AUTH_BASE_URL = process.env.GEL_AUTH_BASE_URL;
+   const GEL_AUTH_BASE_URL = process.env.GEL_AUTH_BASE_URL;
    const SERVER_PORT = 3000;
 
    /**
@@ -183,7 +183,7 @@ to the built-in UI with the ``challenge`` in the search parameters.
    const handleUiSignIn = async (req, res) => {
       const { verifier, challenge } = generatePKCE();
 
-      const redirectUrl = new URL("ui/signin", EDGEDB_AUTH_BASE_URL);
+      const redirectUrl = new URL("ui/signin", GEL_AUTH_BASE_URL);
       redirectUrl.searchParams.set("challenge", challenge);
 
       res.writeHead(301, {
@@ -203,7 +203,7 @@ to the built-in UI with the ``challenge`` in the search parameters.
    const handleUiSignUp = async (req, res) => {
       const { verifier, challenge } = generatePKCE();
 
-      const redirectUrl = new URL("ui/signup", EDGEDB_AUTH_BASE_URL);
+      const redirectUrl = new URL("ui/signup", GEL_AUTH_BASE_URL);
       redirectUrl.searchParams.set("challenge", challenge);
 
       res.writeHead(301, {
@@ -270,7 +270,7 @@ to the Gel Auth extension to exchange these two pieces of data for an
          return;
       }
 
-      const codeExchangeUrl = new URL("token", EDGEDB_AUTH_BASE_URL);
+      const codeExchangeUrl = new URL("token", GEL_AUTH_BASE_URL);
       codeExchangeUrl.searchParams.set("code", code);
       codeExchangeUrl.searchParams.set("verifier", verifier);
       const codeExchangeResponse = await fetch(codeExchangeUrl.href, {

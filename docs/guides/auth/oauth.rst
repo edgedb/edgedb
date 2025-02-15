@@ -90,7 +90,7 @@ base64url encode the resulting string. This new string is called the
     * Value should be:
     * `${protocol}://${host}:${port}/branch/${branch}/ext/auth/
     */
-   const EDGEDB_AUTH_BASE_URL = process.env.GEL_AUTH_BASE_URL;
+   const GEL_AUTH_BASE_URL = process.env.GEL_AUTH_BASE_URL;
    const SERVER_PORT = 3000;
 
    /**
@@ -172,7 +172,7 @@ the end user's browser to the Identity Provider with the proper setup.
      }
 
      const pkce = generatePKCE();
-     const redirectUrl = new URL("authorize", EDGEDB_AUTH_BASE_URL);
+     const redirectUrl = new URL("authorize", GEL_AUTH_BASE_URL);
      redirectUrl.searchParams.set("provider", provider);
      redirectUrl.searchParams.set("challenge", pkce.challenge);
      redirectUrl.searchParams.set(
@@ -241,7 +241,7 @@ the Gel Auth extension to exchange these two pieces of data for an
        return;
      }
 
-     const codeExchangeUrl = new URL("token", EDGEDB_AUTH_BASE_URL);
+     const codeExchangeUrl = new URL("token", GEL_AUTH_BASE_URL);
      codeExchangeUrl.searchParams.set("code", code);
      codeExchangeUrl.searchParams.set("verifier", verifier);
      const codeExchangeResponse = await fetch(codeExchangeUrl.href, {

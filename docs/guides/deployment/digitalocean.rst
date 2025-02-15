@@ -176,8 +176,8 @@ up and running.
 
 .. code-block:: bash
 
-   $ printf "EDGEDB_SERVER_BACKEND_DSN=${DSN} \
-   \nEDGEDB_SERVER_SECURITY=insecure_dev_mode\n" \
+   $ printf "GEL_SERVER_BACKEND_DSN=${DSN} \
+   \nGEL_SERVER_SECURITY=insecure_dev_mode\n" \
    | ssh root@$IP -T "cat > /etc/gel/env"
 
    $ ssh root@$IP "systemctl restart gel.service"
@@ -196,8 +196,8 @@ Set the security policy to strict.
 
 .. code-block:: bash
 
-   $ printf "EDGEDB_SERVER_BACKEND_DSN=${DSN} \
-   \nEDGEDB_SERVER_SECURITY=strict\n" \
+   $ printf "GEL_SERVER_BACKEND_DSN=${DSN} \
+   \nGEL_SERVER_SECURITY=strict\n" \
    | ssh root@$IP -T "cat > /etc/gel/env"
 
    $ ssh root@$IP "systemctl restart gel.service"

@@ -116,10 +116,10 @@ Start an Gel container.
        --dns-name-label gel \
        --ports 5656 \
        --secure-environment-variables \
-         "EDGEDB_SERVER_PASSWORD=$PASSWORD" \
-         "EDGEDB_SERVER_BACKEND_DSN=$DSN" \
+         "GEL_SERVER_PASSWORD=$PASSWORD" \
+         "GEL_SERVER_BACKEND_DSN=$DSN" \
        --environment-variables \
-         EDGEDB_SERVER_TLS_CERT_MODE=generate_self_signed \
+         GEL_SERVER_TLS_CERT_MODE=generate_self_signed \
 
 Persist the SSL certificate. We have configured Gel to generate a self
 signed SSL certificate when it starts. However, if the container is restarted a
@@ -150,11 +150,11 @@ or reboots copy the certificate files and use their contents in the
        --dns-name-label gel \
        --ports 5656 \
        --secure-environment-variables \
-         "EDGEDB_SERVER_PASSWORD=$PASSWORD" \
-         "EDGEDB_SERVER_BACKEND_DSN=$DSN" \
-         "EDGEDB_SERVER_TLS_KEY=$key" \
+         "GEL_SERVER_PASSWORD=$PASSWORD" \
+         "GEL_SERVER_BACKEND_DSN=$DSN" \
+         "GEL_SERVER_TLS_KEY=$key" \
        --environment-variables \
-         "EDGEDB_SERVER_TLS_CERT=$cert"
+         "GEL_SERVER_TLS_CERT=$cert"
 
 
 To access the Gel instance you've just provisioned on Azure from your local

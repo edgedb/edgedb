@@ -53,6 +53,8 @@ To disable version check do one of two things:
    for this invocation
 2. Export :gelenv:`RUN_VERSION_CHECK=never` in the environment.
 
+.. XXX: edgedb::version_check=debug
+
 To verify that check is skipped and no network access is being done
 logging facility can be used::
 
@@ -60,8 +62,8 @@ logging facility can be used::
    $ gel --no-cli-update-check
    [..snip..] Skipping version check due to --no-cli-update-check
    gel>
-   $ EDGEDB_RUN_VERSION_CHECK=never edgedb
-   [..snip..] Skipping version check due to EDGEDB_RUN_VERSION_CHECK=never
+   $ GEL_RUN_VERSION_CHECK=never gel
+   [..snip..] Skipping version check due to GEL_RUN_VERSION_CHECK=never
    gel>
 
 

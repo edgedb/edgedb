@@ -97,8 +97,8 @@ under the ``[Service]`` section. View the supported environment variables at
 .. code-block:: toml
 
    [Service]
-   Environment="EDGEDB_SERVER_TLS_CERT_MODE=generate_self_signed"
-   Environment="EDGEDB_SERVER_ADMIN_UI=enabled"
+   Environment="GEL_SERVER_TLS_CERT_MODE=generate_self_signed"
+   Environment="GEL_SERVER_ADMIN_UI=enabled"
 
 Save the file and exit, then restart the service.
 
