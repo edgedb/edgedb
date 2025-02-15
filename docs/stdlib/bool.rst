@@ -327,8 +327,6 @@ operator.
                     named only message: optional str = <str>{} \
                   ) -> bool
 
-    .. versionadded:: 3.0
-
     Checks that the input bool is ``true``.
 
     If the input bool is ``false``, ``assert`` raises a

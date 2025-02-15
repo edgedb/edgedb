@@ -1,5 +1,3 @@
-.. versionadded:: 3.0
-
 .. _ref_eql_sdl_mutation_rewrites:
 
 =================

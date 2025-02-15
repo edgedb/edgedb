@@ -112,8 +112,6 @@ details, see :ref:`EdgeQL > Literals > Tuples <ref_eql_literal_tuple>`.
 Ranges
 ^^^^^^
 
-.. versionadded:: 2.0
-
 Ranges represent some interval of values. The intervals can be bound or
 unbound on either end. They can also be empty, containing no values. Only
 some scalar types have corresponding range types:

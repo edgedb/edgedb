@@ -172,8 +172,6 @@ Sets
 
     :index: intersect, common, set of
 
-    .. versionadded:: 3.0
-
     Produces a set containing the common items between the given sets.
 
     .. note::
@@ -191,8 +189,6 @@ Sets
                                 -> set of anytype
 
     :index: except, set of
-
-    .. versionadded:: 3.0
 
     Produces a set of all items in the first set which are not in the second.
 

@@ -1,5 +1,3 @@
-.. versionadded:: 2.0
-
 .. _ref_eql_ddl_access_policies:
 
 ===============
@@ -121,11 +119,9 @@ Most sub-commands and options of this command are identical to the
 
 The following subcommands are allowed in the ``create access policy`` block:
 
-.. versionadded:: 3.0
-
-    :eql:synopsis:`set errmessage := <value>`
-        Set a custom error message of :eql:synopsis:`<value>` that is displayed
-        when this access policy prevents a write action.
+:eql:synopsis:`set errmessage := <value>`
+    Set a custom error message of :eql:synopsis:`<value>` that is displayed
+    when this access policy prevents a write action.
 
 :eql:synopsis:`create annotation <annotation-name> := <value>`
     Set access policy annotation :eql:synopsis:`<annotation-name>` to
