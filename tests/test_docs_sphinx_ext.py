@@ -977,6 +977,8 @@ class TestOthers(unittest.TestCase, BaseDomainTest):
         blah4 |geluri|
         blah5 :geluri:`foo:bar@nax/a:123#12`
 
+        blah6 :dotgel:`default`
+
         DONE
         '''
 
@@ -1013,4 +1015,14 @@ class TestOthers(unittest.TestCase, BaseDomainTest):
                     / text()
             '''),
             ['gel://', 'gel://foo:bar@nax/a:123#12']
+        )
+
+        self.assertEqual(
+            x.xpath('''
+                //paragraph/literal
+                    [@edb-substitution="true"]
+                    [@edb-dotgel="true"]
+                    / text()
+            '''),
+             ['default.gel']
         )

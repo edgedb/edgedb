@@ -81,7 +81,7 @@ This command does a couple important things.
      server-version = "4.1"
 
 3. If no ``dbschema`` directory exists, it will be created, along with an
-   empty ``default.esdl`` file which will contain your schema. If a
+   empty :dotgel:`default` file which will contain your schema. If a
    ``dbschema`` directory exists and contains a subdirectory called
    ``migrations``, those migrations will be applied against the new instance.
 

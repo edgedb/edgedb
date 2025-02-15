@@ -228,10 +228,29 @@ class GelUriRole:
         return [node], []
 
 
+class DotGelRole:
+
+    def __call__(
+        self, role, rawtext, text, lineno, inliner, options=None, content=None
+    ):
+        if text.endswith(".gel") or text.endswith(".esdl"):
+            fn = inliner.document.current_source
+            raise Exception(
+                f"{fn}:{lineno} - :dotgel:`{text}`"
+                f" - can't end with '.esdl' or '.gel'"
+            )
+        text = f'{text}.gel'
+        node = d_nodes.literal(text, text)
+        node["edb-dotgel"] = "true"
+        node["edb-substitution"] = "true"
+        return [node], []
+
+
 def setup_domain(app):
 
     app.add_role('gelcmd', GelCmdRole())
     app.add_role('geluri', GelUriRole())
+    app.add_role('dotgel', DotGelRole())
     app.add_domain(GelDomain)
     app.add_transform(GelSubstitutionTransform)
 

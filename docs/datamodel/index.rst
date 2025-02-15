@@ -39,7 +39,7 @@ SDL
 ---
 
 Your schema is defined inside |.gel| files. It's common to define your
-entire schema in a single file called ``default.esdl``, but you can split it
+entire schema in a single file called :dotgel:`default`, but you can split it
 across multiple files if you wish.
 
 By convention, your schema files should live in a directory called ``dbschema``

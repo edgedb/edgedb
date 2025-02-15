@@ -180,8 +180,8 @@ This did a couple things.
 
 1. First, it scaffolded your project by creating an
    :ref:`ref_reference_gel_toml` config file and a schema file
-   ``dbschema/default.gel``. In the next section, you'll define a schema in
-   ``default.gel``.
+   :dotgel:`dbschema/default`. In the next section, you'll define a schema in
+   :dotgel:`default`.
 
 2. Second, it spun up an Gel instance called ``quickstart`` and "linked" it
    to the current directory. As long as you're inside the project
@@ -231,7 +231,7 @@ see the following file structure.
 declarative way to define your data model.
 
 SDL lives inside |.gel| files. Commonly, your entire schema will be
-declared in a file called ``default.gel`` but you can split your schema
+declared in a file called :dotgel:`default` but you can split your schema
 across several |.gel| files if you prefer.
 
 .. note::
@@ -246,7 +246,7 @@ across several |.gel| files if you prefer.
 
 Let's build a simple movie database. We'll need to define two **object types**
 (equivalent to a *table* in SQL): Movie and Person. Open
-``dbschema/default.esdl`` in your editor of choice and paste the following:
+:dotgel:`dbschema/default` in your editor of choice and paste the following:
 
 .. code-block:: sdl
     :version-lt: 3.0
@@ -295,7 +295,7 @@ Now we're ready to run a migration to apply this schema to the database.
 ==================
 
 Generate a migration file with :gelcmd:`migration create`. This command
-gathers up our ``*.esdl`` files and sends them to the database. The *database
+gathers up our :dotgel:`*` files and sends them to the database. The *database
 itself* parses these files, compares them against its current schema, and
 generates a migration plan! Then the database sends this plan back to the CLI,
 which creates a migration file.
