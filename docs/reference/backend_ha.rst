@@ -45,7 +45,7 @@ with a DSN, like so:
 
 .. code-block:: bash
 
-    $ edgedb-server \
+    $ gel-server \
         --backend-dsn stolon+consul+http://localhost:8500/my-cluster
 
 |Gel| will connect to the Consul HTTP service at ``localhost:8500``, and
@@ -64,7 +64,7 @@ a switch in addition to a regular backend DSN:
 
 .. code-block:: bash
 
-    $ edgedb-server \
+    $ gel-server \
         --backend-dsn postgres://xxx.rds.amazonaws.com \
         --enable-backend-adaptive-ha
 

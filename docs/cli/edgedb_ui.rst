@@ -27,7 +27,7 @@ table.
 .. note::
 
     The UI is served by default by development instances. To enable the UI on a
-    production instance, use the ``--admin-ui`` option with ``gel-server``
+    production instance, use the ``--admin-ui`` option with |gel-server|
     or set the ``EDGEDB_SERVER_ADMIN_UI`` :ref:`environment variable
     <ref_reference_envvar_admin_ui>` to ``enabled``.
 

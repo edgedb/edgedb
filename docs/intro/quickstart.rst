@@ -4,10 +4,10 @@
 Quickstart
 ==========
 
-Welcome to Gel!
+Welcome to |Gel|!
 
 This quickstart will walk you through the entire process of creating a simple
-EdgeDB-powered application: installation, defining your schema, adding some
+Gel-powered application: installation, defining your schema, adding some
 data, and writing your first query. Let's jump in!
 
 .. _ref_quickstart_install:

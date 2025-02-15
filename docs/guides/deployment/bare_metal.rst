@@ -79,7 +79,7 @@ This will start the server on port 5656, and the data directory will be
 
 .. warning::
 
-    ``gel-server`` cannot be run as root.
+    |gel-server| cannot be run as root.
 
 Set environment variables
 =========================

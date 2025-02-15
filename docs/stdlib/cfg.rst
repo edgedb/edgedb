@@ -5,7 +5,7 @@ Config
 ======
 
 The ``cfg`` module contains a set of types and scalars used for configuring
-EdgeDB.
+|Gel|.
 
 
 .. list-table::

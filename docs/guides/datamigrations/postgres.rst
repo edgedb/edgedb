@@ -239,7 +239,7 @@ Then we look at the ``posts`` table:
 The ``posts`` table also has an ``id`` that we want to keep around, at least
 during the transition. We have a couple of columns using a ``timestamp with
 time zone`` value, so they'll become :eql:type:`datetime` properties in
-EdgeDB. The ``user_id``, ``thread_id``, and ``reply_to_id`` columns will
+|Gel|. The ``user_id``, ``thread_id``, and ``reply_to_id`` columns will
 become *links* to ``User``, ``Thread``, and ``Post`` respectively:
 
 .. code-block:: sql
