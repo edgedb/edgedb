@@ -96,20 +96,6 @@ Configure the environment as needed for your preferred language.
 
     $ dotnet new console -o . -f net6.0
 
-  .. code-tab:: bash
-    :caption: Maven (Java)
-
-    $ touch Main.java
-
-  .. code-tab:: bash
-    :caption: Gradle (Java)
-
-    $ touch Main.java
-
-  .. code-tab:: bash
-    :caption: Elixir
-
-    $ mix new edgedb_quickstart
 
 Install the Gel client library.
 
@@ -137,40 +123,20 @@ Install the Gel client library.
     # Cargo.toml
 
     [dependencies]
-    edgedb-tokio = "0.5.0"
+    gel-tokio = "0.5.0"
     # Additional dependency
     tokio = { version = "1.28.1", features = ["macros", "rt-multi-thread"] }
 
   .. code-tab:: bash
     :caption: Go
 
-    $ go get github.com/edgedb/edgedb-go
+    $ go get github.com/geldata/gel-go
 
   .. code-tab:: bash
     :caption: .NET
 
     $ dotnet add package Gel.Net.Driver
 
-  .. code-tab:: xml
-    :caption: Maven (Java)
-
-    // pom.xml
-    <dependency>
-        <groupId>com.edgedb</groupId>
-        <artifactId>driver</artifactId>
-    </dependency>
-
-  .. code-tab::
-    :caption: Gradle (Java)
-
-    // build.gradle
-    implementation 'com.edgedb:driver'
-
-  .. code-tab:: elixir
-    :caption: Elixir
-
-    # mix.exs
-    {:edgedb, "~> 0.6.0"}
 
 Copy and paste the following simple script. This script initializes a
 ``Client`` instance. Clients manage an internal pool of connections to your
@@ -191,7 +157,7 @@ database and provide a set of methods for executing queries.
   .. code-tab:: typescript
     :caption: Node.js
 
-    import {createClient} from 'edgedb';
+    import {createClient} from 'gel';
 
     const client = createClient();
 
@@ -200,19 +166,9 @@ database and provide a set of methods for executing queries.
     });
 
 
-  .. code-tab:: typescript
-    :caption: Deno
-
-    import {createClient} from 'https://deno.land/x/edgedb/mod.ts';
-
-    const client = createClient();
-
-    const result = await client.querySingle(`select random()`);
-    console.log(result);
-
   .. code-tab:: python
 
-    from edgedb import create_client
+    from gel import create_client
 
     client = create_client()
 
@@ -224,7 +180,7 @@ database and provide a set of methods for executing queries.
     // src/main.rs
     #[tokio::main]
     async fn main() {
-        let conn = edgedb_tokio::create_client()
+        let conn = gel_tokio::create_client()
             .await
             .expect("Client initiation");
         let val = conn
@@ -244,12 +200,12 @@ database and provide a set of methods for executing queries.
       "fmt"
       "log"
 
-      "github.com/edgedb/edgedb-go"
+      "github.com/geldata/gel-go"
     )
 
     func main() {
       ctx := context.Background()
-      client, err := edgedb.CreateClient(ctx, edgedb.Options{})
+      client, err := gel.CreateClient(ctx, gel.Options{})
       if err != nil {
         log.Fatal(err)
       }
@@ -274,42 +230,10 @@ database and provide a set of methods for executing queries.
     var result = await client.QuerySingleAsync<double>("select random();");
     Console.WriteLine(result);
 
-  .. code-tab:: java
-    :caption: Futures (Java)
-
-    import com.edgedb.driver.GelClient;
-    import java.util.concurrent.CompletableFuture;
-
-    public class Main {
-        public static void main(String[] args) {
-            var client = new GelClient();
-
-            client.querySingle(String.class, "select random();")
-                .thenAccept(System.out::println)
-                .toCompletableFuture().get();
-        }
-    }
-
-  .. code-tab:: java
-    :caption: Reactor (Java)
-
-    import com.edgedb.driver.GelClient;
-    import reactor.core.publisher.Mono;
-
-    public class Main {
-        public static void main(String[] args) {
-            var client = new GelClient();
-
-            Mono.fromFuture(client.querySingle(String.class, "select random();"))
-                .doOnNext(System.out::println)
-                .block();
-        }
-    }
-
   .. code-tab:: elixir
     :caption: Elixir
 
-    # lib/edgedb_quickstart.ex
+    # lib/gel_quickstart.ex
     defmodule GelQuickstart do
       def run do
         {:ok, client} = Gel.start_link()
@@ -437,7 +361,7 @@ valid DSN. Any unspecified element will default to the following values.
   * - ``<port>``
     - ``5656``
   * - ``<user>``
-    - ``edgedb``
+    - |admin|
   * - ``<password>``
     -  ``null``
 

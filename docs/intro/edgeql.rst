@@ -52,8 +52,8 @@ Basic literals can be declared using familiar syntax.
 
   .. code-tab:: edgeql-repl
 
-    db> select "i ❤️ edgedb"; # str
-    {'i ❤️ edgedb'}
+    db> select "I ❤️ EdgeQL"; # str
+    {'U ❤️ EdgeQL'}
     db> select false; # bool
     {false}
     db> select 42; # int64
@@ -70,7 +70,7 @@ Basic literals can be declared using familiar syntax.
 
   .. code-tab:: typescript
 
-    e.str("i ❤️ edgedb")
+    e.str("I ❤️ EdgeQL")
     // string
     e.bool(false)
     // boolean
@@ -109,9 +109,9 @@ structured string.
     e.datetime("1999-03-31T15:17:00Z")
     // Date
     e.duration("5 hours 4 minutes 3 seconds")
-    // edgedb.Duration (custom class)
+    // gel.Duration (custom class)
     e.cal.relative_duration("2 years 18 days")
-    // edgedb.RelativeDuration (custom class)
+    // gel.RelativeDuration (custom class)
 
 Primitive data can be composed into arrays and tuples, which can themselves be
 nested.
@@ -666,7 +666,7 @@ executing a query.
 
   .. code-tab:: javascript
 
-    import {createClient} from "edgedb";
+    import {createClient} from "gel";
 
     const client = createClient();
     const result = await client.query(`select <str>$param`, {
@@ -676,9 +676,9 @@ executing a query.
 
   .. code-tab:: python
 
-    import edgedb
+    import gel
 
-    client = edgedb.create_async_client()
+    client = gel.create_async_client()
 
     async def main():
         result = await client.query("select <str>$param", param="Play it, Sam")
@@ -692,12 +692,12 @@ executing a query.
         "context"
         "log"
 
-        "github.com/edgedb/edgedb-go"
+        "github.com/geldata/gel-go"
     )
 
     func main() {
         ctx := context.Background()
-        client, err := edgedb.CreateClient(ctx, edgedb.Options{})
+        client, err := gel.CreateClient(ctx, gel.Options{})
         if err != nil {
             log.Fatal(err)
         }
@@ -716,12 +716,12 @@ executing a query.
   .. code-tab:: rust
 
     // [dependencies]
-    // edgedb-tokio = "0.5.0"
+    // gel-tokio = "0.5.0"
     // tokio = { version = "1.28.1", features = ["macros", "rt-multi-thread"] }
 
     #[tokio::main]
     async fn main() {
-        let conn = edgedb_tokio::create_client()
+        let conn = gel_tokio::create_client()
             .await
             .expect("Client initiation");
         let param = "Play it, Sam.";
