@@ -11,8 +11,8 @@ Jupyter Notebook
 
 2. Install the Gel Python library with ``pip install gel``
 
-3. Set the appropriate `connection environment variables
-   <https://docs.edgedb.com/database/reference/connection>`__ required for your
+3. Set the appropriate :ref:`connection environment variables
+   <ref_reference_connection>` required for your
    Gel instance
 
    **For Gel Cloud instances**
@@ -24,7 +24,7 @@ Jupyter Notebook
 
          You may create a secret key with the CLI by running :gelcmd:`cloud
          secretkey create` or in the `Gel Cloud UI
-         <https://cloud.edgedb.com/>`__.
+         <https://cloud.geldata.com/>`__.
 
    **For other remote instances**
 
@@ -35,8 +35,7 @@ Jupyter Notebook
         DSNs take the following format:
         :geluri:`<username>:<password>@<hostname-or-ip>:<port>/<branch>`.
         Omit any segment, and Gel will fall back to a default value listed
-        in `our DSN specification
-        <https://docs.edgedb.com/database/reference/dsn#ref-dsn>`__
+        in :ref:`our DSN specification <ref_dsn>`
 
    **For local Gel instances**
 
@@ -47,7 +46,7 @@ Jupyter Notebook
 
       Gel creates an |admin| user by default, but the password is
       randomized. You may set the password for this role by running ``alter
-      role edgedb { set password := '<password>'; };`` or you may create a new
+      role admin { set password := '<password>'; };`` or you may create a new
       role using ``create superuser role <name> { set password := '<password>';
       };``.
 
