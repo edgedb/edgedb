@@ -157,8 +157,7 @@ aggregated into an array as described above:
 Declaring functions
 ===================
 
-This section describes the SDL declarations pertaining to
-:ref:`functions <ref_datamodel_functions>`.
+This section describes the syntax to declare a function.
 
 
 Example
@@ -218,7 +217,7 @@ commands <ref_eql_ddl_functions>`.
 
 
 Description
------------
+^^^^^^^^^^^
 
 This declaration defines a new **function** with the following options:
 

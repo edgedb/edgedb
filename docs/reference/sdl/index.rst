@@ -102,7 +102,6 @@ to the previous migration:
     :maxdepth: 3
     :hidden:
 
-    modules
     objects
     scalars
     links
