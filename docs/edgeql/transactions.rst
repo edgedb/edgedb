@@ -122,7 +122,7 @@ Golang
 
 .. code-block:: go
 
-	err = client.Tx(ctx, func(ctx context.Context, tx *edgedb.Tx) error {
+	err = client.Tx(ctx, func(ctx context.Context, tx *gel.Tx) error {
 		query1 := `update BankCustomer
 			filter .name = 'Customer1'
 			set { bank_balance := .bank_balance -10 };`

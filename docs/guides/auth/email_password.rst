@@ -90,7 +90,7 @@ base64url encode the resulting string. This new string is called the
    import crypto from "node:crypto";
 
    /**
-    * You can get this value by running `edgedb instance credentials`.
+    * You can get this value by running `gel instance credentials`.
     * Value should be:
     * `${protocol}://${host}:${port}/branch/${branch}/ext/auth/
     */

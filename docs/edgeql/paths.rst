@@ -309,10 +309,10 @@ Below, the root of the path is a *subquery*.
 
 .. code-block:: edgeql-repl
 
-    db> with edgedb_lovers := (
+    db> with gel_lovers := (
     ...   select BlogPost filter .title ilike "Gel is awesome"
     ... )
-    ... select edgedb_lovers.author;
+    ... select gel_lovers.author;
 
 This expression returns a set of all ``Users`` who have written a blog post
 titled "Gel is awesome".

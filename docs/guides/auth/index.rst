@@ -405,7 +405,7 @@ use in your callback URL, which takes on this format:
 
 .. code-block::
 
-    http[s]://{edgedb_host}[:port]/db/{db_name}/ext/auth/callback
+    http[s]://{gel_host}[:port]/db/{db_name}/ext/auth/callback
 
 To enable the Azure OAuth provider via query or script:
 

@@ -6,10 +6,10 @@ Docker
 
 :edb-alt-title: Deploying Gel with Docker
 
-When to use the `edgedb/edgedb`_ Docker image
-=============================================
+When to use the "geldata/gel" Docker image
+==========================================
 
-.. _edgedb/edgedb: https://hub.docker.com/r/edgedb/edgedb
+.. _geldata/gel: https://hub.docker.com/r/geldata/gel
 
 This image is primarily intended to be used directly when there is a
 requirement to use Docker containers, such as in production, or in a
@@ -26,9 +26,9 @@ The simplest way to run the image (without data persistence) is this:
 
 .. code-block:: bash
 
-   $ docker run --name edgedb -d \
+   $ docker run --name gel -d \
        -e EDGEDB_SERVER_SECURITY=insecure_dev_mode \
-       edgedb/edgedb
+       geldata/gel
 
 See the :ref:`ref_guides_deployment_docker_customization` section below for the
 meaning of the ``EDGEDB_SERVER_SECURITY`` variable and other options.
@@ -38,17 +38,17 @@ Docker volume, run:
 
 .. code-block:: bash
 
-   $ docker run -it --rm --link=edgedb \
+   $ docker run -it --rm --link=gel \
        -e EDGEDB_SERVER_PASSWORD=secret \
-       -v edgedb-cli-config:/.config/edgedb edgedb/edgedb-cli \
-       -H edgedb instance link my_instance
+       -v gel-cli-config:/.config/gel geldata/gel-cli \
+       -H gel instance link my_instance
 
 Now, to open an interactive shell to the database instance run this:
 
 .. code-block:: bash
 
-   $ docker run -it --rm --link=edgedb \
-       -v edgedb-cli-config:/.config/edgedb edgedb/edgedb-cli \
+   $ docker run -it --rm --link=gel \
+       -v gel-cli-config:/.config/gel geldata/gel-cli \
        -I my_instance
 
 
@@ -57,28 +57,28 @@ Data Persistence
 
 If you want the contents of the database to survive container restarts, you
 must mount a persistent volume at the path specified by
-``EDGEDB_SERVER_DATADIR`` (``/var/lib/edgedb/data`` by default).  For example:
+``EDGEDB_SERVER_DATADIR`` (``/var/lib/gel/data`` by default).  For example:
 
 .. code-block:: bash
 
    $ docker run \
-       --name edgedb \
+       --name gel \
        -e EDGEDB_SERVER_PASSWORD=secret \
        -e EDGEDB_SERVER_TLS_CERT_MODE=generate_self_signed \
-       -v /my/data/directory:/var/lib/edgedb/data \
-       -d edgedb/edgedb
+       -v /my/data/directory:/var/lib/gel/data \
+       -d geldata/gel
 
 Note that on Windows you must use a Docker volume instead:
 
 .. code-block:: bash
 
-   $ docker volume create --name=edgedb-data
+   $ docker volume create --name=gel-data
    $ docker run \
-       --name edgedb \
+       --name gel \
        -e EDGEDB_SERVER_PASSWORD=secret \
        -e EDGEDB_SERVER_TLS_CERT_MODE=generate_self_signed \
-       -v edgedb-data:/var/lib/edgedb/data \
-       -d edgedb/edgedb
+       -v gel-data:/var/lib/gel/data \
+       -d geldata/gel
 
 It is also possible to run an ``gel`` container on a remote PostgreSQL
 cluster specified by ``EDGEDB_SERVER_BACKEND_DSN``. See below for details.
@@ -103,8 +103,8 @@ With a ``docker-compose.yaml`` containing:
 
    version: "3"
    services:
-     edgedb:
-       image: edgedb/edgedb
+     gel:
+       image: geldata/gel
        environment:
          EDGEDB_SERVER_SECURITY: insecure_dev_mode
        volumes:
@@ -124,7 +124,7 @@ machine, you can use the CLI bundled with the server container:
 
 .. code-block:: bash
 
-   $ docker-compose exec edgedb edgedb --tls-security=insecure migration create
+   $ docker-compose exec gel gel --tls-security=insecure migration create
 
 
 .. _ref_guides_deployment_docker_customization:
@@ -163,7 +163,7 @@ EDGEDB_SERVER_BOOTSTRAP_COMMAND
 Useful to fine-tune initial user and branch creation, and other initial
 setup. If neither the ``EDGEDB_SERVER_BOOTSTRAP_COMMAND`` variable or the
 ``EDGEDB_SERVER_BOOTSTRAP_SCRIPT_FILE`` are explicitly specified, the container
-will look for the presence of ``/edgedb-bootstrap.edgeql`` in the container
+will look for the presence of ``/gel-bootstrap.edgeql`` in the container
 (which can be placed in a derived image).
 
 Maps directly to the |gel-server| flag ``--bootstrap-command``. The
@@ -230,8 +230,8 @@ The TLS certificate and private key data, exclusive with
 The ``*_FILE`` and ``*_ENV`` variants are also supported.
 
 
-Custom scripts in ``/docker-entrypoint.d/``
-...........................................
+Custom scripts in "/docker-entrypoint.d/"
+.........................................
 
 To perform additional initialization, a derived image may include one or more
 executable files in ``/docker-entrypoint.d/``, which will get executed by the
@@ -250,15 +250,15 @@ Determines the log verbosity level in the entrypoint script. Valid levels are
 
 .. _ref_guide_deployment_docker_custom_bootstrap_scripts:
 
-Custom scripts in ``/edgedb-bootstrap.d/`` and ``/edgedb-bootstrap-late.d``
-...........................................................................
+Custom scripts in "/gel-bootstrap.d/" and "/gel-bootstrap-late.d"
+.................................................................
 
 To perform additional initialization, a derived image may include one or more
 ``*.edgeql`` or ``*.sh`` scripts, which are executed in addition to and
 *after* the initialization specified by the environment variables above or the
-``/edgedb-bootstrap.edgeql`` script.  Parts in ``/edgedb-bootstrap.d`` are
+``/gel-bootstrap.edgeql`` script.  Parts in ``/gel-bootstrap.d`` are
 executed *before* any schema migrations are applied, and parts in
-``/edgedb-bootstrap-late.d`` are executed *after* the schema migration have
+``/gel-bootstrap-late.d`` are executed *after* the schema migration have
 been applied.
 
 .. note::

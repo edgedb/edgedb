@@ -64,8 +64,8 @@ string can be declared with either single or double quotes.
 
 .. code-block:: edgeql-repl
 
-  db> select 'i ❤️ edgedb';
-  {'i ❤️ edgedb'}
+  db> select 'I ❤️ EdgeQL';
+  {'I ❤️ EdgeQL'}
   db> select "hello there!";
   {'hello there!'}
   db> select 'hello\nthere!';
