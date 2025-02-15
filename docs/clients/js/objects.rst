@@ -1,4 +1,4 @@
-.. _edgedb-js-objects:
+.. _gel-js-objects:
 
 
 Objects and Paths
@@ -86,7 +86,7 @@ Paths can be constructed from any object expression, not just the root types.
   // (insert Movie { title := "Iron Man" }).title
 
 
-.. _edgedb-js-objects-type-intersections:
+.. _gel-js-objects-type-intersections:
 
 Type intersections
 ^^^^^^^^^^^^^^^^^^

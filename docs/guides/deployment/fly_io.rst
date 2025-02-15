@@ -164,7 +164,7 @@ to Postgres:
     ...
     ALTER ROLE
 
-.. _ref_guide_deployment_fly_io_start_edgedb:
+.. _ref_guide_deployment_fly_io_start_gel:
 
 Start Gel
 =========
@@ -296,7 +296,7 @@ something like this:
             timeout = "2s"
 
 In the same directory, :ref:`redeploy the Gel app
-<ref_guide_deployment_fly_io_start_edgedb>`. This makes the Gel port
+<ref_guide_deployment_fly_io_start_gel>`. This makes the Gel port
 available to the outside world. You can now access the instance from any host
 via the following public DSN: :geluri:`admin:$PASSWORD@$EDB_APP.fly.dev`.
 

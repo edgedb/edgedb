@@ -99,7 +99,7 @@ Using the querybuilder:
     await query2.run(tx);
   });
 
-Full documentation at :ref:`Client Libraries > TypeScript/JS <edgedb-js-intro>`;
+Full documentation at :ref:`Client Libraries > TypeScript/JS <gel-js-intro>`;
 
 Python
 ^^^^^^
@@ -115,7 +115,7 @@ Python
               filter .name = 'Customer2'
               set { bank_balance := .bank_balance +10 };""")
 
-Full documentation at :ref:`Client Libraries > Python <edgedb-python-intro>`;
+Full documentation at :ref:`Client Libraries > Python <gel-python-intro>`;
 
 Golang
 ^^^^^^
@@ -141,7 +141,7 @@ Golang
 		log.Fatal(err)
 	}
 
-Full documentation at :ref:`Client Libraries > Go <edgedb-go-intro>`.
+Full documentation at :ref:`Client Libraries > Go <gel-go-intro>`.
 
 Rust
 ^^^^

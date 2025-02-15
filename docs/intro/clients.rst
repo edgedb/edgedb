@@ -34,9 +34,9 @@ Available libraries
 To execute queries from your application code, use one of Gel's *client
 libraries* for the following languages.
 
-- :ref:`JavaScript/TypeScript <edgedb-js-intro>`
-- :ref:`Go <edgedb-go-intro>`
-- :ref:`Python <edgedb-python-intro>`
+- :ref:`JavaScript/TypeScript <gel-js-intro>`
+- :ref:`Go <gel-go-intro>`
+- :ref:`Python <gel-python-intro>`
 
 .. XXX: link to third-party doc websites
 .. - :ref:`Rust <ref_rust_index>`

@@ -93,11 +93,11 @@ upgrade.
 
 .. list-table::
 
-  * - :ref:`TypeScript/JS <edgedb-js-intro>`
+  * - :ref:`TypeScript/JS <gel-js-intro>`
     - ``edgedb@0.21.0``
-  * - :ref:`Python <edgedb-python-intro>`
+  * - :ref:`Python <gel-python-intro>`
     - ``edgedb@0.24.0``
-  * - :ref:`Golang <edgedb-go-intro>`
+  * - :ref:`Golang <gel-go-intro>`
     - ``edgedb@0.12.0``
   * - `Rust <https://github.com/edgedb/edgedb-rust>`_
     - ``edgedb-tokio@0.3.0``

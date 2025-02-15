@@ -1,4 +1,4 @@
-.. _edgedb-js-queries:
+.. _gel-js-queries:
 
 =================
 Queries Generator
@@ -118,7 +118,7 @@ return type. The generator uses this information to create a new file
 
   This example assumes you are using TypeScript. The generator tries to
   auto-detect the language you're using; you can also specify the language with
-  the ``--target`` flag. See the :ref:`Targets <edgedb_qb_target>` section for
+  the ``--target`` flag. See the :ref:`Targets <gel_qb_target>` section for
   more information.
 
 The generated file will look something like this:

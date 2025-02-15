@@ -604,7 +604,7 @@ libraries that will help us.
 The ``@edgedb/generate`` package provides a set of code generation tools that
 are useful when developing an Gel-backed applications with
 TypeScript/JavaScript. We're going to write queries using our
-:ref:`query builder <edgedb-js-qb>`, but before we can, we
+:ref:`query builder <gel-js-qb>`, but before we can, we
 need to run the query builder generator.
 
 .. code-block:: bash

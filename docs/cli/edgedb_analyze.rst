@@ -8,7 +8,7 @@ gel analyze
 .. note::
 
     Performance analysis is also available in our :ref:`CLI REPL
-    <ref_cli_edgedb>` and the UI's REPL and query builder (both accessible by
+    <ref_cli_gel>` and the UI's REPL and query builder (both accessible by
     running :ref:`ref_cli_gel_ui` to invoke your instance's UI). Use it by
     prepending your query with ``analyze``.
 

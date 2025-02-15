@@ -1,4 +1,4 @@
-.. _ref_cli_edgedb:
+.. _ref_cli_gel:
 
 ===
 gel
