@@ -108,7 +108,6 @@ to the previous migration:
     links
     properties
     aliases
-    indexes
     constraints
     annotations
     globals
