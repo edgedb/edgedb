@@ -280,12 +280,6 @@ Finally, execute the file.
     $ dotnet run
 
   .. code-tab:: bash
-    :caption: Java
-
-    $ javac Main.java
-    $ java Main
-
-  .. code-tab:: bash
     :caption: Elixir
 
     $ mix run -e GelQuickstart.run
