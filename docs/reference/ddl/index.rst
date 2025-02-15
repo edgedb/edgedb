@@ -16,7 +16,6 @@ DDL
     annotations
     globals
     access_policies
-    triggers
     mutation_rewrites
     extensions
     future
