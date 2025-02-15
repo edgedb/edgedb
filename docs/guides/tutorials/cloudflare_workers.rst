@@ -190,8 +190,8 @@ set up the client:
 .. code-block:: typescript
 
    const client = gel.createHttpClient({
-     instanceName: env.EDGEDB_INSTANCE,
-     secretKey: env.EDGEDB_SECRET_KEY,
+     instanceName: env.GEL_INSTANCE,
+     secretKey: env.GEL_SECRET_KEY,
    });
 
 .. note:: Environment variables

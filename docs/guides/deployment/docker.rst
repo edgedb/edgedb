@@ -207,7 +207,7 @@ EDGEDB_SERVER_GENERATE_SELF_SIGNED_CERT
 
 .. warning::
 
-   Deprecated: use ``EDGEDB_SERVER_TLS_CERT_MODE=generate_self_signed``
+   Deprecated: use :gelenv:`SERVER_TLS_CERT_MODE=generate_self_signed`
    instead.
 
 Set this option to ``1`` to tell the server to automatically generate a
@@ -225,7 +225,7 @@ EDGEDB_SERVER_TLS_CERT/EDGEDB_SERVER_TLS_KEY
 ............................................
 
 The TLS certificate and private key data, exclusive with
-``EDGEDB_SERVER_TLS_CERT_MODE=generate_self_signed``.
+:gelenv:`SERVER_TLS_CERT_MODE=generate_self_signed`.
 
 The ``*_FILE`` and ``*_ENV`` variants are also supported.
 

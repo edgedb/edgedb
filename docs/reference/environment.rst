@@ -140,7 +140,7 @@ EDGEDB_SERVER_GENERATE_SELF_SIGNED_CERT
 
 .. warning:: Deprecated
 
-    Use ``EDGEDB_SERVER_TLS_CERT_MODE="generate_self_signed"`` instead.
+    Use :gelenv:`SERVER_TLS_CERT_MODE="generate_self_signed"` instead.
 
 Instructs the server to generate a self-signed certificate when set.
 
@@ -173,7 +173,7 @@ EDGEDB_SERVER_SKIP_MIGRATIONS
 
 .. warning:: Deprecated
 
-    Use ``EDGEDB_DOCKER_APPLY_MIGRATIONS="never"`` instead.
+    Use :gelenv:`DOCKER_APPLY_MIGRATIONS="never"` instead.
 
 When set, skips applying migrations in ``dbschema/migrations``. Not set by
 default.
@@ -453,7 +453,7 @@ EDGEDB_SERVER_TLS_CERT_FILE/EDGEDB_SERVER_TLS_KEY_FILE
 ......................................................
 
 The TLS certificate and private key files, exclusive with
-``EDGEDB_SERVER_TLS_CERT_MODE=generate_self_signed``.
+:gelenv:`SERVER_TLS_CERT_MODE=generate_self_signed`.
 
 Maps directly to the |gel-server| flags ``--tls-cert-file`` and
 ``--tls-key-file``.
@@ -477,7 +477,7 @@ or are missing.
   ``/etc/ssl/gel``.
 
 Default is ``generate_self_signed`` when
-``EDGEDB_SERVER_SECURITY=insecure_dev_mode``. Otherwise, the default is
+:gelenv:`SERVER_SECURITY=insecure_dev_mode`. Otherwise, the default is
 ``require_file``.
 
 Maps directly to the |gel-server| flag ``--tls-cert-mode``. The ``*_FILE``
