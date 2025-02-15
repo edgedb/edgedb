@@ -51,7 +51,7 @@ To disable version check do one of two things:
 
 1. Use ``--no-cli-update-check`` command-line parameter to disable just
    for this invocation
-2. Export ``EDGEDB_RUN_VERSION_CHECK=never`` in the environment.
+2. Export :gelenv:`RUN_VERSION_CHECK=never` in the environment.
 
 To verify that check is skipped and no network access is being done
 logging facility can be used::
