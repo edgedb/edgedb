@@ -57,7 +57,7 @@ To verify that check is skipped and no network access is being done
 logging facility can be used::
 
    $ export RUST_LOG=edgedb::version_check=debug
-   $ edgedb --no-cli-update-check
+   $ gel --no-cli-update-check
    [..snip..] Skipping version check due to --no-cli-update-check
    gel>
    $ EDGEDB_RUN_VERSION_CHECK=never edgedb

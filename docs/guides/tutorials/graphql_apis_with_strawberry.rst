@@ -73,7 +73,7 @@ Now, let's initialize an Gel project. From the project's root directory:
 
 .. code-block:: bash
 
-    $ edgedb project init
+    $ gel project init
     Initializing project...
 
     Specify the name of Gel instance to use with this project
@@ -95,7 +95,7 @@ Let's test that we can connect to the newly started instance. To do so, run:
 
 .. code-block:: bash
 
-    $ edgedb
+    $ gel
 
 You should be connected to the database instance and able to see a prompt
 similar to this:

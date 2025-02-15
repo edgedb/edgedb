@@ -117,7 +117,7 @@ migration can be created with:
 
 .. code-block:: bash
 
-   $ edgedb --tls-security=insecure -P 5656 migration create
+   $ gel --tls-security=insecure -P 5656 migration create
 
 Alternatively, if you don't have the Gel CLI installed on your host
 machine, you can use the CLI bundled with the server container:

@@ -220,7 +220,7 @@ the following in the root of the project:
 
 .. code-block:: bash
 
-    $ edgedb project init
+    $ gel project init
     No `edgedb.toml` found in `/<path>/<to>/<project>/docs-chatbot`
     or above
 
@@ -270,7 +270,7 @@ instance instead. To get that, run this command:
 
 .. code-block:: bash
 
-    $ edgedb instance credentials --insecure-dsn
+    $ gel instance credentials --insecure-dsn
 
 Copy what it logs out. Open the ``.env.local`` file in your text editor and add
 this to it:
@@ -546,8 +546,8 @@ We apply this schema by creating and running a migration.
 
 .. code-block:: bash
 
-    $ edgedb migration create
-    $ edgedb migrate
+    $ gel migration create
+    $ gel migrate
 
 .. note::
 

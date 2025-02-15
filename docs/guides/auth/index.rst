@@ -397,7 +397,7 @@ be found running this CLI command:
 
 .. code-block:: bash
 
-   $ edgedb instance credentials
+   $ gel instance credentials
 
 This will output a table that includes the hostnames and ports of all your
 instances. Grab those from the row corresponding to the correct instance for

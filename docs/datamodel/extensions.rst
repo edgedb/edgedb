@@ -56,7 +56,7 @@ List installed extensions:
 
 .. code-block:: bash
 
-    $ edgedb extension list -I my_instance
+    $ gel extension list -I my_instance
     ┌─────────┬─────────┐
     │ Name    │ Version │
     └─────────┴─────────┘
@@ -65,7 +65,7 @@ List available extensions:
 
 .. code-block:: bash
 
-    $ edgedb extension list-available -I my_instance
+    $ gel extension list-available -I my_instance
     ┌─────────┬───────────────┐
     │ Name    │ Version       │
     │ postgis │ 3.4.3+6b82d77 │
@@ -75,7 +75,7 @@ Install the ``postgis`` extension:
 
 .. code-block:: bash
 
-    $ edgedb extension install -I my_instance -E postgis
+    $ gel extension install -I my_instance -E postgis
     Found extension package: postgis version 3.4.3+6b82d77
     00:00:03 [====================] 22.49 MiB/22.49 MiB
     Extension 'postgis' installed successfully.
@@ -84,7 +84,7 @@ Check that extension is installed:
 
 .. code-block:: bash
 
-    $ edgedb extension list -I my_instance
+    $ gel extension list -I my_instance
     ┌─────────┬───────────────┐
     │ Name    │ Version       │
     │ postgis │ 3.4.3+6b82d77 │
@@ -94,7 +94,7 @@ After installing extensions, make sure to restart your instance:
 
 .. code-block:: bash
 
-    $ edgedb instance restart -I my_instance
+    $ gel instance restart -I my_instance
 
 Standalone extensions can now be declared in the schema, same as :ref:`built-in
 extensions <ref_datamodel_using_extension>`.
