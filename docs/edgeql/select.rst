@@ -53,54 +53,6 @@ However most queries are selecting *objects* that live in the database. For
 demonstration purposes, the queries below assume the following schema:
 
 .. code-block:: sdl
-    :version-lt: 3.0
-
-    module default {
-      abstract type Person {
-        required property name -> str { constraint exclusive };
-      }
-
-      type Hero extending Person {
-        property secret_identity -> str;
-        multi link villains := .<nemesis[is Villain];
-      }
-
-      type Villain extending Person {
-        link nemesis -> Hero;
-      }
-
-      type Movie {
-        required property title -> str { constraint exclusive };
-        required property release_year -> int64;
-        multi link characters -> Person;
-      }
-    }
-
-.. code-block:: sdl
-    :version-lt: 4.0
-
-    module default {
-      abstract type Person {
-        required name: str { constraint exclusive };
-      }
-
-      type Hero extending Person {
-        secret_identity: str;
-        multi link villains := .<nemesis[is Villain];
-      }
-
-      type Villain extending Person {
-        nemesis: Hero;
-      }
-
-      type Movie {
-        required title: str { constraint exclusive };
-        required release_year: int64;
-        multi characters: Person;
-      }
-    }
-
-.. code-block:: sdl
 
     module default {
       abstract type Person {
@@ -886,26 +838,6 @@ this, let's fetch a list of all movies starring a particular Hero.
 
 Instead of re-declaring backlinks inside every query where they're needed, it's
 common to add them directly into your schema as computed links.
-
-.. code-block:: sdl-diff
-    :version-lt: 3.0
-
-      abstract type Person {
-        required property name -> str {
-          constraint exclusive;
-        };
-    +   multi link movies := .<characters[is Movie]
-      }
-
-.. code-block:: sdl-diff
-    :version-lt: 4.0
-
-      abstract type Person {
-        required name: str {
-          constraint exclusive;
-        };
-    +   multi link movies := .<characters[is Movie]
-      }
 
 .. code-block:: sdl-diff
 

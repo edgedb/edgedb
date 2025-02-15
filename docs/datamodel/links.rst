@@ -13,13 +13,6 @@ Defining links
 --------------
 
 .. code-block:: sdl
-    :version-lt: 3.0
-
-    type Person {
-      link best_friend -> Person;
-    }
-
-.. code-block:: sdl
 
     type Person {
       best_friend: Person;
@@ -38,13 +31,6 @@ All links have a cardinality: either ``single`` or ``multi``. The default is
 link.
 
 .. code-block:: sdl
-    :version-lt: 3.0
-
-    type Person {
-      multi link friends -> Person;
-    }
-
-.. code-block:: sdl
 
     type Person {
       multi friends: Person;
@@ -53,17 +39,6 @@ link.
 On the other hand, backlinks work in reverse to find objects that link to the
 object, and thus assume ``multi`` as a default. Use the ``single`` keyword to
 declare a "to-one" backlink.
-
-.. code-block:: sdl
-    :version-lt: 4.0
-
-    type Author {
-      link posts := .<authors[is Article];
-    }
-
-    type CompanyEmployee {
-      single link company := .<employees[is Company];
-    }
 
 .. code-block:: sdl
 
@@ -87,13 +62,6 @@ link is ``single``, it must point to *exactly one* target instance. In this
 scenario, every ``Person`` must have *exactly one* ``best_friend``:
 
 .. code-block:: sdl
-    :version-lt: 3.0
-
-    type Person {
-      required link best_friend -> Person;
-    }
-
-.. code-block:: sdl
 
     type Person {
       required best_friend: Person;
@@ -101,17 +69,6 @@ scenario, every ``Person`` must have *exactly one* ``best_friend``:
 
 Links with cardinality ``multi`` can also be ``required``;
 ``required multi`` links must point to *at least one* target object.
-
-.. code-block:: sdl
-    :version-lt: 3.0
-
-    type Person {
-      property name -> str;
-    }
-
-    type GroupChat {
-      required multi link members -> Person;
-    }
 
 .. code-block:: sdl
 
@@ -133,19 +90,6 @@ Exclusive constraints
 
 You can add an ``exclusive`` constraint to a link to guarantee that no other
 instances can link to the same target(s).
-
-.. code-block:: sdl
-    :version-lt: 3.0
-
-    type Person {
-      property name -> str;
-    }
-
-    type GroupChat {
-      required multi link members -> Person {
-        constraint exclusive;
-      }
-    }
 
 .. code-block:: sdl
 
@@ -204,18 +148,6 @@ membership, or hierarchies. For example, ``Person`` and ``Shirt``. One person
 may own many shirts, and a shirt is (usually) owned by just one person.
 
 .. code-block:: sdl
-    :version-lt: 3.0
-
-    type Person {
-      required property name -> str
-    }
-
-    type Shirt {
-      required property color -> str;
-      link owner -> Person;
-    }
-
-.. code-block:: sdl
 
     type Person {
       required name: str
@@ -244,21 +176,6 @@ One-to-many
 Conceptually, one-to-many and many-to-one relationships are identical; the
 "directionality" of a relation is just a matter of perspective. Here, the
 same "shirt owner" relationship is represented with a ``multi`` link.
-
-.. code-block:: sdl
-    :version-lt: 3.0
-
-    type Person {
-      required property name -> str;
-      multi link shirts -> Shirt {
-        # ensures a one-to-many relationship
-        constraint exclusive;
-      }
-    }
-
-    type Shirt {
-      required property color -> str;
-    }
 
 .. code-block:: sdl
 
@@ -304,17 +221,6 @@ table <https://en.wikipedia.org/wiki/Associative_entity>`_, whereas a
   and generally recommended when modeling 1:N relations:
 
   .. code-block:: sdl
-      :version-lt: 4.0
-
-      type Post {
-        required author: User;
-      }
-
-      type User {
-        multi link posts := (.<author[is Post])
-      }
-
-  .. code-block:: sdl
 
       type Post {
         required author: User;
@@ -332,20 +238,6 @@ One-to-one
 Under a *one-to-one* relationship, the source object links to a single instance
 of the target type, and vice versa. As an example consider a schema to
 represent assigned parking spaces.
-
-.. code-block:: sdl
-    :version-lt: 3.0
-
-    type Employee {
-      required property name -> str;
-      link assigned_space -> ParkingSpace {
-        constraint exclusive;
-      }
-    }
-
-    type ParkingSpace {
-      required property number -> int64;
-    }
 
 .. code-block:: sdl
 
@@ -376,17 +268,6 @@ is no exclusivity or cardinality constraints in either direction. As an example
 consider a simple app where a ``User`` can "like" their favorite ``Movies``.
 
 .. code-block:: sdl
-    :version-lt: 3.0
-
-    type User {
-      required property name -> str;
-      multi link likes -> Movie;
-    }
-    type Movie {
-      required property title -> str;
-    }
-
-.. code-block:: sdl
 
     type User {
       required name: str;
@@ -406,19 +287,6 @@ constraint, each movie can be liked by multiple users. Thus this is a
   objects twice.
 
   .. code-block:: sdl
-    :version-lt: 3.0
-
-    type User {
-      required property name -> str;
-      multi link watch_history -> Movie {
-        seen_at: datetime;
-      };
-    }
-    type Movie {
-      required property title -> str;
-    }
-
-  .. code-block:: sdl
 
     type User {
       required name: str;
@@ -435,19 +303,6 @@ constraint, each movie can be liked by multiple users. Thus this is a
   watch times.
 
   .. code-block:: sdl
-    :version-lt: 3.0
-
-    type User {
-      required property name -> str;
-      multi link watch_history -> Movie {
-        seen_at: array<datetime>;
-      };
-    }
-    type Movie {
-      required property title -> str;
-    }
-
-  .. code-block:: sdl
 
     type User {
       required name: str;
@@ -461,38 +316,6 @@ constraint, each movie can be liked by multiple users. Thus this is a
 
   Alternatively, the watch history could be modeled more traditionally as its
   own type.
-
-  .. code-block:: sdl
-    :version-lt: 3.0
-
-    type User {
-      required property name -> str;
-      multi link watch_history := .<user[is WatchHistory];
-    }
-    type Movie {
-      required property title: str;
-    }
-    type WatchHistory {
-      required link user -> User;
-      required link movie -> Movie;
-      property seen_at -> datetime;
-    }
-
-  .. code-block:: sdl
-    :version-lt: 4.0
-
-    type User {
-      required name: str;
-      multi link watch_history := .<user[is WatchHistory];
-    }
-    type Movie {
-      required title: str;
-    }
-    type WatchHistory {
-      required user: User;
-      required movie: Movie;
-      seen_at: datetime;
-    }
 
   .. code-block:: sdl
 
@@ -550,16 +373,6 @@ expression, which will be executed upon insertion. In the example below, new
 people are automatically assigned three random friends.
 
 .. code-block:: sdl
-    :version-lt: 3.0
-
-    type Person {
-      required property name -> str;
-      multi link friends -> Person {
-        default := (select Person order by random() limit 3);
-      }
-    }
-
-.. code-block:: sdl
 
     type Person {
       required name: str;
@@ -578,16 +391,6 @@ Link properties
 Like object types, links in Gel can contain **properties**. Link properties
 can be used to store metadata about links, such as *when* they were created or
 the *nature/strength* of the relationship.
-
-.. code-block:: sdl
-    :version-lt: 3.0
-
-    type Person {
-      property name -> str;
-      multi link family_members -> Person {
-        property relationship -> str;
-      }
-    }
 
 .. code-block:: sdl
 
@@ -609,16 +412,6 @@ the *nature/strength* of the relationship.
     <ref_datamodel_tuples>`. They cannot contain links to other objects.
 
     That means this would not work:
-
-    .. code-block::
-        :version-lt: 3.0
-
-        type Person {
-          property name -> str;
-          multi link friends -> Person {
-            link introduced_by -> Person;
-          }
-        }
 
     .. code-block::
 
@@ -813,20 +606,6 @@ Target deletion policies determine what action should be taken when the
 delete`` clause.
 
 .. code-block:: sdl
-    :version-lt: 3.0
-
-    type MessageThread {
-      property title -> str;
-    }
-
-    type Message {
-      property content -> str;
-      link chat -> MessageThread {
-        on target delete delete source;
-      }
-    }
-
-.. code-block:: sdl
 
     type MessageThread {
       title: str;
@@ -881,20 +660,6 @@ There are 3 available source deletion policies:
   another source object via the same link.
 
 .. code-block:: sdl
-    :version-lt: 3.0
-
-    type MessageThread {
-      property title -> str;
-      multi link messages -> Message {
-        on source delete delete target;
-      }
-    }
-
-    type Message {
-      property content -> str;
-    }
-
-.. code-block:: sdl
 
     type MessageThread {
       title: str;
@@ -913,17 +678,6 @@ its ``messages`` as well.
 To avoid deleting a ``Message`` that is linked to by other ``MessageThread``
 objects via their ``message`` link, append ``if orphan`` to that link's
 deletion policy.
-
-.. code-block:: sdl-diff
-    :version-lt: 3.0
-
-      type MessageThread {
-        property title -> str;
-        multi link messages -> Message {
-    -     on source delete delete target;
-    +     on source delete delete target if orphan;
-        }
-      }
 
 .. code-block:: sdl-diff
 
@@ -1007,21 +761,6 @@ Links can have ``abstract`` targets, in which case the link is considered
 **polymorphic**. Consider the following schema:
 
 .. code-block:: sdl
-    :version-lt: 3.0
-
-    abstract type Person {
-      property name -> str;
-    }
-
-    type Hero extending Person {
-      # additional fields
-    }
-
-    type Villain extending Person {
-      # additional fields
-    }
-
-.. code-block:: sdl
 
     abstract type Person {
       name: str;
@@ -1038,14 +777,6 @@ Links can have ``abstract`` targets, in which case the link is considered
 The ``abstract`` type ``Person`` has two concrete subtypes: ``Hero`` and
 ``Villain``. Despite being abstract, ``Person`` can be used as a link target in
 concrete object types.
-
-.. code-block:: sdl
-    :version-lt: 3.0
-
-    type Movie {
-      property title -> str;
-      multi link characters -> Person;
-    }
 
 .. code-block:: sdl
 
@@ -1069,18 +800,6 @@ It's possible to define ``abstract`` links that aren't tied to a particular
 *source* or *target*. If you're declaring several links with the same set
 of properties, annotations, constraints, or indexes, abstract links can be used
 to eliminate repetitive SDL.
-
-.. code-block:: sdl
-    :version-lt: 3.0
-
-    abstract link link_with_strength {
-      property strength -> float64;
-      index on (__subject__@strength);
-    }
-
-    type Person {
-      multi link friends extending link_with_strength -> Person;
-    }
 
 .. code-block:: sdl
 

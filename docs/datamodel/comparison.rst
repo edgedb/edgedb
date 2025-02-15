@@ -37,18 +37,6 @@ In |Gel|, connections between tables are represented with :ref:`Links
 <ref_datamodel_links>`.
 
 .. code-block:: sdl
-    :version-lt: 3.0
-
-    type Movie {
-      required property title -> str;
-      required link director -> Person;
-    }
-
-    type Person {
-      required property name -> str;
-    }
-
-.. code-block:: sdl
 
     type Movie {
       required title: str;

@@ -13,24 +13,6 @@ source set of objects.
 Consider the following schema:
 
 .. code-block:: sdl
-    :version-lt: 3.0
-
-    type User {
-      required property email -> str;
-      multi link friends -> User;
-    }
-
-    type BlogPost {
-      required property title -> str;
-      required link author -> User;
-    }
-
-    type Comment {
-      required property text -> str;
-      required link author -> User;
-    }
-
-.. code-block:: sdl
 
     type User {
       required email: str;
@@ -204,46 +186,6 @@ Backlinks can be inserted into a schema with the same format, except
 that the type name (in this case ``User``) doesn't need to be specified.
 
 .. code-block:: sdl-diff
-    :version-lt: 3.0
-
-      type User {
-        required property email -> str;
-        multi link friends -> User;
-    +   link all_links := .<author;
-    +   link blog_links := .<author[is BlogPost];
-    +   link comment_links := .<author[is Comment];
-      }
-
-      type BlogPost {
-        required property title -> str;
-        required link author -> User;
-      }
-      type Comment {
-        required property text -> str;
-        required link author -> User;
-      }
-
-.. code-block:: sdl-diff
-    :version-lt: 4.0
-
-      type User {
-        required email: str;
-        multi friends: User;
-    +   link all_links := .<author;
-    +   link blog_links := .<author[is BlogPost];
-    +   link comment_links := .<author[is Comment];
-      }
-
-      type BlogPost {
-        required title: str;
-        required author: User;
-      }
-      type Comment {
-        required text: str;
-        required author: User;
-      }
-
-.. code-block:: sdl-diff
 
       type User {
         required email: str;
@@ -272,17 +214,6 @@ Link properties
 Paths can also reference :ref:`link properties <ref_datamodel_link_properties>`
 with ``@`` notation. To demonstrate this, let's add a property to the ``User.
 friends`` link:
-
-.. code-block:: sdl-diff
-    :version-lt: 3.0
-
-      type User {
-        required property email -> str;
-    -   multi link friends -> User;
-    +   multi link friends -> User {
-    +     property since -> cal::local_date;
-    +   }
-      }
 
 .. code-block:: sdl-diff
 

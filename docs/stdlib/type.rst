@@ -115,25 +115,6 @@ the ``name`` property inside ``__type__``:
     object must satisfy ``object is (A | B | C)``.
 
     .. code-block:: sdl
-        :version-lt: 3.0
-
-        abstract type Named {
-            required property name -> str;
-        }
-
-        abstract type Text {
-            required property body -> str;
-        }
-
-        type Item extending Named;
-
-        type Note extending Text;
-
-        type User extending Named {
-            multi link stuff -> Named | Text;
-        }
-
-    .. code-block:: sdl
 
         abstract type Named {
             required name: str;
@@ -313,16 +294,6 @@ the ``name`` property inside ``__type__``:
     that don't indicate their respective target types:
 
     .. code-block:: sdl
-        :version-lt: 3.0
-
-        type Foo {
-            property bar -> int16;
-            link baz -> Bar;
-        }
-
-        type Bar extending Foo;
-
-    .. code-block:: sdl
 
         type Foo {
             bar: int16;
@@ -389,16 +360,6 @@ the ``name`` property inside ``__type__``:
 
     Consider the following types using links and properties with names
     that don't indicate their respective target types:
-
-    .. code-block:: sdl
-        :version-lt: 3.0
-
-        type Foo {
-            property bar -> int16;
-            link baz -> Bar;
-        }
-
-        type Bar extending Foo;
 
     .. code-block:: sdl
 
