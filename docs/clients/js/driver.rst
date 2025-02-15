@@ -414,7 +414,7 @@ JavaScript code. Here is an example:
 
 .. code-block:: javascript
 
-    const email = "timmy@geldata.com"
+    const email = "timmy@example.com"
 
     await client.transaction(async tx => {
       await tx.execute(
