@@ -21,7 +21,7 @@ Change the currently active :ref:`branch <ref_datamodel_branches>`
     - To run a single command on a different database, use the ``-d <dbname>``
       or ``--database=<dbname>`` options described in
       :ref:`ref_cli_gel_connopts`
-    - To change the database for *all* commands, set the ``EDGEDB_DATABASE``
+    - To change the database for *all* commands, set the :gelenv:`DATABASE`
       environment variable described in :ref:`ref_cli_gel_connopts`
     - To change the database for all commands in a project, you may update the
       ``credentials.json`` file's ``database`` value. To find that file for

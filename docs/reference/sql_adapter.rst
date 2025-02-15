@@ -97,7 +97,7 @@ In this example, when prompted for the password, you would enter
     Gel server requires TLS by default, and this is also true for our SQL
     support. Make sure to require SSL encryption in your SQL tool or client
     when using Gel's SQL support. Alternatively, you can disable the TLS
-    requirement by setting the ``EDGEDB_SERVER_BINARY_ENDPOINT_SECURITY``
+    requirement by setting the :gelenv:`SERVER_BINARY_ENDPOINT_SECURITY`
     environment variable to ``optional``.
 
 

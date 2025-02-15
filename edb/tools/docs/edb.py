@@ -246,11 +246,34 @@ class DotGelRole:
         return [node], []
 
 
+class GelEnvRole:
+
+    def __call__(
+        self, role, rawtext, text, lineno, inliner, options=None, content=None
+    ):
+        if (
+            text.startswith("EDGEDB_") or
+            text.startswith("GEL_") or
+            text.startswith("_")
+        ):
+            fn = inliner.document.current_source
+            raise Exception(
+                f"{fn}:{lineno} - :gelenv:`{text}`"
+                f" - can't start with 'EDGEDB_', 'GEL_', or '_'"
+            )
+        text = f'GEL_{text}'
+        node = d_nodes.literal(text, text)
+        node["edb-gelenv"] = "true"
+        node["edb-substitution"] = "true"
+        return [node], []
+
+
 def setup_domain(app):
 
     app.add_role('gelcmd', GelCmdRole())
     app.add_role('geluri', GelUriRole())
     app.add_role('dotgel', DotGelRole())
+    app.add_role('gelenv', GelEnvRole())
     app.add_domain(GelDomain)
     app.add_transform(GelSubstitutionTransform)
 

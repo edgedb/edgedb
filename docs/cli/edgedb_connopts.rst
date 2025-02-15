@@ -44,11 +44,11 @@ Connection flags
 
 :cli:synopsis:`-H <hostname>, --host=<hostname>`
     Specifies the host name of the machine on which the server is running.
-    Defaults to the value of the ``EDGEDB_HOST`` environment variable.
+    Defaults to the value of the :gelenv:`HOST` environment variable.
 
 :cli:synopsis:`-P <port>, --port=<port>`
     Specifies the TCP port on which the server is listening for connections.
-    Defaults to the value of the ``EDGEDB_PORT`` environment variable or,
+    Defaults to the value of the :gelenv:`PORT` environment variable or,
     if not set, to ``5656``.
 
 :cli:synopsis:`--unix-path /path/to/socket`
@@ -62,12 +62,12 @@ Connection flags
 
 :cli:synopsis:`-u <username>, --user=<username>`
     Connect to the database as the user :cli:synopsis:`<username>`.
-    Defaults to the value of the ``EDGEDB_USER`` environment variable, or,
+    Defaults to the value of the :gelenv:`USER` environment variable, or,
     if not set, |admin|.
 
 :cli:synopsis:`-b <branch_name>, --branch=<branch_name>`
     Specifies the name of the branch to connect to. Defaults to the value of
-    the ``EDGEDB_BRANCH`` environment variable. If that variable isn't set,
+    the :gelenv:`BRANCH` environment variable. If that variable isn't set,
     local instances will default to the most recently switched branch or the
     |main| branch, while remote instances will default to the name provided
     when the link was created. This also includes |Gel| Cloud instance links
@@ -79,7 +79,7 @@ Connection flags
         The name of the database could be specified using either:
 
         * flags ``-d <dbname>, --database=<dbname>``,
-        * or the ``EDGEDB_DATABASE`` environment variable.
+        * or the :gelenv:`DATABASE` environment variable.
 
         Gel supports those options for backwards compatibility.
 

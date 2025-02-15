@@ -544,7 +544,7 @@ cloud instance.
 Add the following ``prebuild`` script to your ``package.json``. When Vercel
 initializes the build, it will trigger this script which will generate the
 query builder. The ``npx @gel/generate edgeql-js`` command will read the
-value of the ``EDGEDB_SECRET_KEY`` and ``EDGEDB_INSTANCE`` variables,
+value of the :gelenv:`SECRET_KEY` and :gelenv:`INSTANCE` variables,
 connect to the database, and generate the query builder before Vercel
 starts building the project.
 
@@ -576,9 +576,9 @@ this app to Vercel with the button below.
 
 In "Configure Project," expand "Environment Variables" to add two variables:
 
-- ``EDGEDB_INSTANCE`` containing your Gel Cloud instance name (in
+- :gelenv:`INSTANCE` containing your Gel Cloud instance name (in
   ``<org>/<instance-name>`` format)
-- ``EDGEDB_SECRET_KEY`` containing the secret key you created and noted
+- :gelenv:`SECRET_KEY` containing the secret key you created and noted
   previously.
 
 **#4 View the application**
@@ -639,7 +639,7 @@ database. Open a REPL and ``insert`` some blog posts:
 Add the following ``prebuild`` script to your ``package.json``. When Vercel
 initializes the build, it will trigger this script which will generate the
 query builder. The ``npx @gel/generate edgeql-js`` command will read the
-value of the ``EDGEDB_DSN`` variable, connect to the database, and generate
+value of the :gelenv:`DSN` variable, connect to the database, and generate
 the query builder before Vercel starts building the project.
 
 .. code-block:: javascript-diff
@@ -667,8 +667,8 @@ Deploy this app to Vercel with the button below.
 
 When prompted:
 
-- Set ``EDGEDB_DSN`` to your database's DSN
-- Set ``EDGEDB_CLIENT_TLS_SECURITY`` to ``insecure``. This will disable
+- Set :gelenv:`DSN` to your database's DSN
+- Set :gelenv:`CLIENT_TLS_SECURITY` to ``insecure``. This will disable
   Gel's default TLS checks; configuring TLS is beyond the scope of this
   tutorial.
 

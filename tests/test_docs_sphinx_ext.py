@@ -979,6 +979,9 @@ class TestOthers(unittest.TestCase, BaseDomainTest):
 
         blah6 :dotgel:`default`
 
+        blah7 :gelenv:`HOST`
+        blah8 :gelenv:`HOST=AB`
+
         DONE
         '''
 
@@ -1025,4 +1028,14 @@ class TestOthers(unittest.TestCase, BaseDomainTest):
                     / text()
             '''),
              ['default.gel']
+        )
+
+        self.assertEqual(
+            x.xpath('''
+                //paragraph/literal
+                    [@edb-substitution="true"]
+                    [@edb-gelenv="true"]
+                    / text()
+            '''),
+             ['GEL_HOST', 'GEL_HOST=AB']
         )

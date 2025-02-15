@@ -68,26 +68,26 @@ Options
 
 :cli:synopsis:`-H <hostname>, --host=<hostname>`
     Specifies the host name of the machine on which the server is running.
-    Defaults to the value of the ``EDGEDB_HOST`` environment variable.
+    Defaults to the value of the :gelenv:`HOST` environment variable.
 
 :cli:synopsis:`-P <port>, --port=<port>`
     Specifies the TCP port on which the server is listening for connections.
-    Defaults to the value of the ``EDGEDB_PORT`` environment variable or,
+    Defaults to the value of the :gelenv:`PORT` environment variable or,
     if not set, to ``5656``.
 
 :cli:synopsis:`-u <username>, --user=<username>`
     Connect to the database as the user :cli:synopsis:`<username>`.
-    Defaults to the value of the ``EDGEDB_USER`` environment variable, or,
+    Defaults to the value of the :gelenv:`USER` environment variable, or,
     if not set, to the login name of the current OS user.
 
 :cli:synopsis:`-d <dbname>, --database=<dbname>`
     Specifies the name of the database to connect to. Default to the value
-    of the ``EDGEDB_DATABASE`` environment variable, or, if not set, to
+    of the :gelenv:`DATABASE` environment variable, or, if not set, to
     the calculated value of :cli:synopsis:`<username>`.
 
 :cli:synopsis:`-b <branch-name>, --branch=<branch-name>`
     Specifies the name of the branch to connect to. Default to the value
-    of the ``EDGEDB_BRANCH`` environment variable, or, if not set, to
+    of the :gelenv:`BRANCH` environment variable, or, if not set, to
     the calculated value of :cli:synopsis:`<username>`.
 
     .. note::

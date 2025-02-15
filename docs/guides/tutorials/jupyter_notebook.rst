@@ -17,8 +17,8 @@ Jupyter Notebook
 
    **For Gel Cloud instances**
 
-   - ``EDGEDB_INSTANCE``- your instance name (``<org-name>/<instance-name>``)
-   - ``EDGEDB_SECRET_KEY``- a secret key with permissions for the selected instance.
+   - :gelenv:`INSTANCE`- your instance name (``<org-name>/<instance-name>``)
+   - :gelenv:`SECRET_KEY`- a secret key with permissions for the selected instance.
 
      .. note::
 
@@ -28,7 +28,7 @@ Jupyter Notebook
 
    **For other remote instances**
 
-   - ``EDGEDB_DSN``- the DSN of your remote instance
+   - :gelenv:`DSN`- the DSN of your remote instance
 
      .. note::
 
@@ -39,8 +39,8 @@ Jupyter Notebook
 
    **For local Gel instances**
 
-   - ``EDGEDB_INSTANCE``- your instance name
-   - ``EDGEDB_USER`` & ``EDGEDB_PASSWORD``
+   - :gelenv:`INSTANCE`- your instance name
+   - :gelenv:`USER` & :gelenv:`PASSWORD`
 
    .. note :: Usernames and passwords
 
