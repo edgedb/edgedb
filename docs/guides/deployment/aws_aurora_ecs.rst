@@ -784,16 +784,16 @@ container in it.
               \"portMappings\": [{\"containerPort\": 5656}], \
               \"command\": [\"gel-server\"], \
               \"environment\": [{ \
-                \"name\": \"EDGEDB_SERVER_GENERATE_SELF_SIGNED_CERT\", \
+                \"name\": \"GEL_SERVER_GENERATE_SELF_SIGNED_CERT\", \
                 \"value\": \"1\" \
               }], \
               \"secrets\": [ \
                 { \
-                  \"name\": \"EDGEDB_SERVER_PASSWORD\", \
+                  \"name\": \"GEL_SERVER_PASSWORD\", \
                   \"valueFrom\": \"$PASSWORD_ARN\" \
                 }, \
                 { \
-                  \"name\": \"EDGEDB_SERVER_BACKEND_DSN\", \
+                  \"name\": \"GEL_SERVER_BACKEND_DSN\", \
                   \"valueFrom\": \"$DSN_ARN\" \
                 } \
               ], \

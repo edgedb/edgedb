@@ -84,7 +84,7 @@ base64url encode the resulting string. This new string is called the
     * Value should be:
     * `${protocol}://${host}:${port}/branch/${branch}/ext/auth/
     */
-   const EDGEDB_AUTH_BASE_URL = process.env.GEL_AUTH_BASE_URL;
+   const GEL_AUTH_BASE_URL = process.env.GEL_AUTH_BASE_URL;
    const SERVER_PORT = 3000;
 
    /**
@@ -175,7 +175,7 @@ Sign up
          return;
        }
 
-       const registerUrl = new URL("magic-link/register", EDGEDB_AUTH_BASE_URL);
+       const registerUrl = new URL("magic-link/register", GEL_AUTH_BASE_URL);
        const registerResponse = await fetch(registerUrl.href, {
          method: "post",
          headers: {
@@ -242,7 +242,7 @@ authenticate.
          return;
        }
 
-       const emailUrl = new URL("magic-link/email", EDGEDB_AUTH_BASE_URL);
+       const emailUrl = new URL("magic-link/email", GEL_AUTH_BASE_URL);
        const authenticateResponse = await fetch(emailUrl.href, {
          method: "post",
          headers: {
@@ -314,7 +314,7 @@ this code for an authentication token.
          return;
       }
 
-      const codeExchangeUrl = new URL("token", EDGEDB_AUTH_BASE_URL);
+      const codeExchangeUrl = new URL("token", GEL_AUTH_BASE_URL);
       codeExchangeUrl.searchParams.set("code", code);
       codeExchangeUrl.searchParams.set("verifier", verifier);
       const codeExchangeResponse = await fetch(codeExchangeUrl.href, {

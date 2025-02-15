@@ -36,14 +36,6 @@ in the root of the source checkout:
 
     $ pip install -e .
 
-A debug build containing more runtime checks at the expense of performance
-can be created by setting the :gelenv:`DEBUG` environment variable when
-building:
-
-.. code-block:: bash
-
-    $ env EDGEDB_DEBUG=1 pip install -e .
-
 
 Running tests
 -------------
