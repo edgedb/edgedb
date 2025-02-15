@@ -21,7 +21,7 @@ library.
 
 - Set the ``EDGEDB_INSTANCE`` environment variable to a :ref:`name
   <ref_reference_connection_instance_name>` of a local instance, remote linked
-  instance, or an |Gel| Cloud instance. (:ref:`More info on |Gel| Cloud
+  instance, or a |Gel| Cloud instance. (:ref:`More info on |Gel| Cloud
   connection details below. <gel_client_connection_cloud>`) You can create
   new instances manually with the :ref:`gel instance create
   <ref_cli_gel_instance_create>` command.
@@ -54,7 +54,7 @@ on connection configuration, see :ref:`Reference > Connection Parameters
 Gel Cloud
 =========
 
-To provide client connection information for an |Gel| Cloud instance, set the
+To provide client connection information for a |Gel| Cloud instance, set the
 ``EDGEDB_INSTANCE`` variable to the instance name
 (``<org-name>/<instance-name>`` where ``<instance-name>`` is the name you set
 when you created the Gel Cloud instance) and the ``EDGEDB_SECRET_KEY``
