@@ -119,7 +119,7 @@ delete the objects while maintaining their relationships.
 
 |Gel| allows us to declaratively define the structure of the objects. The
 schema lives inside |.gel| file in the ``dbschema`` directory. It's
-common to declare the entire schema in a single file ``dbschema/default.esdl``.
+common to declare the entire schema in a single file :dotgel:`dbschema/default`.
 This is how our datatypes look:
 
 .. code-block:: sdl

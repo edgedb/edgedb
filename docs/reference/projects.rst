@@ -39,7 +39,7 @@ Let's unpack that.
    <ref_cli_gel_paths>`—feel free to peek inside to see how it's stored.
 5. Then it creates an :ref:`ref_reference_gel_toml` file, which marks this
    directory as an Gel project.
-6. Finally, it creates a ``dbschema`` directory and a ``dbschema/default.esdl``
+6. Finally, it creates a ``dbschema`` directory and a :dotgel:`dbschema/default`
    schema file (if they don't already exist).
 
 

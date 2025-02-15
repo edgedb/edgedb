@@ -23,7 +23,7 @@ The basics of creating a project, modifying its schema, and migrating
 it in Gel are pretty easy:
 
 - Type :gelcmd:`project init` to start a project,
-- Open the newly created empty schema at ``dbschema/default.gel`` and add
+- Open the newly created empty schema at :dotgel:`dbschema/default` and add
   a simple type like  ``SomeType { name: str; }`` inside the empty ``module``
 - Run :gelcmd:`migration create`, type ``y`` to confirm the change,
   then run :gelcmd:`migrate`, and you are done! You can now
@@ -80,12 +80,12 @@ Here is a simple example of a schema:
    }
 
 If you have Gel installed and want to follow along, run
-:gelcmd:` project init` and copy the above schema into your ``default.gel``
+:gelcmd:` project init` and copy the above schema into your :dotgel:`default`
 file inside the ``/dbschema`` folder it creates. Then save the file.
 
 .. note::
 
-    While schema is usually contained inside the ``default.gel`` file,
+    While schema is usually contained inside the :dotgel:`default` file,
     you can divide a schema over multiple files if you like. Gel will
     combine all |.gel| files inside the ``/dbschema`` folder into a
     single schema.
@@ -133,7 +133,7 @@ at all that doesn't already have a type called ``User``.
 
 Let's try one more small migration, in which we decide that we don't
 want the ``name`` property anymore. Once again, we are declaring the
-final state: a ``User`` type with nothing inside. Update your ``default.esdl``
+final state: a ``User`` type with nothing inside. Update your :dotgel:`default`
 to look like this:
 
 .. code-block:: sdl
@@ -264,7 +264,7 @@ It's SDL, but the order matches that of the DDL statements.
     };
 
 Although the schema produced with ``describe schema as sdl;`` may not match
-the schema you've written inside ``default.esdl``, it will
+the schema you've written inside :dotgel:`default`, it will
 show you the order in which statements were needed to reach this final
 schema.
 

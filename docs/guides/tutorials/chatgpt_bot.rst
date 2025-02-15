@@ -440,7 +440,7 @@ calculating how many related sections fit inside the prompt context while
 staying under the model's token limit.
 
 Open the empty schema file that was generated when we initialized the Gel
-project (located at ``dbschema/default.esdl`` from the project directory).
+project (located at :dotgel:`dbschema/default` from the project directory).
 We'll walk through what we'll add to it, one step at a time. First, add this at
 the top of the file (above ``module default {``):
 

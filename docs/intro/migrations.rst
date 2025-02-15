@@ -44,7 +44,7 @@ your codebase.
   └── gel.toml
 
 The schema itself is written using Gel's schema definition language. Edit
-your ``dbschema/default.esdl`` and add the following schema inside your
+your :dotgel:`dbschema/default` and add the following schema inside your
 ``module default`` block:
 
 .. code-block:: sdl
@@ -60,7 +60,7 @@ your ``dbschema/default.esdl`` and add the following schema inside your
 
 
 It's common to keep your entire schema in a single file, and many users use
-this ``default.esdl`` that is created when you start a project. However it's
+this :dotgel:`default` that is created when you start a project. However it's
 also possible to split their schemas across a number of |.gel| files.
 
 Once you save your initial schema, assuming it is valid, the ``watch`` command
@@ -71,7 +71,7 @@ will pick it up and apply it to your database.
 -------------------------
 
 As your application evolves, directly edit your schema files to reflect your
-desired data model. Try updating your ``dbschema/default.esdl`` to add a
+desired data model. Try updating your :dotgel:`dbschema/default` to add a
 ``Comment`` type:
 
 .. code-block:: sdl-diff
