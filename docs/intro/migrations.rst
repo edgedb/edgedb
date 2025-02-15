@@ -8,7 +8,7 @@ Migrations
 
 |Gel's| baked-in migration system lets you painlessly evolve your schema
 throughout the development process. If you want to work along with this guide,
-start a new project with :ref:`ref_cli_edgedb_project_init`. This will create a
+start a new project with :ref:`ref_cli_gel_project_init`. This will create a
 new instance and some empty schema files to get you started.
 
 .. edb:youtube-embed:: _IUSPBm2xEA
@@ -299,6 +299,6 @@ Further reading
 - :ref:`Migration tips <ref_migration_tips>`
 
 Further information can be found in the :ref:`CLI
-reference <ref_cli_edgedb_migration>` or the `Beta 1 blog post
+reference <ref_cli_gel_migration>` or the `Beta 1 blog post
 <https://www.geldata.com/blog/edgedb-1-0-beta-1-sirius#built-in-database-migrations-in-use>`_,
 which describes the design of the migration system.

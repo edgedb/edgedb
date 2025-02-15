@@ -1,4 +1,4 @@
-.. _ref_cli_edgedb_migration:
+.. _ref_cli_gel_migration:
 
 
 =============
@@ -39,17 +39,17 @@ single SDL document.
 .. list-table::
     :class: funcoptable
 
-    * - :ref:`ref_cli_edgedb_migration_apply`
+    * - :ref:`ref_cli_gel_migration_apply`
       - Bring current branch (or database pre-v5) to the latest or a specified revision
-    * - :ref:`ref_cli_edgedb_migration_create`
+    * - :ref:`ref_cli_gel_migration_create`
       - Create a migration script
-    * - :ref:`ref_cli_edgedb_migration_edit`
+    * - :ref:`ref_cli_gel_migration_edit`
       - Edit migration file
-    * - :ref:`ref_cli_edgedb_migration_extract`
+    * - :ref:`ref_cli_gel_migration_extract`
       - Extract migration history and write it to ``/migrations``.
-    * - :ref:`ref_cli_edgedb_migration_log`
+    * - :ref:`ref_cli_gel_migration_log`
       - Show all migration versions
-    * - :ref:`ref_cli_edgedb_migration_status`
+    * - :ref:`ref_cli_gel_migration_status`
       - Show current migration state
-    * - :ref:`ref_cli_edgedb_migration_upgrade_check`
+    * - :ref:`ref_cli_gel_migration_upgrade_check`
       - Checks your schema against a different |Gel| version.

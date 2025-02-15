@@ -178,7 +178,7 @@ We can now seed the database by running this script with ``tsx``
 
   $ npx tsx seed.ts
 
-Feel free to explore the database in the :ref:`Gel UI <ref_cli_edgedb_ui>`,
+Feel free to explore the database in the :ref:`Gel UI <ref_cli_gel_ui>`,
 where you will find the new data you inserted through this script, as well as
 any data you inserted when running the Quickstart.
 

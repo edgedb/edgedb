@@ -1,4 +1,4 @@
-.. _ref_cli_edgedb_branch_list:
+.. _ref_cli_gel_branch_list:
 
 
 ===============

@@ -1,4 +1,4 @@
-.. _ref_cli_edgedb_migration_status:
+.. _ref_cli_gel_migration_status:
 
 
 ====================
@@ -19,7 +19,7 @@ Options
 
 The ``migration status`` command runs on the database it is connected
 to. For specifying the connection target see :ref:`connection options
-<ref_cli_edgedb_connopts>`.
+<ref_cli_gel_connopts>`.
 
 :cli:synopsis:`--quiet`
     Do not print any messages, only indicate success by exit status.

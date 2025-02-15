@@ -1,4 +1,4 @@
-.. _ref_cli_edgedb_migration_extract:
+.. _ref_cli_gel_migration_extract:
 
 
 =====================
@@ -19,7 +19,7 @@ Options
 
 The ``migration extract`` command runs on the database it is connected
 to. For specifying the connection target see :ref:`connection options
-<ref_cli_edgedb_connopts>`.
+<ref_cli_gel_connopts>`.
 
 
 :cli:synopsis:`--tls-server-name <TLS_SERVER_NAME>`

@@ -1,4 +1,4 @@
-.. _ref_cli_edgedb_dump:
+.. _ref_cli_gel_dump:
 
 
 ========
@@ -18,7 +18,7 @@ Options
 The ``dump`` command creates a backup of the currently active database branch
 or, in pre-v5 instances, the currently connected database.
 For specifying the connection target see :ref:`connection options
-<ref_cli_edgedb_connopts>`.
+<ref_cli_gel_connopts>`.
 
 :cli:synopsis:`<path>`
     The name of the file to backup the database branch into.

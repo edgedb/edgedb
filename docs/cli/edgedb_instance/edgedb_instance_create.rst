@@ -1,4 +1,4 @@
-.. _ref_cli_edgedb_instance_create:
+.. _ref_cli_gel_instance_create:
 
 
 ===================
@@ -32,7 +32,7 @@ Gel Cloud
 ---------
 
 Gel Cloud users may use this command to create a Cloud instance after
-logging in using :ref:`ref_cli_edgedb_cloud_login`.
+logging in using :ref:`ref_cli_gel_cloud_login`.
 
 To create a Cloud instance, your instance name should be in the format
 ``<org-name>/<instance-name>``. Cloud instance names may contain alphanumeric
@@ -76,7 +76,7 @@ Options
     Configures how the new instance should start: ``auto`` for
     automatic start with the system or user session, ``manual`` to
     turn that off so that the instance can be manually started with
-    :ref:`ref_cli_edgedb_instance_start` on demand. Defaults to:
+    :ref:`ref_cli_gel_instance_start` on demand. Defaults to:
     ``auto``.
 
 :cli:synopsis:`--channel=<channel>`
@@ -86,7 +86,7 @@ Options
 :cli:synopsis:`--version=<version>`
     Specifies the version of the |Gel| server to be used to run the
     new instance. To list the currently available options use
-    :ref:`ref_cli_edgedb_server_list_versions`.
+    :ref:`ref_cli_gel_server_list_versions`.
 
     By default, when you specify a version, the CLI will use the latest release
     in the major version specified. This command, for example, will install the

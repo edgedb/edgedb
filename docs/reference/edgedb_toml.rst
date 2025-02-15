@@ -1,11 +1,11 @@
-.. _ref_reference_edgedb_toml:
+.. _ref_reference_gel_toml:
 
 ========
 gel.toml
 ========
 
 The |gel.toml| file is created in the project root after running
-:ref:`ref_cli_edgedb_project_init`. If this file is present in a directory, it
+:ref:`ref_cli_gel_project_init`. If this file is present in a directory, it
 signals to the CLI and client bindings that the directory is an instance-linked
 |Gel| project. It supports two configuration settings across two tables:
 

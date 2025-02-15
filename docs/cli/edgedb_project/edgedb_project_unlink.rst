@@ -1,4 +1,4 @@
-.. _ref_cli_edgedb_project_unlink:
+.. _ref_cli_gel_project_unlink:
 
 
 ==================
@@ -26,7 +26,7 @@ Options
 
 :cli:synopsis:`-D, --destroy-server-instance`
     If specified, the associated |Gel| instance is destroyed by
-    running :ref:`ref_cli_edgedb_instance_destroy`.
+    running :ref:`ref_cli_gel_instance_destroy`.
 
 :cli:synopsis:`--non-interactive`
     Do not prompts user for input.

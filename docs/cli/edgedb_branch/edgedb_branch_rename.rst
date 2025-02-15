@@ -1,4 +1,4 @@
-.. _ref_cli_edgedb_branch_rename:
+.. _ref_cli_gel_branch_rename:
 
 
 =================
@@ -17,7 +17,7 @@ Options
 
 The ``branch rename`` command runs in the |Gel| instance it is
 connected to. For specifying the connection target see
-:ref:`connection options <ref_cli_edgedb_connopts>`.
+:ref:`connection options <ref_cli_gel_connopts>`.
 
 :cli:synopsis:`<old-name>`
     The current name of the branch to rename.

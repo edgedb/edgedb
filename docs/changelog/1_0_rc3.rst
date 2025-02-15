@@ -23,7 +23,7 @@ to RC3.
 
 Before you start you may want to backup the instance credentials
 (which you can find in the "Config" directory indicated by
-:ref:`ref_cli_edgedb_info`). The first step in the upgrade process
+:ref:`ref_cli_gel_info`). The first step in the upgrade process
 will be backing up all the instance data and that will include the
 login credentials that the instance expects. After restoring the
 database dump, you may need to restore old credentials file as

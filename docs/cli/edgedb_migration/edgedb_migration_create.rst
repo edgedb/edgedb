@@ -1,4 +1,4 @@
-.. _ref_cli_edgedb_migration_create:
+.. _ref_cli_gel_migration_create:
 
 
 ====================
@@ -35,7 +35,7 @@ Options
 
 The ``migration create`` command runs on the database it is connected
 to. For specifying the connection target see :ref:`connection options
-<ref_cli_edgedb_connopts>`.
+<ref_cli_gel_connopts>`.
 
 :cli:synopsis:`--non-interactive`
     Do not prompt user for input. By default this works only if all

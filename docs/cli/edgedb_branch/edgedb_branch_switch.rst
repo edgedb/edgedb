@@ -1,4 +1,4 @@
-.. _ref_cli_edgedb_branch_switch:
+.. _ref_cli_gel_branch_switch:
 
 
 =================
@@ -20,17 +20,17 @@ Change the currently active :ref:`branch <ref_datamodel_branches>`
 
     - To run a single command on a different database, use the ``-d <dbname>``
       or ``--database=<dbname>`` options described in
-      :ref:`ref_cli_edgedb_connopts`
+      :ref:`ref_cli_gel_connopts`
     - To change the database for *all* commands, set the ``EDGEDB_DATABASE``
-      environment variable described in :ref:`ref_cli_edgedb_connopts`
+      environment variable described in :ref:`ref_cli_gel_connopts`
     - To change the database for all commands in a project, you may update the
       ``credentials.json`` file's ``database`` value. To find that file for
-      your project, run :ref:`ref_cli_edgedb_info` to get the config path and
+      your project, run :ref:`ref_cli_gel_info` to get the config path and
       navigate to ``/<config-path>/credentials``.
     - You may use ``\connect <dbname>`` or ``\c <dbname>`` to change the
       connected database while in a REPL session.
 
-    See the :ref:`ref_cli_edgedb_database` command suite for other database
+    See the :ref:`ref_cli_gel_database` command suite for other database
     management commands.
 
 
@@ -39,7 +39,7 @@ Options
 
 The ``branch switch`` command runs in the |Gel| instance it is
 connected to. For specifying the connection target see
-:ref:`connection options <ref_cli_edgedb_connopts>`.
+:ref:`connection options <ref_cli_gel_connopts>`.
 
 :cli:synopsis:`<name>`
     The name of the new branch.

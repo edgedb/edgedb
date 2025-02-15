@@ -74,7 +74,7 @@ This command does a couple important things.
 2. If no |gel.toml| file exists, it will create one. This is a
    configuration file that marks a given directory as an Gel project. Learn
    more about it in :ref:`our edgedb.toml reference
-   <ref_reference_edgedb_toml>`.
+   <ref_reference_gel_toml>`.
 
    .. code-block:: toml
 

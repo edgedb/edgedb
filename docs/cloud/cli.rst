@@ -7,7 +7,7 @@ CLI
 :edb-alt-title: Using Gel Cloud via the CLI
 
 To use |Gel| Cloud via the CLI, first log in using
-:ref:`ref_cli_edgedb_cloud_login`.
+:ref:`ref_cli_gel_cloud_login`.
 
 .. note::
 
@@ -15,23 +15,23 @@ To use |Gel| Cloud via the CLI, first log in using
     but when interacting with Gel Cloud via a script or in CI, you'll
     instead set the ``EDGEDB_SECRET_KEY`` environment variable to your secret
     key. Generate a secret key in the Gel Cloud UI or by running
-    :ref:`ref_cli_edgedb_cloud_secretkey_create`. The :gelcmd:`cloud
+    :ref:`ref_cli_gel_cloud_secretkey_create`. The :gelcmd:`cloud
     login` and :gelcmd:`cloud logout` commands are not intended for use
     in this context.
 
 Once your login is successful, you will be able to create an instance using
-either :ref:`ref_cli_edgedb_instance_create` or
-:ref:`ref_cli_edgedb_project_init`, depending on whether you also want to
+either :ref:`ref_cli_gel_instance_create` or
+:ref:`ref_cli_gel_project_init`, depending on whether you also want to
 create a local project linked to your instance.
 
-* :ref:`ref_cli_edgedb_instance_create` with an instance name of
+* :ref:`ref_cli_gel_instance_create` with an instance name of
   ``<org-name>/<instance-name>``.
 
   .. code-block:: bash
 
       $ edgedb instance create <org-name>/<instance-name>
 
-* :ref:`ref_cli_edgedb_project_init` with the ``--server-instance`` option. Set
+* :ref:`ref_cli_gel_project_init` with the ``--server-instance`` option. Set
   the server instance name to ``<org-name>/<instance-name>``.
 
   .. code-block:: bash

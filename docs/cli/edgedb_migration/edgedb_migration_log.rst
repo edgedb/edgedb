@@ -1,4 +1,4 @@
-.. _ref_cli_edgedb_migration_log:
+.. _ref_cli_gel_migration_log:
 
 
 =================
@@ -19,7 +19,7 @@ Options
 
 The ``migration log`` command runs on the database it is connected
 to. For specifying the connection target see :ref:`connection options
-<ref_cli_edgedb_connopts>`.
+<ref_cli_gel_connopts>`.
 
 :cli:synopsis:`--from-fs`
     Print revisions from the schema directory (no database connection

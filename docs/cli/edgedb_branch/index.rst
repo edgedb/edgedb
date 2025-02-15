@@ -1,4 +1,4 @@
-.. _ref_cli_edgedb_branch:
+.. _ref_cli_gel_branch:
 
 
 ==========
@@ -24,19 +24,19 @@ tools.
 .. list-table::
     :class: funcoptable
 
-    * - :ref:`ref_cli_edgedb_branch_create`
+    * - :ref:`ref_cli_gel_branch_create`
       - Create a new branch
-    * - :ref:`ref_cli_edgedb_branch_drop`
+    * - :ref:`ref_cli_gel_branch_drop`
       - Drop a branch
-    * - :ref:`ref_cli_edgedb_branch_list`
+    * - :ref:`ref_cli_gel_branch_list`
       - List all branches
-    * - :ref:`ref_cli_edgedb_branch_merge`
+    * - :ref:`ref_cli_gel_branch_merge`
       - Merge a branch into the current branch
-    * - :ref:`ref_cli_edgedb_branch_rebase`
+    * - :ref:`ref_cli_gel_branch_rebase`
       - Create a branch based on a target branch
-    * - :ref:`ref_cli_edgedb_branch_rename`
+    * - :ref:`ref_cli_gel_branch_rename`
       - Rename a branch
-    * - :ref:`ref_cli_edgedb_branch_switch`
+    * - :ref:`ref_cli_gel_branch_switch`
       - Change the currently active branch
-    * - :ref:`ref_cli_edgedb_branch_wipe`
+    * - :ref:`ref_cli_gel_branch_wipe`
       - Destroy the contents of a branch

@@ -24,7 +24,7 @@ library.
   instance, or an |Gel| Cloud instance. (:ref:`More info on |Gel| Cloud
   connection details below. <edgedb_client_connection_cloud>`) You can create
   new instances manually with the :ref:`gel instance create
-  <ref_cli_edgedb_instance_create>` command.
+  <ref_cli_gel_instance_create>` command.
 
 - Explicitly pass a DSN or :ref:`instance name
   <ref_reference_connection_instance_name>`
@@ -59,4 +59,4 @@ To provide client connection information for an |Gel| Cloud instance, set the
 (``<org-name>/<instance-name>`` where ``<instance-name>`` is the name you set
 when you created the Gel Cloud instance) and the ``EDGEDB_SECRET_KEY``
 variable to your secret key which can be created in the Gel Cloud UI or by
-running :ref:`ref_cli_edgedb_cloud_secretkey_create` via the CLI.
+running :ref:`ref_cli_gel_cloud_secretkey_create` via the CLI.

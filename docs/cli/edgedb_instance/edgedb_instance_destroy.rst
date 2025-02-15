@@ -1,4 +1,4 @@
-.. _ref_cli_edgedb_instance_destroy:
+.. _ref_cli_gel_instance_destroy:
 
 
 ====================

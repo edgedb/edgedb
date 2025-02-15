@@ -1,4 +1,4 @@
-.. _ref_cli_edgedb_analyze:
+.. _ref_cli_gel_analyze:
 
 
 ===========
@@ -9,7 +9,7 @@ gel analyze
 
     Performance analysis is also available in our :ref:`CLI REPL
     <ref_cli_edgedb>` and the UI's REPL and query builder (both accessible by
-    running :ref:`ref_cli_edgedb_ui` to invoke your instance's UI). Use it by
+    running :ref:`ref_cli_gel_ui` to invoke your instance's UI). Use it by
     prepending your query with ``analyze``.
 
 Run a query performance analysis on the given query.
@@ -40,7 +40,7 @@ Options
 =======
 
 The ``analyze`` command runs on the database it is connected to. For specifying
-the connection target see :ref:`connection options <ref_cli_edgedb_connopts>`.
+the connection target see :ref:`connection options <ref_cli_gel_connopts>`.
 
 :cli:synopsis:`<query>`
     The query to analyze. Be sure to wrap the query in quotes.

@@ -303,7 +303,7 @@ schema change happen.
       };
   };
 
-We then run :ref:`ref_cli_edgedb_migrate` to apply the changes.
+We then run :ref:`ref_cli_gel_migrate` to apply the changes.
 
 Next we realize that we actually want to make names unique, perhaps to
 avoid confusion or to use them as reliable human-readable identifiers
@@ -400,12 +400,12 @@ The migration tool detected that we've altered the file and asks us to
 update the migration name (acting as a checksum) if this was
 deliberate. This is done as a precaution against accidental changes.
 Since we've done this on purpose, we can update the file and run
-:ref:`ref_cli_edgedb_migrate` again.
+:ref:`ref_cli_gel_migrate` again.
 
 Finally, we evolved our schema all the way from having an optional
 property ``name`` all the way to making it both *required* and
 *exclusive*. We've worked with the Gel :ref:`migration tools
-<ref_cli_edgedb_migration>` to iron out the kinks throughout the
+<ref_cli_gel_migration>` to iron out the kinks throughout the
 migration process. At this point we take a quick look at the way
 duplicate ``User`` objects were resolved to decide whether we need to
 do anything more. We can use :eql:func:`re_test` to find names that
@@ -598,7 +598,7 @@ The migration tool detected that we've altered the file and asks us to
 update the migration name (acting as a checksum) if this was
 deliberate. This is done as a precaution against accidental changes.
 Since we've done this on purpose, we can update the file and run
-:ref:`ref_cli_edgedb_migrate` again.
+:ref:`ref_cli_gel_migrate` again.
 
 We can see the changes after the data migration is complete:
 
@@ -903,7 +903,7 @@ The migration tool detected that we've altered the file and asks us to
 update the migration name (acting as a checksum) if this was
 deliberate. This is done as a precaution against accidental changes.
 Since we've done this on purpose, we can update the file and run
-:ref:`ref_cli_edgedb_migrate` again.
+:ref:`ref_cli_gel_migrate` again.
 
 As the game becomes more stable there's no reason for the ``class`` to
 be a :eql:type:`str` anymore, instead we can use an :eql:type:`enum`
@@ -1041,7 +1041,7 @@ The migration tool detected that we've altered the file and asks us to
 update the migration name (acting as a checksum) if this was
 deliberate. This is done as a precaution against accidental changes.
 Since we've done this on purpose, we can update the file and run
-:ref:`ref_cli_edgedb_migrate` again.
+:ref:`ref_cli_gel_migrate` again.
 
 .. code-block:: edgeql-diff
 
@@ -1337,7 +1337,7 @@ Recovering lost migrations
 
 You can recover lost migration files, writing the database's current
 migration history to ``/dbschema/migrations`` by using the
-:ref:`ref_cli_edgedb_migration_extract`.
+:ref:`ref_cli_gel_migration_extract`.
 
 Getting the current migration
 -----------------------------

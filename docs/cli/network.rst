@@ -1,4 +1,4 @@
-.. _ref_cli_edgedb_network:
+.. _ref_cli_gel_network:
 
 =============
 Network usage
@@ -8,17 +8,17 @@ Generally command-line tools connect only to the database host with a few
 exceptions:
 
 1. When the command-line tool starts, it checks if its version is up to
-   date. :ref:`Details <ref_cli_edgedb_version_check>`
-2. The :ref:`ref_cli_edgedb_server` family of commands and
-   :ref:`ref_cli_edgedb_cli_upgrade` discover package versions and
+   date. :ref:`Details <ref_cli_gel_version_check>`
+2. The :ref:`ref_cli_gel_server` family of commands and
+   :ref:`ref_cli_gel_cli_upgrade` discover package versions and
    docker images and also invoke package managers and the docker
    engine to do :ref:`index updates and related data.
-   <ref_cli_edgedb_net_server>`
+   <ref_cli_gel_net_server>`
 3. The CLI communicates with the |Gel| Cloud API to provide easy access to
    your Gel Cloud instances.
 
 
-.. _ref_cli_edgedb_version_check:
+.. _ref_cli_gel_version_check:
 
 Version Check
 =============
@@ -65,13 +65,13 @@ logging facility can be used::
    gel>
 
 
-.. _ref_cli_edgedb_net_server:
+.. _ref_cli_gel_net_server:
 
 "gel server" and "gel self upgrade"
 ===================================
 
 Generally these commands do requests with exactly the headers
-like :ref:`version check <ref_cli_edgedb_version_check>`.
+like :ref:`version check <ref_cli_gel_version_check>`.
 
 Data sources for the commands directly:
 

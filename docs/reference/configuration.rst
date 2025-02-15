@@ -26,7 +26,7 @@ configuration parameters using EdgeQL. For example:
 CLI
 ---
 
-The :ref:`ref_cli_edgedb_configure` command allows modifying the system
+The :ref:`ref_cli_gel_configure` command allows modifying the system
 configuration from a terminal:
 
 .. code-block:: bash

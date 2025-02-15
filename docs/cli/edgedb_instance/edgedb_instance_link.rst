@@ -1,4 +1,4 @@
-.. _ref_cli_edgedb_instance_link:
+.. _ref_cli_gel_instance_link:
 
 =================
 gel instance link
@@ -19,7 +19,7 @@ Description
 connection credentials to an instance name. This is typically used as
 a way to simplify connecting to remote |Gel| database instances.
 Usually there's no need to do this for local instances as
-:ref:`ref_cli_edgedb_project_init` will already set up a named
+:ref:`ref_cli_gel_project_init` will already set up a named
 instance.
 
 .. note::
@@ -35,7 +35,7 @@ Options
 =======
 
 The ``instance link`` command uses the standard :ref:`connection
-options <ref_cli_edgedb_connopts>` for specifying the instance to be
+options <ref_cli_gel_connopts>` for specifying the instance to be
 linked.
 
 :cli:synopsis:`<name>`

@@ -1,4 +1,4 @@
-.. _ref_cli_edgedb_server_install:
+.. _ref_cli_gel_server_install:
 
 
 ==================
@@ -24,7 +24,7 @@ Options
 
 :cli:synopsis:`-i, --interactive`
     Performs the installation in interactive mode, similar to how
-    :ref:`downloading and installing <ref_cli_edgedb_install>` works.
+    :ref:`downloading and installing <ref_cli_gel_install>` works.
 
 :cli:synopsis:`--nightly`
     Installs the nightly server version.

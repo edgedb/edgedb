@@ -1,4 +1,4 @@
-.. _ref_cli_edgedb_query:
+.. _ref_cli_gel_query:
 
 
 =========
@@ -24,7 +24,7 @@ Options
 
 The ``query`` command runs on the database it is connected
 to. For specifying the connection target see :ref:`connection options
-<ref_cli_edgedb_connopts>`.
+<ref_cli_gel_connopts>`.
 
 :cli:synopsis:`-F, --output-format=<output_format>`
     Output format: ``json``, ``json-pretty``, ``json-lines``,

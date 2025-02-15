@@ -410,7 +410,7 @@ Set ``EDGEDB_INSTANCE`` to ``<org-name>/<instance-name>`` where
 instance.
 
 If you have not yet created a secret key, you can do so in the Gel Cloud UI
-or by running :ref:`ref_cli_edgedb_cloud_secretkey_create` via the CLI.
+or by running :ref:`ref_cli_gel_cloud_secretkey_create` via the CLI.
 
 For self-hosted instances
 ^^^^^^^^^^^^^^^^^^^^^^^^^

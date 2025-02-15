@@ -145,7 +145,7 @@ The generation command is configurable in a number of ways.
   ``--force-overwrite``.
 
 The generator also supports all the :ref:`connection flags
-<ref_cli_edgedb_connopts>` supported by the |Gel| CLI. These aren't
+<ref_cli_gel_connopts>` supported by the |Gel| CLI. These aren't
 necessary when using a project or environment variables to configure a
 connection.
 

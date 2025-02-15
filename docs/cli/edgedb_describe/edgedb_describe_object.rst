@@ -1,4 +1,4 @@
-.. _ref_cli_edgedb_describe_object:
+.. _ref_cli_gel_describe_object:
 
 
 ===================
@@ -24,7 +24,7 @@ Options
 
 The ``describe`` command runs in the database it is connected to. For
 specifying the connection target see :ref:`connection options
-<ref_cli_edgedb_connopts>`.
+<ref_cli_gel_connopts>`.
 
 :cli:synopsis:`--verbose`
     This is equivalent to running :eql:stmt:`describe object ... as

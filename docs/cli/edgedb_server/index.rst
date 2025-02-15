@@ -1,4 +1,4 @@
-.. _ref_cli_edgedb_server:
+.. _ref_cli_gel_server:
 
 ==========
 gel server
@@ -19,11 +19,11 @@ for managing |Gel| server versions.
 .. list-table::
     :class: funcoptable
 
-    * - :ref:`ref_cli_edgedb_server_info`
+    * - :ref:`ref_cli_gel_server_info`
       - Show server information
-    * - :ref:`ref_cli_edgedb_server_install`
+    * - :ref:`ref_cli_gel_server_install`
       - Install |Gel| server
-    * - :ref:`ref_cli_edgedb_server_list_versions`
+    * - :ref:`ref_cli_gel_server_list_versions`
       - List available and installed versions of the server
-    * - :ref:`ref_cli_edgedb_server_uninstall`
+    * - :ref:`ref_cli_gel_server_uninstall`
       - Uninstall |Gel| server

@@ -259,7 +259,7 @@ non-TLS connections are allowed. Not set by default.
     Disabling TLS is not recommended in production.
 
 
-.. _ref_reference_docker_edgedb_server_backend_dsn:
+.. _ref_reference_docker_gel_server_backend_dsn:
 
 EDGEDB_SERVER_BACKEND_DSN
 .........................
@@ -354,7 +354,7 @@ EDGEDB_SERVER_BOOTSTRAP_ONLY
 When set, bootstrap the database cluster and exit. Not set by default.
 
 
-.. _ref_reference_docer_edgedb_server_datadir:
+.. _ref_reference_docer_gel_server_datadir:
 
 EDGEDB_SERVER_DATADIR
 .....................

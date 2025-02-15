@@ -1,4 +1,4 @@
-.. _ref_cli_edgedb_instance_unlink:
+.. _ref_cli_gel_instance_unlink:
 
 ===================
 gel instance unlink
