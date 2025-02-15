@@ -85,7 +85,7 @@ ModuleAlias is an alias name and module name pair.
 *type* Options
 --------------
 
-Options for connecting to an |Gel| server
+Options for connecting to a |Gel| server
 
 
 .. code-block:: go

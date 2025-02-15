@@ -184,7 +184,7 @@ When indexes aren't working…
 ----------------------------
 
 If you find your queries are not returning the expected results, try
-inspecting your instance logs. On an |Gel| Cloud instance, use the "Logs"
+inspecting your instance logs. On a |Gel| Cloud instance, use the "Logs"
 tab in your instance dashboard. On local or :ref:`CLI-linked remote
 instances <ref_cli_gel_instance_link>`, use :gelcmd:`instance logs -I
 <instance-name>`. You may find the problem there.

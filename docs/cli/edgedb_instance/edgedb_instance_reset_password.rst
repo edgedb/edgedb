@@ -16,7 +16,7 @@ Description
 ===========
 
 :gelcmd:`instance reset-password` is a terminal command for resetting
-or updating the password for a user of an |Gel| instance.
+or updating the password for a user of a |Gel| instance.
 
 .. note::
 

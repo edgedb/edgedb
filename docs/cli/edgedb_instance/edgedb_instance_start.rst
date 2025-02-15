@@ -5,7 +5,7 @@
 gel instance start
 ==================
 
-Start an |Gel| instance.
+Start a |Gel| instance.
 
 .. cli:synopsis::
 

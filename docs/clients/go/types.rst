@@ -94,7 +94,7 @@ from a `time.Duration <https://pkg.go.dev/time>`_ represented as nanoseconds.
 
     func ParseDuration(s string) (Duration, error)
 
-ParseDuration parses an |Gel| duration string.
+ParseDuration parses a |Gel| duration string.
 
 
 

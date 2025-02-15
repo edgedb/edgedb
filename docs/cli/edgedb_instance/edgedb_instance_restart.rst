@@ -5,7 +5,7 @@
 gel instance restart
 ====================
 
-Restart an |Gel| instance.
+Restart a |Gel| instance.
 
 .. cli:synopsis::
 

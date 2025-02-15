@@ -52,7 +52,7 @@ Connection flags
     if not set, to ``5656``.
 
 :cli:synopsis:`--unix-path /path/to/socket`
-    Specifies a path to a Unix socket for an |Gel| connection. If the path is
+    Specifies a path to a Unix socket for a |Gel| connection. If the path is
     a directory, the actual path will be computed using the ``port`` and
     ``admin`` parameters.
 

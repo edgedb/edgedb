@@ -18,7 +18,7 @@ target instance.
 
 .. warning:: Gel Cloud CI users and scripters
 
-    When scripting a ``migrate``/``migration apply`` for an |Gel| Cloud
+    When scripting a ``migrate``/``migration apply`` for a |Gel| Cloud
     instance, do not use :gelcmd:`login` to authenticate. Instead, you should
     generate a secret key in the Gel Cloud UI or by running
     :ref:`ref_cli_gel_cloud_secretkey_create` and set the

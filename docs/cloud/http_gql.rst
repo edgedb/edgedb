@@ -37,7 +37,7 @@ Your instance can now receive EdgeQL queries over HTTP at
 Instance URL
 ============
 
-To determine the URL of an |Gel| Cloud instance, find the host by running
+To determine the URL of a |Gel| Cloud instance, find the host by running
 :gelcmd:`instance credentials -I <org-name>/<instance-name>`. Use the
 ``host`` and ``port`` from that table in the URL format above this note.
 Change the protocol to ``https`` since Gel Cloud instances are secured
@@ -70,7 +70,7 @@ example showing how you might send the query ``select Person {*};`` using cURL:
 Usage
 =====
 
-Usage of the HTTP and GraphQL APIs is identical on an |Gel| Cloud instance.
+Usage of the HTTP and GraphQL APIs is identical on a |Gel| Cloud instance.
 Reference the HTTP and GraphQL documentation for more information.
 
 

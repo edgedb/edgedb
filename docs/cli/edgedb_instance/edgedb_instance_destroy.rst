@@ -5,7 +5,7 @@
 gel instance destroy
 ====================
 
-Remove an |Gel| instance.
+Remove a |Gel| instance.
 
 .. cli:synopsis::
 
