@@ -12,8 +12,8 @@ introspection tools.
     :maxdepth: 3
     :hidden:
 
-    edgedb_describe_object
-    edgedb_describe_schema
+    gel_describe_object
+    gel_describe_schema
 
 .. list-table::
     :class: funcoptable
