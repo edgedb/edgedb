@@ -1247,7 +1247,7 @@ def produce_feature_used_metrics(
     features: dict[str, float] = {}
 
     def _track(key: str) -> None:
-        features[key] = 1
+        features[key] = features.get(key, 0) + 1
 
     # TODO(perf): Should we optimize peeking into the innards directly
     # so we can skip creating the proxies?
@@ -1408,7 +1408,7 @@ def administer_repair_schema(
         user_schema=current_tx.get_user_schema_if_updated(),
         global_schema=current_tx.get_global_schema_if_updated(),
         config_ops=config_ops,
-        feature_used_metrics={},
+        feature_used_metrics=None,
     )
 
 

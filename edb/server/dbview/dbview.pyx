@@ -359,9 +359,17 @@ cdef class Database:
         tname = self.tenant.get_instance_name()
         keys = self._feature_used_metrics.keys() | feature_used_metrics.keys()
         for key in keys:
+            # Update the count of how many times the feature is used
             metrics.feature_used.inc(
                 feature_used_metrics.get(key, 0.0)
                 - self._feature_used_metrics.get(key, 0.0),
+                tname,
+                key,
+            )
+            # Update the count of branches using the feature at all
+            metrics.feature_used_branches.inc(
+                (feature_used_metrics.get(key, 0.0) > 0)
+                - (self._feature_used_metrics.get(key, 0.0) > 0),
                 tname,
                 key,
             )
@@ -1854,9 +1862,16 @@ cdef class DatabaseIndex:
     cdef inline set_current_branches(self):
         metrics.current_branches.set(
             sum(
-                1
+                dbname != defines.EDGEDB_SYSTEM_DB
                 for dbname in self._dbs
-                if dbname != defines.EDGEDB_SYSTEM_DB
+            ),
+            self._tenant.get_instance_name(),
+        )
+        metrics.current_introspected_branches.set(
+            sum(
+                dbname != defines.EDGEDB_SYSTEM_DB
+                and db.user_schema_pickle is not None
+                for dbname, db in self._dbs.items()
             ),
             self._tenant.get_instance_name(),
         )
