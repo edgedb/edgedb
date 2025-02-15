@@ -17,8 +17,8 @@ new instance and some empty schema files to get you started.
 1. Start the ``watch`` command
 ------------------------------
 
-The easiest way to work with your schema in development is by running ``edgedb
-watch``. This long-running task will monitor your schema files and
+The easiest way to work with your schema in development is by running
+:gelcmd:`watch`. This long-running task will monitor your schema files and
 automatically apply schema changes in your database as you work.
 
 .. code-block:: bash
@@ -41,7 +41,7 @@ your codebase.
   .
   ├── dbschema
   │   └── default.esdl          # schema file (written by you)
-  └── edgedb.toml
+  └── gel.toml
 
 The schema itself is written using Gel's schema definition language. Edit
 your ``dbschema/default.esdl`` and add the following schema inside your

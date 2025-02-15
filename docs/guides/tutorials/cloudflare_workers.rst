@@ -82,7 +82,7 @@ to create a new instance:
 
     $ gel project init
 
-It creates an :code:`edgedb.toml` config file and a schema file
+It creates an |gel.toml| config file and a schema file
 :code:`dbschema/default.esdl`.
 
 It also spins up an Gel instance and associates it with the current
