@@ -147,7 +147,7 @@ Migration without iteration
 
 If you want to change the schema, but you already know exactly what you want to
 change and don't need to iterate on your schema — you want to lock in the
-migration right away — ``edgedb watch`` might not be the tool you reach for.
+migration right away — :gelcmd:`watch` might not be the tool you reach for.
 
 Instead, you might use this method:
 
@@ -207,10 +207,10 @@ We have a couple of options here. We could delete all the offending objects.
       default::Post {id: cc051bea-d9f5-11ed-a26d-2b64b6b273a4}
     }
 
-Now, if we save the schema again, ``edgedb watch`` will be able to apply it. If
+Now, if we save the schema again, :gelcmd:`watch` will be able to apply it. If
 we have data in here we don't want to lose though, that's not a good option. In
 that case, we might drop back to creating and applying the migration outside of
-``edgedb watch``.
+:gelcmd:`watch`.
 
 To start, run :gelcmd:`migration create`. The interactive plan generator will
 ask you for an EdgeQL expression to map the contents of your database to the
