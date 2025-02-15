@@ -190,9 +190,9 @@ pertaining to Gel. Currently it looks like this:
   ├── default.esdl
   └── migrations
 
-The ``default.esdl`` file will contain our schema. The ``migrations``
+The :dotgel:`default` file will contain our schema. The ``migrations``
 directory is currently empty, but will contain our migration files. Let's
-update the contents of ``default.esdl`` with the following simple blog schema.
+update the contents of :dotgel:`default` with the following simple blog schema.
 
 .. code-block:: sdl
 

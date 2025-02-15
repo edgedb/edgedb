@@ -432,6 +432,11 @@ class TestDocSnippets(unittest.TestCase):
         errors = []
 
         for filename in self.find_rest_files(docspath):
+            if '/docs/changelog/' in filename:
+                # changelog files contain a bunch of historical
+                # text that sometimes can't use the new stuff.
+                continue
+
             with open(filename, 'rt') as f:
                 source = f.readlines()
 
@@ -439,13 +444,18 @@ class TestDocSnippets(unittest.TestCase):
                 if '``edgedb://' in line:
                     errors.append(
                         f'{filename}:{lineno}: do not use ``edgedb://``, '
-                        f'use |geluri| for "gel://"or '
+                        f'use |geluri| for "gel://" and '
                         f':geluri:`blah` for "gel://blah"')
                 if '``gel://' in line:
                     errors.append(
                         f'{filename}:{lineno}: do not use ``gel://``, '
-                        f'use |geluri| for "gel://" or '
+                        f'use |geluri| for "gel://" and '
                         f':geluri:`blah` for "gel://blah"')
+
+                if '.esdl``' in line or '.gel``' in line:
+                    errors.append(
+                        f'{filename}:{lineno}: do not use ``filename.esdl`` '
+                        f'or ``filename.gel``, use :dotgel:`filename` instead')
 
         if errors:
             raise AssertionError(

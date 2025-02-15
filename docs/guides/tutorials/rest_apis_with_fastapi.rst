@@ -138,7 +138,7 @@ declarative schema definitions as *models*. In Gel we call them
 
 The schema lives inside |.gel| files in the ``dbschema`` directory. It's
 common to declare the entire schema in a single file
-``dbschema/default.esdl``. This file is created for you when you run
+:dotgel:`dbschema/default`. This file is created for you when you run
 :gelcmd:`project init`, but you'll need to fill it with your schema.
 This is what our datatypes look like:
 
@@ -218,7 +218,7 @@ database. To do that, first fire up the Gel console:
     $ gel
 
 In the console, type ``\ds`` (for "describe schema"). If everything worked, we
-should output very close to the schema we added in the ``default.esdl`` file:
+should output very close to the schema we added in the :dotgel:`default` file:
 
 ::
 
