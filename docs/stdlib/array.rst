@@ -41,6 +41,12 @@ Arrays
     * - :eql:func:`array_replace`
       - :eql:func-desc:`array_replace`
 
+    * - :eql:func:`array_set`
+      - :eql:func-desc:`array_set`
+
+    * - :eql:func:`array_insert`
+      - :eql:func-desc:`array_insert`
+
     * - :eql:func:`array_agg`
       - :eql:func-desc:`array_agg`
 
@@ -371,3 +377,44 @@ Reference
         {[99, 99, 2, 3, 5]}
         db> select array_replace(['h', 'e', 'l', 'l', 'o'], 'l', 'L');
         {['h', 'e', 'L', 'L', 'o']}
+
+
+----------
+
+
+.. eql:function:: std::array_set(array: array<anytype>, \
+                                 idx: int64, \
+                                 val: anytype) \
+                  -> array<anytype>
+
+    Returns an array with an value at a specific index replaced by another.
+
+    Return an array where the value at the index indicated by *idx* is
+    replaced with *val*.
+
+    .. code-block:: edgeql-repl
+
+        db> select array_set(['hello', 'world'], 0, 'goodbye');
+        {['goodbye', 'world']}
+        db> select array_set([1, 1, 2, 3], 1, 99);
+        {[1, 99, 2, 3]}
+
+
+----------
+
+
+.. eql:function:: std::array_insert(array: array<anytype>, \
+                                    idx: int64, \
+                                    val: anytype) \
+                  -> array<anytype>
+
+    Returns an array with an value inserted at a specific.
+
+    Return an array where the value *val* is inserted at the index indicated by *idx*.
+
+    .. code-block:: edgeql-repl
+
+        db> select array_insert(['the', 'brown', 'fox'], 1, 'quick');
+        {['the', 'quick', 'brown', 'fox']}
+        db> select array_insert([1, 1, 2, 3], 1, 99);
+        {[1, 99, 1, 2, 3]}
