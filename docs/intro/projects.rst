@@ -87,7 +87,7 @@ This command does a couple important things.
    ``migrations``, those migrations will be applied against the new instance.
 
 Every project maps one-to-one to a particular Gel instance. From
-inside a project directory, you can run ``edgedb project info`` to see
+inside a project directory, you can run :gelcmd:`project info` to see
 information about the current project.
 
 .. code-block:: bash

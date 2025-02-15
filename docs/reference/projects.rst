@@ -51,7 +51,7 @@ How does this help me?
 
 Once you've initialized a project, your project directory is *linked* to a
 particular instance. That means, you can run CLI commands without connection
-flags. For instance, ``edgedb -I my_instance migrate`` becomes simply ``edgedb
+flags. For instance, :gelcmd:`-I my_instance migrate` becomes simply ``edgedb
 migrate``. The CLI detects the existence of the |gel.toml| file, reads the
 current directory, and checks if it's associated with an existing project. If
 it is, it looks up the credentials of the linked instance (they're stored in a
@@ -144,7 +144,7 @@ How do I unlink a project?
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 If you want to remove the link between your project and its linked instance,
-run ``edgedb project unlink`` anywhere inside the project. This doesn't affect
+run :gelcmd:`project unlink` anywhere inside the project. This doesn't affect
 the instance, it continues running as before. After unlinking, can run ``edgedb
 project init`` inside project again to create or select a new instance.
 
