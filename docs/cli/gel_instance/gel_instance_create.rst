@@ -57,15 +57,16 @@ Options
     The new |Gel| instance name. Asked interactively if not specified.
 
 :cli:synopsis:`<branch-or-database-name>`
-    The default branch (or database pre-v5) name on the new instance. Defaults
-    to |main| or, when creating a pre-v5 instance, ``gel``.
+    The default |branch| name on the new instance. Defaults
+    to |main| or, when creating a pre-v5 instance, ``edgedb``.
 
 :cli:synopsis:`--nightly`
     Use the nightly server for this instance.
 
 :cli:synopsis:`--default-user=<default-user>`
     Specifies the default user name (created during initialization,
-    and saved in credentials file). Defaults to: ``gel``.
+    and saved in credentials file). Defaults to: ``admin``,
+    or, when creating a pre-v6 instance, ``edgedb``.
 
 :cli:synopsis:`--port=<port>`
     Specifies which port should the instance be configured on. By

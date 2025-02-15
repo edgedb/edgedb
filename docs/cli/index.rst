@@ -138,22 +138,22 @@ The ``cli.toml`` has the following structure. All fields are optional:
     gel_connopts
     network
     gel
-    gel_analyze
-    gel_branch/index
-    gel_configure
-    gel_cli_upgrade
-    gel_cloud/index
-    gel_database/index
-    gel_describe/index
-    gel_dump
-    gel_info
-    gel_instance/index
-    gel_list
-    gel_migrate
-    gel_migration/index
     gel_project/index
-    gel_query
-    gel_restore
-    gel_server/index
     gel_ui
     gel_watch
+    gel_migrate
+    gel_migration/index
+    gel_cloud/index
+    gel_branch/index
+    gel_dump
+    gel_restore
+    gel_configure
+    gel_query
+    gel_analyze
+    gel_list
+    gel_info
+    gel_cli_upgrade
+    gel_server/index
+    gel_describe/index
+    gel_instance/index
+    gel_database/index
