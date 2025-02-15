@@ -358,17 +358,17 @@ First, install the generator to your project.
 
 .. code-block:: bash
 
-  $ yarn add --dev @edgedb/generate
+  $ yarn add --dev @gel/generate
 
 Then generate the query builder with the following command.
 
 .. code-block:: bash
 
-  $ npx @edgedb/generate edgeql-js
+  $ npx @gel/generate edgeql-js
   Generating query builder...
   Detected tsconfig.json, generating TypeScript files.
      To override this, use the --target flag.
-     Run `npx @edgedb/generate --help` for full options.
+     Run `npx @gel/generate --help` for full options.
   Introspecting database schema...
   Writing files to ./dbschema/edgeql-js
   Generation complete! 🤘
@@ -597,7 +597,7 @@ database. Open a REPL and ``insert`` some blog posts:
 
 Add the following ``prebuild`` script to your ``package.json``. When Vercel
 initializes the build, it will trigger this script which will generate the
-query builder. The ``npx @edgedb/generate edgeql-js`` command will read the
+query builder. The ``npx @gel/generate edgeql-js`` command will read the
 value of the ``EDGEDB_DSN`` variable, connect to the database, and generate the
 query builder before Vercel starts building the project.
 
@@ -609,7 +609,7 @@ query builder before Vercel starts building the project.
       "build": "next build",
       "start": "next start",
       "lint": "next lint",
-  +   "prebuild": "npx @edgedb/generate edgeql-js"
+  +   "prebuild": "npx @gel/generate edgeql-js"
     },
 
 **#5 Deploy to Vercel**

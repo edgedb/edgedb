@@ -50,7 +50,7 @@ run during the build step on Heroku because it needs access to a running
 
 .. code-block:: bash
 
-   $ yarn install && npx @edgedb/generate edgeql-js
+   $ yarn install && npx @gel/generate edgeql-js
 
 The ``dbschema/edgeql-js`` directory was added to the ``.gitignore`` in the
 upstream project so we'll remove it here.

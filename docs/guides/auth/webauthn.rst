@@ -534,7 +534,7 @@ resulting credential or assertion to the server. Writing out the low-level
 handling of serialization and deserialization of the WebAuthn data is beyond the
 scope of this guide, but we publish a WebAuthn client library that you can use
 to simlify this process. The library is available on npm as part of our
-``@edgedb/auth-core`` library. Here is an example of how you might set up a form
+``@gel/auth-core`` library. Here is an example of how you might set up a form
 with appropriate click handlers to perform the WebAuthn sign in and sign up
 ceremonies.
 
@@ -542,7 +542,7 @@ ceremonies.
 
 .. code-block:: javascript
 
-  import { WebAuthnClient } from "@edgedb/auth-core/webauthn";
+  import { WebAuthnClient } from "@gel/auth-core/webauthn";
 
   const webAuthnClient = new WebAuthnClient({
     signupOptionsUrl: "http://localhost:3000/auth/webauthn/register/options",
