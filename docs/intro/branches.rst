@@ -63,7 +63,7 @@ to switch back to your ``main`` database branch and apply the new schema with
 :gelcmd:`migrate`.
 
 Once this is done, you can switch back to your feature branches in your VCS and
-EdgeDB.
+|Gel|.
 
 
 4. Rebase your feature branch on ``main``

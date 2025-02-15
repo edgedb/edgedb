@@ -40,7 +40,7 @@ Precision
 
 This means that if language-native type have a bigger precision such as
 nanosecond, client library has to round that timestamp when encoding it for
-EdgeDB.
+|Gel|.
 
 We use **rouding to the nearest even** for that operation. Here are some
 examples of timetamps with high precision, and how they are stored in the

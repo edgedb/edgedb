@@ -5,7 +5,7 @@ Environment Variables
 
 The behavior of Gel can be configured with environment variables. The
 variables documented on this page are supported when using the
-``edgedb-server`` tool and the official :ref:`Docker image
+|gel-server| tool and the official :ref:`Docker image
 <ref_guide_deployment_docker>`.
 
 
@@ -79,7 +79,7 @@ if this is set.
 EDGEDB_SERVER_BINARY
 ....................
 
-Sets the Gel server binary to run. Default is ``edgedb-server``.
+Sets the Gel server binary to run. Default is |gel-server|.
 
 
 EDGEDB_SERVER_BOOTSTRAP_COMMAND_FILE
@@ -226,7 +226,7 @@ EDGEDB_SERVER_ADMIN_UI
 
 Set to ``enabled`` to enable the web-based admininstrative UI for the instance.
 
-Maps directly to the ``edgedb-server`` flag ``--admin-ui``.
+Maps directly to the |gel-server| flag ``--admin-ui``.
 
 
 EDGEDB_SERVER_ALLOW_INSECURE_BINARY_CLIENTS
@@ -268,7 +268,7 @@ Specifies a PostgreSQL connection string in the `URI format`_.  If set, the
 PostgreSQL cluster specified by the URI is used instead of the builtin
 PostgreSQL server.  Cannot be specified alongside ``EDGEDB_SERVER_DATADIR``.
 
-Maps directly to the ``edgedb-server`` flag ``--backend-dsn``. The ``*_FILE``
+Maps directly to the |gel-server| flag ``--backend-dsn``. The ``*_FILE``
 and ``*_ENV`` variants are also supported.
 
 .. _URI format:
@@ -298,7 +298,7 @@ EDGEDB_SERVER_BIND_ADDRESS
 
 Specifies the network interface on which Gel will listen.
 
-Maps directly to the ``edgedb-server`` flag ``--bind-address``. The ``*_FILE``
+Maps directly to the |gel-server| flag ``--bind-address``. The ``*_FILE``
 and ``*_ENV`` variants are also supported.
 
 
@@ -344,7 +344,7 @@ Useful to fine-tune initial user creation and other initial setup.
         create branches and still run other EdgeQL statements to bootstrap your
         instance.
 
-Maps directly to the ``edgedb-server`` flag ``--bootstrap-command``. The
+Maps directly to the |gel-server| flag ``--bootstrap-command``. The
 ``*_FILE`` and ``*_ENV`` variants are also supported.
 
 
@@ -363,7 +363,7 @@ Specifies a path where the database files are located.  Default is
 ``/var/lib/edgedb/data``.  Cannot be specified alongside
 ``EDGEDB_SERVER_BACKEND_DSN``.
 
-Maps directly to the ``edgedb-server`` flag ``--data-dir``.
+Maps directly to the |gel-server| flag ``--data-dir``.
 
 
 EDGEDB_SERVER_DEFAULT_AUTH_METHOD
@@ -419,7 +419,7 @@ EDGEDB_SERVER_PORT
 
 Specifies the network port on which Gel will listen. Default is ``5656``.
 
-Maps directly to the ``edgedb-server`` flag ``--port``. The ``*_FILE`` and
+Maps directly to the |gel-server| flag ``--port``. The ``*_FILE`` and
 ``*_ENV`` variants are also supported.
 
 
@@ -434,7 +434,7 @@ Specifies a PostgreSQL connection string in the `URI format`_.  If set, the
 PostgreSQL cluster specified by the URI is used instead of the builtin
 PostgreSQL server.  Cannot be specified alongside ``EDGEDB_SERVER_DATADIR``.
 
-Maps directly to the ``edgedb-server`` flag ``--backend-dsn``. The ``*_FILE``
+Maps directly to the |gel-server| flag ``--backend-dsn``. The ``*_FILE``
 and ``*_ENV`` variants are also supported.
 
 .. _URI format:
@@ -447,7 +447,7 @@ EDGEDB_SERVER_RUNSTATE_DIR
 Specifies a path where Gel will place its Unix socket and other transient
 files.
 
-Maps directly to the ``edgedb-server`` flag ``--runstate-dir``.
+Maps directly to the |gel-server| flag ``--runstate-dir``.
 
 
 EDGEDB_SERVER_SECURITY
@@ -462,7 +462,7 @@ set, the server will accept plaintext HTTP connections.
 
     Disabling TLS is not recommended in production.
 
-Maps directly to the ``edgedb-server`` flag ``--security``.
+Maps directly to the |gel-server| flag ``--security``.
 
 
 EDGEDB_SERVER_TLS_CERT_FILE/EDGEDB_SERVER_TLS_KEY_FILE
@@ -471,7 +471,7 @@ EDGEDB_SERVER_TLS_CERT_FILE/EDGEDB_SERVER_TLS_KEY_FILE
 The TLS certificate and private key files, exclusive with
 ``EDGEDB_SERVER_TLS_CERT_MODE=generate_self_signed``.
 
-Maps directly to the ``edgedb-server`` flags ``--tls-cert-file`` and
+Maps directly to the |gel-server| flags ``--tls-cert-file`` and
 ``--tls-key-file``.
 
 
@@ -496,5 +496,5 @@ Default is ``generate_self_signed`` when
 ``EDGEDB_SERVER_SECURITY=insecure_dev_mode``. Otherwise, the default is
 ``require_file``.
 
-Maps directly to the ``edgedb-server`` flag ``--tls-cert-mode``. The ``*_FILE``
+Maps directly to the |gel-server| flag ``--tls-cert-mode``. The ``*_FILE``
 and ``*_ENV`` variants are also supported.
