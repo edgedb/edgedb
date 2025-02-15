@@ -135,25 +135,25 @@ The ``cli.toml`` has the following structure. All fields are optional:
     :maxdepth: 3
     :hidden:
 
-    edgedb_connopts
+    gel_connopts
     network
-    edgedb
-    edgedb_analyze
-    edgedb_branch/index
-    edgedb_configure
-    edgedb_cli_upgrade
-    edgedb_cloud/index
-    edgedb_database/index
-    edgedb_describe/index
-    edgedb_dump
-    edgedb_info
-    edgedb_instance/index
-    edgedb_list
-    edgedb_migrate
-    edgedb_migration/index
-    edgedb_project/index
-    edgedb_query
-    edgedb_restore
-    edgedb_server/index
-    edgedb_ui
-    edgedb_watch
+    gel
+    gel_analyze
+    gel_branch/index
+    gel_configure
+    gel_cli_upgrade
+    gel_cloud/index
+    gel_database/index
+    gel_describe/index
+    gel_dump
+    gel_info
+    gel_instance/index
+    gel_list
+    gel_migrate
+    gel_migration/index
+    gel_project/index
+    gel_query
+    gel_restore
+    gel_server/index
+    gel_ui
+    gel_watch

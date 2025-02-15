@@ -13,9 +13,9 @@ offers tools to manage your instances running on our Gel Cloud.
     :maxdepth: 3
     :hidden:
 
-    edgedb_cloud_login
-    edgedb_cloud_logout
-    edgedb_cloud_secretkey/index
+    gel_cloud_login
+    gel_cloud_logout
+    gel_cloud_secretkey/index
 
 .. list-table::
     :class: funcoptable

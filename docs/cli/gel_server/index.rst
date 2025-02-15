@@ -11,10 +11,10 @@ for managing |Gel| server versions.
     :maxdepth: 3
     :hidden:
 
-    edgedb_server_info
-    edgedb_server_install
-    edgedb_server_list_versions
-    edgedb_server_uninstall
+    gel_server_info
+    gel_server_install
+    gel_server_list_versions
+    gel_server_uninstall
 
 .. list-table::
     :class: funcoptable

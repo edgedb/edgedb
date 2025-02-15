@@ -15,13 +15,13 @@ Using the migration tools is the recommended way to make schema changes.
     :maxdepth: 3
     :hidden:
 
-    edgedb_migration_apply
-    edgedb_migration_create
-    edgedb_migration_edit
-    edgedb_migration_extract
-    edgedb_migration_log
-    edgedb_migration_status
-    edgedb_migration_upgrade_check
+    gel_migration_apply
+    gel_migration_create
+    gel_migration_edit
+    gel_migration_extract
+    gel_migration_log
+    gel_migration_status
+    gel_migration_upgrade_check
 
 Setup
 =====

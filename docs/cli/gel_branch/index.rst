@@ -12,14 +12,14 @@ tools.
     :maxdepth: 3
     :hidden:
 
-    edgedb_branch_create
-    edgedb_branch_drop
-    edgedb_branch_list
-    edgedb_branch_merge
-    edgedb_branch_rebase
-    edgedb_branch_rename
-    edgedb_branch_switch
-    edgedb_branch_wipe
+    gel_branch_create
+    gel_branch_drop
+    gel_branch_list
+    gel_branch_merge
+    gel_branch_rebase
+    gel_branch_rename
+    gel_branch_switch
+    gel_branch_wipe
 
 .. list-table::
     :class: funcoptable
