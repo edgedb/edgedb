@@ -41,7 +41,7 @@ Linux
     .. code-tab:: bash
         :caption: Script
 
-        $ curl https://sh.edgedb.com --proto '=https' -sSf1 | sh
+        $ curl https://geldata.com/sh --proto '=https' -sSf1 | sh
 
     .. code-tab:: bash
         :caption: APT
@@ -77,7 +77,7 @@ macOS
     .. code-tab:: bash
         :caption: Script
 
-        $ curl https://sh.edgedb.com --proto '=https' -sSf1 | sh
+        $ curl https://geldata.com/sh --proto '=https' -sSf1 | sh
 
     .. code-tab:: bash
         :caption: Homebrew
@@ -100,7 +100,7 @@ Windows (Powershell)
 
 .. code-block:: powershell
 
-    PS> iwr https://ps1.edgedb.com -useb | iex
+    PS> iwr https://geldata.com/ps1 -useb | iex
 
 .. note:: Command prompt installation
 
