@@ -68,8 +68,7 @@ database::
 Note as described in :ref:`datetime protocol documentation
 <ref_protocol_fmt_datetime>` the value is encoded as a *signed* microseconds
 delta since a fixed time. Some care must be taken when rounding negative
-microsecond values. See `tests for Rust implementation`_ for a good set of
-test cases.
+microsecond values.
 
 Rounding to the nearest even applies to all operations that client libraries
 perform, in particular:
@@ -84,9 +83,3 @@ perform, in particular:
    back (depending on the difference in precision)
 4. Parsing a string to an Gel specific type (this operation is optional to
    implement, but if it is implemented, it must obey the rules)
-
-.. lint-off
-
-.. _tests for Rust implementation: https://github.com/edgedb/edgedb-rust/tree/master/edgedb-protocol/tests/datetime_chrono.rs
-
-.. lint-on

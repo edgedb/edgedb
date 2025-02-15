@@ -37,7 +37,7 @@ and connect to its linked instance with no additional configuration.
 .. code-block:: typescript
 
     // clientTest.js
-    import {createClient} from 'edgedb';
+    import {createClient} from 'gel';
 
     const client = createClient();
     await client.query("select 5");
@@ -66,7 +66,7 @@ inside it. You'll see something like this:
   Applying migrations...
   Everything is up to date. Revision initial
   Project initialized.
-  To connect to my_instance, run `edgedb`
+  To connect to my_instance, run `gel`
 
 This command does a couple important things.
 
@@ -77,8 +77,8 @@ This command does a couple important things.
 
    .. code-block:: toml
 
-     [edgedb]
-     server-version = "4.1"
+     [instance]
+     server-version = "6.0"
 
 3. If no ``dbschema`` directory exists, it will be created, along with an
    empty :dotgel:`default` file which will contain your schema. If a
@@ -110,7 +110,7 @@ executed against the project-linked instance. For instance, you can simply run
   $ gel
   Gel x.x+cc4f3b5 (repl x.x+da2788e)
   Type \help for help, \quit to quit.
-  my_instance:edgedb> select "Hello world!";
+  my_instance:main> select "Hello world!";
 
 By contrast, if you leave the project directory, the CLI will no longer know
 which instance to connect to. You can solve this by specifing an instance name
@@ -121,12 +121,12 @@ with the ``-I`` flag.
   $ cd ~
   $ gel
   gel error: no `gel.toml` found and no connection options are specified
-    Hint: Run `edgedb project init` or use any of `-H`, `-P`, `-I` arguments to
+    Hint: Run `gel project init` or use any of `-H`, `-P`, `-I` arguments to
     specify connection parameters. See `--help` for details
   $ gel -I my_instance
   Gel x.x+cc4f3b5 (repl x.x+da2788e)
   Type \help for help, \quit to quit.
-  my_instance:edgedb>
+  my_instance:main>
 
 Similarly, client libraries will auto-connect to the project's
 linked instance without additional configuration.
@@ -148,18 +148,18 @@ instance using :gelcmd:`instance link`, like so:
   > 192.168.4.2
   Specify server port [default: 5656]:
   > 10818
-  Specify database user [default: edgedb]:
-  > edgedb
+  Specify database user [default: admin]:
+  > admin
   Specify branch [default: main]:
-  > edgedb
+  > main
   Unknown server certificate: SHA1:c38a7a90429b033dfaf7a81e08112a9d58d97286.
   Trust? [y/N]
   > y
-  Password for 'edgedb':
+  Password for 'admin':
   Specify a new instance name for the remote server [default: abcd]:
   > staging_db
   Successfully linked to remote instance. To connect run:
-    edgedb -I staging_db
+    gel -I staging_db
 
 .. lint-on
 

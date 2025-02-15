@@ -445,7 +445,7 @@ We'll walk through what we'll add to it, one step at a time. First, add this at
 the top of the file (above ``module default {``):
 
 .. code-block:: sdl
-    :caption: dbschema/default.esdl
+    :caption: dbschema/default.gel
 
     using extension pgvector;
     module default {
@@ -465,7 +465,7 @@ Just below that, we can start building our module by creating a new scalar
 type.
 
 .. code-block:: sdl
-    :caption: dbschema/default.esdl
+    :caption: dbschema/default.gel
 
     using extension pgvector;
     module default {
@@ -487,7 +487,7 @@ in our schema for this custom scalar.
 Now, the ``Section`` type:
 
 .. code-block:: sdl
-    :caption: dbschema/default.esdl
+    :caption: dbschema/default.gel
 
     using extension pgvector;
     module default {
@@ -524,7 +524,7 @@ index.
 Put that all together, and your entire schema file should look like this:
 
 .. code-block:: sdl
-    :caption: dbschema/default.esdl
+    :caption: dbschema/default.gel
 
     using extension pgvector;
 
@@ -570,7 +570,7 @@ We apply this schema by creating and running a migration.
     to support this:
 
     .. code-block:: sdl-diff
-        :caption: dbschema/default.esdl
+        :caption: dbschema/default.gel
 
           type Section {
         +   required path: str {

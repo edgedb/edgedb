@@ -104,7 +104,7 @@ of the ``Movie`` type exclusive. This will help with filtering by
 ``Movie.title`` in our queries.
 
 .. code-block:: sdl-diff
-  :caption: dbschema/default.esdl
+  :caption: dbschema/default.gel
 
     module default {
       type Person {

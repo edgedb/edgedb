@@ -189,7 +189,7 @@ pertaining to Gel. Currently it looks like this:
 .. code-block::
 
   dbschema
-  ├── default.esdl
+  ├── default.gel
   └── migrations
 
 The :dotgel:`default` file will contain our schema. The ``migrations``
@@ -197,7 +197,7 @@ directory is currently empty, but will contain our migration files. Let's
 update the contents of :dotgel:`default` with the following simple blog schema.
 
 .. code-block:: sdl
-  :caption: dbschema/default.esdl
+  :caption: dbschema/default.gel
 
   module default {
     type BlogPost {
