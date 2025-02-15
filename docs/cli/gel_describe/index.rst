@@ -21,4 +21,4 @@ introspection tools.
     * - :ref:`ref_cli_gel_describe_object`
       - Describe a named schema object
     * - :ref:`ref_cli_gel_describe_schema`
-      - Describe schema of the current database branch (or database pre-v5)
+      - Describe schema of the current database |branch|

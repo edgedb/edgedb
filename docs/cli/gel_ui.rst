@@ -35,7 +35,7 @@ table.
 Options
 =======
 
-The ``ui`` command runs on the database it is connected to. For specifying the
+The ``ui`` command runs on the |branch| it is connected to. For specifying the
 connection target see :ref:`connection options <ref_cli_gel_connopts>`.
 
 :cli:synopsis:`--print-url`

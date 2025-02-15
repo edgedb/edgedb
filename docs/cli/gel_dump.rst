@@ -5,7 +5,7 @@
 gel dump
 ========
 
-Backup a |Gel| branch (or database pre-v5) to a file.
+Backup a |Gel| |branch| to a file.
 
 .. cli:synopsis::
 
@@ -15,8 +15,7 @@ Backup a |Gel| branch (or database pre-v5) to a file.
 Options
 =======
 
-The ``dump`` command creates a backup of the currently active database branch
-or, in pre-v5 instances, the currently connected database.
+The ``dump`` command creates a backup of the currently active database |branch|.
 For specifying the connection target see :ref:`connection options
 <ref_cli_gel_connopts>`.
 
@@ -24,7 +23,7 @@ For specifying the connection target see :ref:`connection options
     The name of the file to backup the database branch into.
 
 :cli:synopsis:`--all`
-    Dump all branches (databases pre-v5) and the server configuration using the
+    Dump all |branches| and the server configuration using the
     directory specified by the :cli:synopsis:`<path>`.
 
 :cli:synopsis:`--format=<format>`

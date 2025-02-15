@@ -80,11 +80,6 @@ Options
     Defaults to the value of the :gelenv:`USER` environment variable, or,
     if not set, to the login name of the current OS user.
 
-:cli:synopsis:`-d <dbname>, --database=<dbname>`
-    Specifies the name of the database to connect to. Default to the value
-    of the :gelenv:`DATABASE` environment variable, or, if not set, to
-    the calculated value of :cli:synopsis:`<username>`.
-
 :cli:synopsis:`-b <branch-name>, --branch=<branch-name>`
     Specifies the name of the branch to connect to. Default to the value
     of the :gelenv:`BRANCH` environment variable, or, if not set, to
@@ -234,8 +229,7 @@ Data Operations
   Dump current database branch to a file at *FILENAME*.
 
 :cli:synopsis:`\\restore FILENAME`
-  Restore the database dump at *FILENAME* into the current branch (or currently
-  connected database for pre-v5).
+  Restore the database dump at *FILENAME* into the current |branch|.
 
 Editing
 -------
@@ -273,9 +267,8 @@ without first entering the |Gel| shell. Their counterpart commands are noted
 and linked in their descriptions if you want more detail.
 
 :cli:synopsis:`\\migration create`
-  Create a migration script based on differences between the current branch (or
-  database for pre-v5) and the schema file, just like running
-  :ref:`ref_cli_gel_migration_create`.
+  Create a migration script based on differences between the current |branch|
+   and the schema file, just like running :ref:`ref_cli_gel_migration_create`.
 
 :cli:synopsis:`\\migrate, \\migration apply`
   Apply your migration, just like running the

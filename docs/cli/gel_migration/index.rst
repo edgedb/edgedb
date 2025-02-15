@@ -40,7 +40,7 @@ single SDL document.
     :class: funcoptable
 
     * - :ref:`ref_cli_gel_migration_apply`
-      - Bring current branch (or database pre-v5) to the latest or a specified revision
+      - Bring current |branch| to the latest or a specified revision
     * - :ref:`ref_cli_gel_migration_create`
       - Create a migration script
     * - :ref:`ref_cli_gel_migration_edit`

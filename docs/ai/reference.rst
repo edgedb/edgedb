@@ -63,7 +63,7 @@ via EdgeQL:
 
 .. code-block:: edgeql
 
-    configure current database
+    configure current branch
     insert ext::ai::OpenAIProviderConfig {
       secret := 'sk-....',
     };
