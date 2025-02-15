@@ -124,7 +124,7 @@ This is how our datatypes look:
 
 .. code-block:: sdl
 
-    # dbschema/default.esdl
+    # dbschema/default.gel
 
     module default {
       abstract type Auditable {

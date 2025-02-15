@@ -638,7 +638,7 @@ fact that they will only occur in certain objects.
 Detached
 --------
 
-Sometimes you need to "detach" a set reference from the current scope. (Read the `reference docs <https://www.edgedb.com/docs/reference/edgeql/with#detached>`_ for details.) You can achieve this in the query builder with the top-level ``e.detached`` function.
+Sometimes you need to "detach" a set reference from the current scope. (Read the `reference docs <ref_edgeql_with_detached>`_ for details.) You can achieve this in the query builder with the top-level ``e.detached`` function.
 
 .. code-block:: typescript
 

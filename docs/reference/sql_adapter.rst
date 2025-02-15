@@ -6,8 +6,6 @@
 SQL adapter
 ===========
 
-.. edb:youtube-embed:: 0KdY2MPb2oc
-
 Connecting
 ==========
 
@@ -35,7 +33,7 @@ for the database.
 
     .. code-block:: bash
 
-        $ psql -h localhost -p 10701 -U edgedb -d main
+        $ psql -h localhost -p 10701 -U admin -d main
 
     You'll then be prompted for a password. If you don't have it, you can run
     :gelcmd:`instance credentials --insecure-dsn` and grab it out of the DSN
@@ -52,7 +50,7 @@ for the database.
 
     .. code-block:: edgeql-repl
 
-        db> alter role edgedb {
+        db> alter role admin {
         ...   set password := 'my-password'
         ... };
         OK: ALTER ROLE
@@ -86,17 +84,9 @@ name as your user name when you connect via your SQL client.
       set password := 'your-password'
     };
 
-.. versionchanged:: _default
+.. code-block:: bash
 
-    .. code-block:: bash
-
-        $ psql -h localhost -p 10701 -U sql -d edgedb
-
-.. versionchanged:: 5.0
-
-    .. code-block:: bash
-
-        $ psql -h localhost -p 10701 -U sql -d main
+    $ psql -h localhost -p 10701 -U sql -d main
 
 In this example, when prompted for the password, you would enter
 ``your-password``.
@@ -563,4 +553,4 @@ for the client language of choice. The ORM-based code can now also be gradually
 rewritten to use EdgeQL, one model at the time.
 
 For a detailed migration example, see repository
-`edgedb/hibernate-example <https://github.com/edgedb/hibernate-example>`_.
+`geldata/hibernate-example <https://github.com/geldata/hibernate-example>`_.

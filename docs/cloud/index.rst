@@ -37,7 +37,7 @@ better!
 * Please join us on `our Discord <https://discord.gg/umUueND6ag>`_  to ask
   questions.
 * If you're experiencing a service interruption, check `our status page
-  <https://www.edgedbstatus.com/>`_ for information on what may be
+  <https://www.gelstatus.com/>`_ for information on what may be
   causing it.
 * Report any bugs you find by `submitting a support ticket
   <https://www.geldata.com/p/cloud-support>`_. Note: when using |Gel| Cloud

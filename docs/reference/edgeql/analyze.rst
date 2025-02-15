@@ -58,5 +58,5 @@ Example
   :class: seealso
 
   * - **See also**
-  * - :ref:`CLI > edgedb analyze <ref_cli_gel_analyze>`
+  * - :ref:`CLI > gel analyze <ref_cli_gel_analyze>`
   * - :ref:`EdgeQL > Analyze <ref_eql_analyze>`

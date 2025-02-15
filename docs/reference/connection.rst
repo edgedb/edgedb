@@ -60,7 +60,7 @@ Let's dig into each of these a bit more.
   <ref_cli_gel_paths>`. The CLI and client libraries look up these
   credentials to connect.
 
-  You can also assign names to remote instances using :ref:`edgedb instance
+  You can also assign names to remote instances using :ref:`gel instance
   link <ref_cli_gel_instance_link>`. The CLI will save the credentials
   locally, so you can connect to a remote instance using just its name, just
   like a local instance.
@@ -96,25 +96,11 @@ Let's dig into each of these a bit more.
   All components of the DSN are optional; technically |geluri| is a valid
   DSN. The unspecified values will fall back to their defaults:
 
-  .. versionchanged:: _default
-
-    .. code-block::
-
-      Host: "localhost"
-      Port: 5656
-      User: "edgedb"
-      Password: null
-      Database name: "edgedb"
-
-  .. versionchanged:: 5.0
-
-    .. code-block::
-
-      Host: "localhost"
-      Port: 5656
-      User: "edgedb"
-      Password: null
-      Branch name: "main"
+  * Host: ``"localhost"``
+  * Port: ``5656``
+  * User: |admin|
+  * Password: ``null``
+  * Branch name: |main|
 
   DSNs also accept query parameters to support advanced use cases. Read the
   :ref:`DSN Specification <ref_dsn>` reference for details.
@@ -134,31 +120,16 @@ Let's dig into each of these a bit more.
   file into version control could present a security risk and is not
   recommended.
 
-  .. versionchanged:: _default
+  .. code-block:: json
 
-    .. code-block:: json
-
-      {
-        "host": "localhost",
-        "port": 10702,
-        "user": "testuser",
-        "password": "testpassword",
-        "database": "edgedb",
-        "tls_cert_data": "-----BEGIN CERTIFICATE-----\nabcdef..."
-      }
-
-  .. versionchanged:: 5.0
-
-    .. code-block:: json
-
-      {
-        "host": "localhost",
-        "port": 10702,
-        "user": "testuser",
-        "password": "testpassword",
-        "branch": "main",
-        "tls_cert_data": "-----BEGIN CERTIFICATE-----\nabcdef..."
-      }
+    {
+      "host": "localhost",
+      "port": 10702,
+      "user": "testuser",
+      "password": "testpassword",
+      "branch": "main",
+      "tls_cert_data": "-----BEGIN CERTIFICATE-----\nabcdef..."
+    }
 
   Relative paths are resolved relative to the current working directory.
 
@@ -171,7 +142,7 @@ Let's dig into each of these a bit more.
   instance's credentials, and connect automatically.
 
   For more information on how this works, check out the `release post
-  <https://www.edgedb.com/blog/introducing-edgedb-projects>`_ for :gelcmd:`project`.
+  <https://www.geldata.com/blog/introducing-edgedb-projects>`_ for :gelcmd:`project`.
 
 .. _ref_reference_connection_priority:
 
@@ -195,9 +166,9 @@ for production), or rely on :gelcmd:`project` (recommended for development).
 
    .. code-block:: javascript
 
-      import * as edgedb from "edgedb";
+      import * as gel from "gel";
 
-      const pool = await edgedb.createClient({
+      const pool = await gel.createClient({
         instance: "my_instance"
       });
 
@@ -239,7 +210,7 @@ for production), or rely on :gelcmd:`project` (recommended for development).
 
    .. code-block:: javascript
 
-      import { createClient } from "edgedb";
+      import { createClient } from "gel";
 
       const client = createClient();
       const result = await client.querySingle("select 2 + 2;");

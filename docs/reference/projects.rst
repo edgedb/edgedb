@@ -64,10 +64,10 @@ required.
 
 .. code-block:: typescript-diff
 
-      import edgedb from "edgedb";
+      import gel from "gel";
 
-    - const pool = edgedb.createPool("my_instance");
-    + const pool = edgedb.createPool();
+    - const pool = gel.createPool("my_instance");
+    + const pool = gel.createPool();
 
 What do you mean *link*?
 ^^^^^^^^^^^^^^^^^^^^^^^^
@@ -186,17 +186,17 @@ the remote Gel instance first:
   > 192.168.4.2
   Specify the port of the server [default: 5656]:
   > 10818
-  Specify the database user [default: edgedb]:
-  > edgedb
-  Specify the database name [default: edgedb]:
-  > edgedb
+  Specify the database user [default: admin]:
+  > admin
+  Specify the branch name [default: main]:
+  > main
   Unknown server certificate: SHA1:c38a7a90429b033dfaf7a81e08112a9d58d97286. Trust? [y/N]
   > y
-  Password for 'edgedb':
+  Password for 'admin':
   Specify a new instance name for the remote server [default: 192_168_4_2_10818]:
   > staging_db
   Successfully linked to remote instance. To connect run:
-    edgedb -I staging_db
+    gel -I staging_db
 
 .. lint-on
 

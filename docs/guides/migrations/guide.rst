@@ -873,13 +873,13 @@ that the schema can't be resolved:
 .. code-block::
 
     error: type 'default::i32' does not exist
-    ┌─ myproject/dbschema/default.esdl:5:25
+    ┌─ myproject/dbschema/default.gel:5:25
     │
     5 │         wrong_property: i32;
     │                         ^^^ error
 
     Schema migration error:
-    cannot proceed until .esdl files are fixed
+    cannot proceed until .gel files are fixed
 
 Once you correct the ``i32`` type to ``int32``, you will see a message
 letting you know that things are okay now.
