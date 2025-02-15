@@ -433,8 +433,8 @@ times!
 .. image:: images/ui_landing.jpg
   :width: 100%
 
-Currently, there's only one branch, which is simply called ``main`` by
-default. Click the ``main`` card.
+Currently, there's only one branch, which is simply called |main| by
+default. Click the |main| card.
 
 .. image:: images/ui_db.jpg
   :width: 100%

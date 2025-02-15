@@ -392,7 +392,7 @@ provide those values and the ``additional_scope``:
 
 You'll also need to set a callback URL in each provider's interface. To build
 this callback URL, you will need the hostname, port, and branch name of your
-database. The branch name is ``main`` by default. The hostname and port can
+database. The branch name is |main| by default. The hostname and port can
 be found running this CLI command:
 
 .. code-block:: bash

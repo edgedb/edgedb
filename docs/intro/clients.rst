@@ -424,13 +424,10 @@ Most commonly for self-hosted remote instances, you set a value for the
   directory, the environment variables will take precedence.
 
 A DSN is also known as a "connection string" and takes the
-following form.
+following form: :geluri:`<username>:<password>@<hostname>:<port>`.
 
-.. code-block::
 
-  edgedb://<username>:<password>@<hostname>:<port>
-
-Each element of the DSN is optional; in fact ``edgedb://`` is a technically a
+Each element of the DSN is optional; in fact |geluri| is a technically a
 valid DSN. Any unspecified element will default to the following values.
 
 .. list-table::
@@ -445,10 +442,7 @@ valid DSN. Any unspecified element will default to the following values.
     -  ``null``
 
 A typical DSN may look like this:
-
-.. code-block::
-
-  edgedb://username:pas$$word@db.domain.com:8080
+:geluri:`admin:PASSWORD@db.domain.com:8080`.
 
 DSNs can also contain the following query parameters.
 
@@ -456,7 +450,7 @@ DSNs can also contain the following query parameters.
 
   * - ``branch``
     - The database branch to connect to within the given instance. Defaults to
-      ``main``.
+      |main|.
 
   * - ``tls_security``
     - The TLS security mode. Accepts the following values.
@@ -471,11 +465,8 @@ DSNs can also contain the following query parameters.
       self-signed certificate.
 
 These parameters can be added to any DSN using web-standard query string
-notation.
+notation: :geluri:`user:pass@example.com:8080?branch=my_branch&tls_security=insecure`.
 
-.. code-block::
-
-  edgedb://user:pass@example.com:8080?branch=my_branch&tls_security=insecure
 
 For a more comprehensive guide to DSNs, see the :ref:`DSN Specification
 <ref_dsn>`.

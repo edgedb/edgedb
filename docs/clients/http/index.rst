@@ -39,7 +39,7 @@ Your instance can now receive EdgeQL queries over HTTP at
     - Find the ``port`` by running :gelcmd:`instance list`. This will print a
       table of all |Gel| instances on your machine, including their associated
       port number.
-    - The default ``branch-name`` will be ``main``, and after initializing
+    - The default ``branch-name`` will be |main|, and after initializing
       your database, all queries are executed against it by default. If you
       want to query another branch instead, simply use that branch name
       in the URL.

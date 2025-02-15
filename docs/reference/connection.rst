@@ -90,25 +90,10 @@ Let's dig into each of these a bit more.
   convenient and flexible way to specify connection information with a simple
   string. It takes the following form:
 
-  .. versionchanged:: _default
+  * :geluri:`USERNAME:PASSWORD@HOSTNAME:PORT/BRANCH`
+  * e.g.: :geluri:`alice:pa$$w0rd@example.com:1234/my_branch`
 
-    .. code-block::
-
-      edgedb://USERNAME:PASSWORD@HOSTNAME:PORT/DATABASE
-
-      # example
-      edgedb://alice:pa$$w0rd@example.com:1234/my_db
-
-  .. versionchanged:: 5.0
-
-    .. code-block::
-
-      edgedb://USERNAME:PASSWORD@HOSTNAME:PORT/BRANCH
-
-      # example
-      edgedb://alice:pa$$w0rd@example.com:1234/my_branch
-
-  All components of the DSN are optional; technically ``edgedb://`` is a valid
+  All components of the DSN are optional; technically |geluri| is a valid
   DSN. The unspecified values will fall back to their defaults:
 
   .. versionchanged:: _default
@@ -325,12 +310,9 @@ instance-level configuration object.
 
 **EDGEDB_BRANCH**
   Each Gel *instance* can be branched multiple times. When an instance is
-  created, a default branch named ``main`` is created. For CLI-managed
+  created, a default branch named |main| is created. For CLI-managed
   instances, connections are made to the currently active branch. In other
-  cases, incoming connections connect to the ``main`` branch by default.
-
-  Note, that for |EdgeDB| versions prior to 5, the default branch is
-  ``edgedb`` (and branches were called "databases").
+  cases, incoming connections connect to the |main| branch by default.
 
 **EDGEDB_USER/EDGEDB_PASSWORD**
   These are the credentials of the database user account to connect to the
@@ -390,13 +372,13 @@ environment variables:
 
 .. code-block::
 
-  EDGEDB_DSN=edgedb://olduser:oldpass@hostname.com:5656
+  EDGEDB_DSN=gel://olduser:oldpass@hostname.com:5656
   EDGEDB_USER=newuser
   EDGEDB_PASSWORD=newpass
 
 In this scenario, ``newuser`` will override ``olduser`` and ``newpass``
 will override ``oldpass``. The client library will try to connect using this
-modified DSN: ``edgedb://newuser:newpass@hostname.com:5656``.
+modified DSN: :geluri:`newuser:newpass@hostname.com:5656`.
 
 Overriding across priority levels
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -413,8 +395,8 @@ instance:
 
   .. code-block:: bash
 
-     $ edgedb --dsn edgedb://username:oldpass@hostname.com --password qwerty
-     # connects to edgedb://username:qwerty@hostname.com
+     $ edgedb --dsn gel://username:oldpass@hostname.com --password qwerty
+     # connects to gel://username:qwerty@hostname.com
 
 - ``EDGEDB_PASSWORD`` **will** override the stored password associated
   with a project-linked instance. (This is unlikely to be desirable.)

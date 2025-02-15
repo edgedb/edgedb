@@ -63,28 +63,26 @@ Connection flags
 :cli:synopsis:`-u <username>, --user=<username>`
     Connect to the database as the user :cli:synopsis:`<username>`.
     Defaults to the value of the ``EDGEDB_USER`` environment variable, or,
-    if not set, ``admin``.
-
-:cli:synopsis:`-d <dbname>, --database=<dbname>`
-    Specifies the name of the database to connect to. Defaults to the value of
-    the ``EDGEDB_DATABASE`` environment variable. If that variable isn't set,
-    local instances will default to ``main`` (``edgedb`` for |EdgeDB| <= 50)
-    while remote instances will default to the name provided when the link
-    was created. This also includes |Gel| Cloud instance links created via
-    :ref:`ref_cli_edgedb_project_init`.
-
-    .. note::
-
-        With |Gel| 5, databases were refactored as branches. If you're using
-        |Gel| 5+, use the option below instead of this one.
+    if not set, |admin|.
 
 :cli:synopsis:`-b <branch_name>, --branch=<branch_name>`
     Specifies the name of the branch to connect to. Defaults to the value of
     the ``EDGEDB_BRANCH`` environment variable. If that variable isn't set,
     local instances will default to the most recently switched branch or the
-    ``main`` branch, while remote instances will default to the name provided
+    |main| branch, while remote instances will default to the name provided
     when the link was created. This also includes |Gel| Cloud instance links
     created via :ref:`ref_cli_edgedb_project_init`.
+
+    .. note::
+        Prior to |EdgeDB| 5, branches were called databases.
+
+        The name of the database could be specified using either:
+
+        * flags ``-d <dbname>, --database=<dbname>``,
+        * or the ``EDGEDB_DATABASE`` environment variable.
+
+        Gel supports those options for backwards compatibility.
+
 
 :cli:synopsis:`--password | --no-password`
     If :cli:synopsis:`--password` is specified, force |gelcmd| to prompt

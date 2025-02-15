@@ -109,8 +109,8 @@ and commit it to version control, it's time to generate a migration.
 4. Generate a migration
 -----------------------
 
-To generate a migration that reflects all your changes, run ``edgedb migration
-create``.
+To generate a migration that reflects all your changes, run :gelcmd:`migration
+create`.
 
 .. code-block:: bash
 

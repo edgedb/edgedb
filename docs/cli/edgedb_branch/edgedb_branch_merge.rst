@@ -28,9 +28,9 @@ applying any new migrations from the target branch on the current branch.
 .. note::
 
     When merging, the data of the current branch is preserved. This means that
-    if you switch to a branch ``main`` and run :gelcmd:`branch merge feature`,
-    you will end up with a branch with the schema from ``main`` and any
-    new migrations from ``feature`` and the data from ``main``.
+    if you switch to a branch |main| and run :gelcmd:`branch merge feature`,
+    you will end up with a branch with the schema from |main| and any
+    new migrations from ``feature`` and the data from |main|.
 
 
 Options

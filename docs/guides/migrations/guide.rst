@@ -931,17 +931,16 @@ Branches
 when you're developing new features or prototyping experimental features. By
 creating a new branch, you can isolate schema changes from your other branches.
 
-Imagine a scenario in which your main branch is called ``main`` (which is the
-default name for the initial branch) and your feature branch is called
-``feature``. This is the ideal workflow for using an Gel branch alongside a feature
-branch in your VCS to develop a new feature:
+Imagine a scenario in which your main branch is |main| and your feature branch
+is called ``feature``. This is the ideal workflow for using an Gel branch
+alongside a feature branch in your VCS to develop a new feature:
 
 1. Create a new feature branch with :ref:`ref_cli_edgedb_branch_create`
 2. Build your feature
-3. Pull any changes on ``main``
-4. Rebase your feature branch on ``main`` with
+3. Pull any changes on |main|
+4. Rebase your feature branch on |main| with
    :ref:`ref_cli_edgedb_branch_rebase`
-5. Merge ``feature`` onto ``main`` with :ref:`ref_cli_edgedb_branch_merge`
+5. Merge ``feature`` onto |main| with :ref:`ref_cli_edgedb_branch_merge`
 
 The workflow is outlined in detail in :ref:`the branches guide in our "Get
 started" section <ref_intro_branches>`.
@@ -955,7 +954,7 @@ Rebasing the branch in step 4 above happens with a single command — ``edgedb
 branch rebase main`` — but that one command has quite a bit going on under the
 hood. Here's how it works:
 
-1. The CLI first clones the ``main`` branch with the data into a ``temp``
+1. The CLI first clones the |main| branch with the data into a ``temp``
    branch.
 2. It introspects the migration histories of ``temp`` and the ``feature``
    branch to establish where they diverge.

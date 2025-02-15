@@ -58,7 +58,7 @@ Options
 
 :cli:synopsis:`<branch-or-database-name>`
     The default branch (or database pre-v5) name on the new instance. Defaults
-    to ``main`` or, when creating a pre-v5 instance, ``gel``.
+    to |main| or, when creating a pre-v5 instance, ``gel``.
 
 :cli:synopsis:`--nightly`
     Use the nightly server for this instance.
