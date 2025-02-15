@@ -23,15 +23,15 @@ on-screen instructions:
 
 .. code-block:: bash
 
-    $ curl --proto '=https' --tlsv1.2 -sSf https://sh.edgedb.com | sh
+    $ curl --proto '=https' --tlsv1.2 -sSf https://geldata.com/sh | sh
 
 For Windows, the installation script is:
 
 .. code-block:: powershell
 
-    PS> iwr https://ps1.edgedb.com -useb | iex
+    PS> iwr https://geldata.com/ps1 -useb | iex
 
-* The `script <https://sh.edgedb.com>`_, inspired by ``rustup``, will
+* The `script <https://geldata.com/sh>`_, inspired by ``rustup``, will
   detect the OS and download the appropriate build of the Gel CLI
   tool, ``gel``.
 * The |gelcmd| command is a single executable (it's `open source!
@@ -59,7 +59,7 @@ version of |Gel| itself!) use this command:
 
 .. code-block:: bash
 
-    $ curl --proto '=https' --tlsv1.2 -sSf https://sh.edgedb.com | \
+    $ curl --proto '=https' --tlsv1.2 -sSf https://geldata.com/sh | \
       sh -s -- --nightly
 
 

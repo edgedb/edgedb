@@ -18,7 +18,7 @@ To get started with Gel, the first step is install the |gelcmd| CLI.
 
 .. code-block:: bash
 
-    $ curl --proto '=https' --tlsv1.2 -sSf https://sh.edgedb.com | sh
+    $ curl --proto '=https' --tlsv1.2 -sSf https://geldata.com/sh | sh
 
 **Windows Powershell**
 
@@ -28,7 +28,7 @@ To get started with Gel, the first step is install the |gelcmd| CLI.
 
 .. code-block:: powershell
 
-    PS> iwr https://ps1.edgedb.com -useb | iex
+    PS> iwr https://geldata.com/ps1 -useb | iex
 
 Follow the prompts on screen to complete the installation. The script will
 download the |gelcmd| command built for your OS and add a path to it to your
