@@ -16,20 +16,20 @@ for managing |Gel| instances.
     :maxdepth: 3
     :hidden:
 
-    edgedb_instance_create
-    edgedb_instance_credentials
-    edgedb_instance_destroy
-    edgedb_instance_link
-    edgedb_instance_list
-    edgedb_instance_logs
-    edgedb_instance_start
-    edgedb_instance_status
-    edgedb_instance_stop
-    edgedb_instance_reset_password
-    edgedb_instance_restart
-    edgedb_instance_revert
-    edgedb_instance_unlink
-    edgedb_instance_upgrade
+    gel_instance_create
+    gel_instance_credentials
+    gel_instance_destroy
+    gel_instance_link
+    gel_instance_list
+    gel_instance_logs
+    gel_instance_start
+    gel_instance_status
+    gel_instance_stop
+    gel_instance_reset_password
+    gel_instance_restart
+    gel_instance_revert
+    gel_instance_unlink
+    gel_instance_upgrade
 
 .. list-table::
     :class: funcoptable

@@ -14,10 +14,10 @@ an :ref:`ref_reference_gel_toml` file in the project directory.
     :maxdepth: 3
     :hidden:
 
-    edgedb_project_init
-    edgedb_project_info
-    edgedb_project_unlink
-    edgedb_project_upgrade
+    gel_project_init
+    gel_project_info
+    gel_project_unlink
+    gel_project_upgrade
 
 .. list-table::
     :class: funcoptable
