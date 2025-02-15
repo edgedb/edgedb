@@ -40,14 +40,6 @@ Below, we are referencing the ``User.name`` property with the :ref:`dot
 notation shorthand <ref_dot_notation>`: ``.name``.
 
 .. code-block:: sdl
-    :version-lt: 3.0
-
-    type User {
-      required property name -> str;
-      index on (.name);
-    }
-
-.. code-block:: sdl
 
     type User {
       required name: str;
@@ -83,15 +75,6 @@ references multiple properties of the enclosing object type.
   one* element. As such, you can't index on a ``multi`` property.
 
 .. code-block:: sdl
-    :version-lt: 3.0
-
-    type User {
-      required property first_name -> str;
-      required property last_name -> str;
-      index on (str_lower(.firstname + ' ' + .lastname));
-    }
-
-.. code-block:: sdl
 
     type User {
       required first_name: str;
@@ -121,15 +104,6 @@ speed up queries that filter, order, or group on both properties.
 In Gel, this index is created by indexing on a ``tuple`` of properties.
 
 .. code-block:: sdl
-    :version-lt: 3.0
-
-    type User {
-      required property name -> str;
-      required property email -> str;
-      index on ((.name, .email));
-    }
-
-.. code-block:: sdl
 
     type User {
       required name: str;
@@ -144,18 +118,6 @@ Index on a link property
 .. index:: __subject__, linkprops
 
 Link properties can also be indexed.
-
-.. code-block:: sdl
-    :version-lt: 3.0
-
-    abstract link friendship {
-      property strength -> float64;
-      index on (__subject__@strength);
-    }
-
-    type User {
-      multi link friends extending friendship -> User;
-    }
 
 .. code-block:: sdl
 
@@ -212,16 +174,6 @@ Annotate an index
 .. index:: annotation
 
 Indexes can be augmented with annotations.
-
-.. code-block:: sdl
-    :version-lt: 3.0
-
-    type User {
-      property name -> str;
-      index on (.name) {
-        annotation description := 'Indexing all users by name.';
-      };
-    }
 
 .. code-block:: sdl
 

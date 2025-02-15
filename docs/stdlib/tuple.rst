@@ -104,14 +104,6 @@ Any type can be used as a tuple element type.
 Here's an example of using this syntax in a schema definition:
 
 .. code-block:: sdl
-    :version-lt: 3.0
-
-    type GameElement {
-        required property name -> str;
-        required property position -> tuple<x: int64, y: int64>;
-    }
-
-.. code-block:: sdl
 
     type GameElement {
         required name: str;

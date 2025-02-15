@@ -11,11 +11,6 @@ Globals
 Schemas can contain scalar-typed *global variables*.
 
 .. code-block:: sdl
-    :version-lt: 3.0
-
-    global current_user_id -> uuid;
-
-.. code-block:: sdl
 
     global current_user_id: uuid;
 
@@ -138,13 +133,6 @@ Global variables can be marked ``required``; in this case, you must specify a
 default value.
 
 .. code-block:: sdl
-    :version-lt: 3.0
-
-    required global one_string -> str {
-      default := "Hi Mom!"
-    };
-
-.. code-block:: sdl
 
     required global one_string: str {
       default := "Hi Mom!"
@@ -168,19 +156,6 @@ type is inferred from the computed expression.
 
 Computed globals are not subject to the same constraints as non-computed ones;
 specifically, they can be object-typed and have a ``multi`` cardinality.
-
-.. code-block:: sdl
-    :version-lt: 3.0
-
-    global current_user_id -> uuid;
-
-    # object-typed global
-    global current_user := (
-      select User filter .id = global current_user_id
-    );
-
-    # multi global
-    global current_user_friends := (global current_user).friends;
 
 .. code-block:: sdl
 
@@ -225,23 +200,6 @@ Unlike query parameters, globals can be referenced
 *inside your schema declarations*.
 
 .. code-block:: sdl
-    :version-lt: 3.0
-
-    type User {
-      property name -> str;
-      property is_self := (.id = global current_user_id)
-    };
-
-
-.. code-block:: sdl
-    :version-lt: 4.0
-
-    type User {
-      name: str;
-      property is_self := (.id = global current_user_id)
-    };
-
-.. code-block:: sdl
 
     type User {
       name: str;
@@ -250,14 +208,6 @@ Unlike query parameters, globals can be referenced
 
 This is particularly useful when declaring :ref:`access policies
 <ref_datamodel_access_policies>`.
-
-.. code-block:: sdl
-    :version-lt: 3.0
-
-    type Person {
-      required property name -> str;
-      access policy my_policy allow all using (.id = global current_user_id);
-    }
 
 .. code-block:: sdl
 

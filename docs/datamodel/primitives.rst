@@ -28,15 +28,6 @@ To represent an enum, declare a custom scalar that extends the abstract
 :ref:`enum <ref_std_enum>` type.
 
 .. code-block:: sdl
-    :version-lt: 3.0
-
-    scalar type Color extending enum<Red, Green, Blue>;
-
-    type Shirt {
-      property color -> Color;
-    }
-
-.. code-block:: sdl
 
     scalar type Color extending enum<Red, Green, Blue>;
 
@@ -59,20 +50,6 @@ Arrays
 
 Arrays store zero or more primitive values of the same type in an ordered list.
 Arrays cannot contain object types or other arrays.
-
-.. code-block:: sdl
-    :version-lt: 3.0
-
-    type Person {
-      property str_array -> array<str>;
-      property json_array -> array<json>;
-
-      # INVALID: arrays of object types not allowed
-      # property friends -> array<Person>
-
-      # INVALID: arrays cannot be nested
-      # property nested_array -> array<array<str>>
-    }
 
 .. code-block:: sdl
 
@@ -100,17 +77,6 @@ each element of a tuple can have a distinct type. Tuple elements can be *any
 type*, including primitives, objects, arrays, and other tuples.
 
 .. code-block:: sdl
-    :version-lt: 3.0
-
-    type Person {
-
-      property unnamed_tuple -> tuple<str, bool, int64>;
-      property nested_tuple -> tuple<tuple<str, tuple<bool, int64>>>;
-      property tuple_of_arrays -> tuple<array<str>, array<int64>>;
-
-    }
-
-.. code-block:: sdl
 
     type Person {
 
@@ -123,13 +89,6 @@ type*, including primitives, objects, arrays, and other tuples.
 Optionally, you can assign a *key* to each element of the tuple. Tuples
 containing explicit keys are known as *named tuples*. You must assign keys to
 all elements (or none of them).
-
-.. code-block:: sdl
-    :version-lt: 3.0
-
-    type BlogPost {
-      property metadata -> tuple<title: str, published: bool, upvotes: int64>;
-    }
 
 .. code-block:: sdl
 
@@ -169,13 +128,6 @@ some scalar types have corresponding range types:
 - ``range<cal::local_date>``
 
 .. code-block:: sdl
-    :version-lt: 3.0
-
-    type DieRoll {
-      property values -> range<int64>;
-    }
-
-.. code-block:: sdl
 
     type DieRoll {
       values: range<int64>;
@@ -192,14 +144,6 @@ that extends the abstract ``sequence`` type. Creating a sequence type
 initializes a global ``int64`` counter that auto-increments whenever a new
 object is created. All properties that point to the same sequence type will
 share the counter.
-
-.. code-block:: sdl
-    :version-lt: 3.0
-
-    scalar type ticket_number extending sequence;
-    type Ticket {
-      property number -> ticket_number;
-    }
 
 .. code-block:: sdl
 

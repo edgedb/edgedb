@@ -369,21 +369,6 @@ you may declare an abstract object type ``Media`` that is extended by ``Movie``
 and ``TVShow``.
 
 .. code-block:: sdl
-    :version-lt: 3.0
-
-    abstract type Media {
-      required property title -> str;
-    }
-
-    type Movie extending Media {
-      property release_year -> int64;
-    }
-
-    type TVShow extending Media {
-      property num_seasons -> int64;
-    }
-
-.. code-block:: sdl
 
     abstract type Media {
       required title: str;

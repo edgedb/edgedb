@@ -16,29 +16,6 @@ Create access policy
 :ref:`Declare <ref_eql_sdl_access_policies>` a new object access policy.
 
 .. eql:synopsis::
-    :version-lt: 3.0
-
-    [ with <with-item> [, ...] ]
-    { create | alter } type <TypeName> "{"
-      [ ... ]
-      create access policy <name>
-        [ when (<condition>) ; ]
-        { allow | deny } <action> [, <action> ... ; ]
-        [ using (<expr>) ; ]
-        [ "{"
-           [ set errmessage := value ; ]
-           [ create annotation annotation-name := value ; ]
-          "}" ]
-    "}"
-
-    # where <action> is one of
-    all
-    select
-    insert
-    delete
-    update [{ read | write }]
-
-.. eql:synopsis::
 
     [ with <with-item> [, ...] ]
     { create | alter } type <TypeName> "{"
@@ -162,31 +139,6 @@ Alter access policy
 :eql-statement:
 
 :ref:`Declare <ref_eql_sdl_access_policies>` a new object access policy.
-
-.. eql:synopsis::
-    :version-lt: 3.0
-
-    [ with <with-item> [, ...] ]
-    alter type <TypeName> "{"
-      [ ... ]
-      alter access policy <name> "{"
-        [ when (<condition>) ; ]
-        [ reset when ; ]
-        { allow | deny } <action> [, <action> ... ; ]
-        [ using (<expr>) ; ]
-        [ reset expression ; ]
-        [ create annotation <annotation-name> := <value> ; ]
-        [ alter annotation <annotation-name> := <value> ; ]
-        [ drop annotation <annotation-name>; ]
-      "}"
-    "}"
-
-    # where <action> is one of
-    all
-    select
-    insert
-    delete
-    update [{ read | write }]
 
 .. eql:synopsis::
 

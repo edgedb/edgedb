@@ -69,13 +69,6 @@ Properties
 Declare a property by naming it and setting its type.
 
 .. code-block:: sdl
-    :version-lt: 3.0
-
-    type Movie {
-      property title -> str;
-    }
-
-.. code-block:: sdl
 
     type Movie {
       title: str;
@@ -92,14 +85,6 @@ Properties are optional by default. Use the ``required`` keyword to make them
 required.
 
 .. code-block:: sdl
-    :version-lt: 3.0
-
-    type Movie {
-      required property title -> str;       # required
-      property release_year -> int64;       # optional
-    }
-
-.. code-block:: sdl
 
     type Movie {
       required title: str;       # required
@@ -113,17 +98,6 @@ Constraints
 
 Add a pair of curly braces after the property to define additional
 information, including constraints.
-
-.. code-block:: sdl
-    :version-lt: 3.0
-
-    type Movie {
-      required property title -> str {
-        constraint exclusive;
-        constraint min_len_value(8);
-        constraint regexp(r'^[A-Za-z0-9 ]+$');
-      }
-    }
 
 .. code-block:: sdl
 
@@ -146,22 +120,6 @@ expressions. This expression is dynamically computed whenever the property is
 queried.
 
 .. code-block:: sdl
-    :version-lt: 3.0
-
-    type Movie {
-      required property title -> str;
-      property uppercase_title := str_upper(.title);
-    }
-
-.. code-block:: sdl
-    :version-lt: 4.0
-
-    type Movie {
-      required title: str;
-      property uppercase_title := str_upper(.title);
-    }
-
-.. code-block:: sdl
 
     type Movie {
       required title: str;
@@ -174,18 +132,6 @@ Links
 -----
 
 Object types can have links to other object types.
-
-.. code-block:: sdl
-    :version-lt: 3.0
-
-    type Movie {
-      required property title -> str;
-      link director -> Person;
-    }
-
-    type Person {
-      required property name -> str;
-    }
 
 .. code-block:: sdl
 
@@ -204,22 +150,6 @@ Use the ``required`` and ``multi`` keywords to specify the cardinality of the
 relation.
 
 .. code-block:: sdl
-    :version-lt: 3.0
-
-    type Movie {
-      required property title -> str;
-
-      link cinematographer -> Person;             # zero or one
-      required link director -> Person;           # exactly one
-      multi link writers -> Person;               # zero or more
-      required multi link actors -> Person;       # one or more
-    }
-
-    type Person {
-      required property name -> str;
-    }
-
-.. code-block:: sdl
 
     type Movie {
       required title: str;
@@ -235,21 +165,6 @@ relation.
     }
 
 To define a one-to-one relation, use an ``exclusive`` constraint.
-
-.. code-block:: sdl
-    :version-lt: 3.0
-
-    type Movie {
-      required property title -> str;
-      required link stats -> MovieStats {
-        constraint exclusive;
-      };
-    }
-
-    type MovieStats {
-      required property budget -> int64;
-      required property box_office -> int64;
-    }
 
 .. code-block:: sdl
 
@@ -275,34 +190,6 @@ objects. Computed links are dynamically computed when they are referenced in
 queries. The example below defines a backlink.
 
 .. code-block:: sdl
-    :version-lt: 3.0
-
-    type Movie {
-      required property title -> str;
-      multi link actors -> Person;
-
-      # returns all movies with same title
-      multi link same_title := (
-        with t := .title
-        select detached Movie filter .title = t
-      )
-    }
-
-.. code-block:: sdl
-    :version-lt: 4.0
-
-    type Movie {
-      required title: str;
-      multi actors: Person;
-
-      # returns all movies with same title
-      multi link same_title := (
-        with t := .title
-        select detached Movie filter .title = t
-      )
-    }
-
-.. code-block:: sdl
 
     type Movie {
       required title: str;
@@ -319,32 +206,6 @@ Backlinks
 ^^^^^^^^^
 
 A common use case for computed links is *backlinks*.
-
-.. code-block:: sdl
-    :version-lt: 3.0
-
-    type Movie {
-      required property title -> str;
-      multi link actors -> Person;
-    }
-
-    type Person {
-      required property name -> str;
-      multi link acted_in := .<actors[is Movie];
-    }
-
-.. code-block:: sdl
-    :version-lt: 4.0
-
-    type Movie {
-      required title: str;
-      multi actors: Person;
-    }
-
-    type Person {
-      required name: str;
-      multi link acted_in := .<actors[is Movie];
-    }
 
 .. code-block:: sdl
 
@@ -381,17 +242,6 @@ Constraints
 Constraints can also be defined at the *object level*.
 
 .. code-block:: sdl
-    :version-lt: 3.0
-
-    type BlogPost {
-      property title -> str;
-      link author -> User;
-
-      constraint exclusive on ((.title, .author));
-    }
-
-
-.. code-block:: sdl
 
     type BlogPost {
       title: str;
@@ -401,16 +251,6 @@ Constraints can also be defined at the *object level*.
     }
 
 Constraints can contain exceptions; these are called *partial constraints*.
-
-.. code-block:: sdl
-    :version-lt: 3.0
-
-    type BlogPost {
-      property title -> str;
-      property published -> bool;
-
-      constraint exclusive on (.title) except (not .published);
-    }
 
 .. code-block:: sdl
 
@@ -425,18 +265,6 @@ Indexes
 -------
 
 Use ``index on`` to define indexes on an object type.
-
-.. code-block:: sdl
-    :version-lt: 3.0
-
-    type Movie {
-      required property title -> str;
-      required property release_year -> int64;
-
-      index on (.title);                        # simple index
-      index on ((.title, .release_year));       # composite index
-      index on (str_trim(str_lower(.title)));   # computed index
-    }
 
 .. code-block:: sdl
 
@@ -461,21 +289,6 @@ Object types can be declared as ``abstract``. Non-abstract types can *extend*
 abstract types.
 
 .. code-block:: sdl
-    :version-lt: 3.0
-
-    abstract type Content {
-      required property title -> str;
-    }
-
-    type Movie extending Content {
-      required property release_year -> int64;
-    }
-
-    type TVShow extending Content {
-      required property num_seasons -> int64;
-    }
-
-.. code-block:: sdl
 
     abstract type Content {
       required title: str;
@@ -490,21 +303,6 @@ abstract types.
     }
 
 Multiple inheritance is supported.
-
-.. code-block:: sdl
-    :version-lt: 3.0
-
-    abstract type HasTitle {
-      required property title -> str;
-    }
-
-    abstract type HasReleaseYear {
-      required property release_year -> int64;
-    }
-
-    type Movie extending HasTitle, HasReleaseYear {
-      link sequel_to -> Movie;
-    }
 
 .. code-block:: sdl
 
@@ -527,26 +325,6 @@ Polymorphism
 ------------
 
 Links can correspond to abstract types. These are known as *polymorphic links*.
-
-.. code-block:: sdl
-    :version-lt: 3.0
-
-    abstract type Content {
-      required property title -> str;
-    }
-
-    type Movie extending Content {
-      required property release_year -> int64;
-    }
-
-    type TVShow extending Content {
-      required property num_seasons -> int64;
-    }
-
-    type Franchise {
-      required property name -> str;
-      multi link entries -> Content;
-    }
 
 .. code-block:: sdl
 

@@ -129,14 +129,6 @@ Reference
     Array types may also appear in schema declarations:
 
     .. code-block:: sdl
-        :version-lt: 3.0
-
-        type Person {
-            property str_array -> array<str>;
-            property json_array -> array<json>;
-        }
-
-    .. code-block:: sdl
 
         type Person {
             str_array: array<str>;

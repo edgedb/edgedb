@@ -249,20 +249,6 @@ Let's build a simple movie database. We'll need to define two **object types**
 :dotgel:`dbschema/default` in your editor of choice and paste the following:
 
 .. code-block:: sdl
-    :version-lt: 3.0
-
-    module default {
-      type Person {
-        required property name -> str;
-      }
-
-      type Movie {
-        property title -> str;
-        multi link actors -> Person;
-      }
-    };
-
-.. code-block:: sdl
 
     module default {
       type Person {
@@ -340,15 +326,6 @@ object types.
 
 Before we proceed, let's try making a small change to our schema: making the
 ``title`` property of ``Movie`` required. First, update the schema file:
-
-.. code-block:: sdl-diff
-    :version-lt: 3.0
-
-        type Movie {
-    -     property title -> str;
-    +     required property title -> str;
-          multi link actors -> Person;
-        }
 
 .. code-block:: sdl-diff
 

@@ -61,24 +61,6 @@ an object type declaration, you can omit it entirely and use the ``.<name>``
 shorthand.
 
 .. code-block:: sdl
-    :version-lt: 3.0
-
-    type Person {
-      property first_name -> str;
-      property last_name -> str;
-      property full_name := .first_name ++ ' ' ++ .last_name;
-    }
-
-.. code-block:: sdl
-    :version-lt: 4.0
-
-    type Person {
-      first_name: str;
-      last_name: str;
-      property full_name := .first_name ++ ' ' ++ .last_name;
-    }
-
-.. code-block:: sdl
 
     type Person {
       first_name: str;
@@ -97,26 +79,6 @@ EdgeQL expression disagrees with the modifiers, an error will be thrown the
 next time you try to :ref:`create a migration <ref_intro_migrations>`.
 
 .. code-block:: sdl
-    :version-lt: 3.0
-
-    type Person {
-      property first_name -> str;
-
-      # this is invalid, because first_name is not a required property
-      required property first_name_upper := str_upper(.first_name);
-    }
-
-.. code-block:: sdl
-    :version-lt: 4.0
-
-    type Person {
-      first_name: str;
-
-      # this is invalid, because first_name is not a required property
-      required property first_name_upper := str_upper(.first_name);
-    }
-
-.. code-block:: sdl
 
     type Person {
       first_name: str;
@@ -133,36 +95,6 @@ Filtering
 
 If you find yourself writing the same ``filter`` expression repeatedly in
 queries, consider defining a computed field that encapsulates the filter.
-
-.. code-block:: sdl
-    :version-lt: 3.0
-
-    type Club {
-      multi link members -> Person;
-      multi link active_members := (
-        select .members filter .is_active = true
-      )
-    }
-
-    type Person {
-      property name -> str;
-      property is_active -> bool;
-    }
-
-.. code-block:: sdl
-    :version-lt: 4.0
-
-    type Club {
-      multi members: Person;
-      multi link active_members := (
-        select .members filter .is_active = true
-      )
-    }
-
-    type Person {
-      name: str;
-      is_active: bool;
-    }
 
 .. code-block:: sdl
 
@@ -186,32 +118,6 @@ Backlinks
 Backlinks are one of the most common use cases for computed links. In |Gel|
 links are *directional*; they have a source and a target. Often it's convenient
 to traverse a link in the *reverse* direction.
-
-.. code-block:: sdl
-    :version-lt: 3.0
-
-    type BlogPost {
-      property title -> str;
-      link author -> User;
-    }
-
-    type User {
-      property name -> str;
-      multi link blog_posts := .<author[is BlogPost]
-    }
-
-.. code-block:: sdl
-    :version-lt: 4.0
-
-    type BlogPost {
-      title: str;
-      author: User;
-    }
-
-    type User {
-      name: str;
-      multi link blog_posts := .<author[is BlogPost]
-    }
 
 .. code-block:: sdl
 

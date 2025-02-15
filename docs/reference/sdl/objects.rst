@@ -14,20 +14,6 @@ Example
 Consider a ``User`` type with a few properties:
 
 .. code-block:: sdl
-    :version-lt: 3.0
-
-    type User {
-        # define some properties and a link
-        required property name -> str;
-        property address -> str;
-
-        multi link friends -> User;
-
-        # define an index for User based on name
-        index on (__subject__.name);
-    }
-
-.. code-block:: sdl
 
     type User {
         # define some properties and a link
@@ -45,25 +31,6 @@ Consider a ``User`` type with a few properties:
 An alternative way to define the same ``User`` type could be by using
 abstract types. These abstract types can then be re-used in other type
 definitions as well:
-
-.. code-block:: sdl
-    :version-lt: 3.0
-
-    abstract type Named {
-        required property name -> str;
-    }
-
-    abstract type HasAddress {
-        property address -> str;
-    }
-
-    type User extending Named, HasAddress {
-        # define some user-specific properties and a link
-        multi link friends -> User;
-
-        # define an index for User based on name
-        index on (__subject__.name);
-    }
 
 .. code-block:: sdl
 
