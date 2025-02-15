@@ -666,7 +666,7 @@ info to keep in mind before committing to the operation:
     2. Ensure that other users of the database have the revision
     above or can create database from scratch.
         To check a specific instance, run:
-        edgedb -I <name> migration log --from-db --newest-first --limit 1
+        gel -I <name> migration log --from-db --newest-first --limit 1
     1. Merge version control branches that contain schema changes
     if possible.
 
@@ -743,7 +743,7 @@ the same as with our previous squash:
     2. Ensure that other users of the database have the revision
     above or can create database from scratch.
         To check a specific instance, run:
-        edgedb -I <name> migration log --from-db --newest-first --limit 1
+        gel -I <name> migration log --from-db --newest-first --limit 1
     3. Merge version control branches that contain schema changes
     if possible.
 
@@ -786,7 +786,7 @@ working with git after doing a squash with a fixup.
         git add dbschema
 
     The normal migration process will update your migration history:
-        edgedb migrate
+        gel migrate
 
 We'll take its suggestion to apply the migration:
 
@@ -817,7 +817,7 @@ command itself will show the following input when the process starts up:
 
     Connecting to Gel instance 'anything' at localhost:10700...
     Gel Watch initialized.
-    Hint: Use `edgedb migration create` and `edgedb migrate --dev-mode`
+    Hint: Use `gel migration create` and `gel migrate --dev-mode`
     to apply changes once done.
     Monitoring "/home/instancename".
 
@@ -987,7 +987,7 @@ will not work:
     │ ^^^^^^^^^^^^^^^^^^ Use the migration commands instead.
     │
     = The `allow_bare_ddl` configuration variable is set to
-    'NeverAllow'.  The `edgedb migrate` command normally sets
+    'NeverAllow'.  The `gel migrate` command normally sets
     this to avoid accidental schema changes outside of the
     migration flow.
 
@@ -1059,7 +1059,7 @@ you try to apply the change:
     Error executing command: Database must be updated to
     the last migration on the filesystem for
     `migration create`. Run:
-    edgedb migrate
+    gel migrate
 
     db> \migrate
     Error executing command: database applied migration
@@ -1397,4 +1397,4 @@ did above in the "So you really wanted to use DDL but now regret it?"
 section.
 
 .. _rfc: https://github.com/geldata/rfcs/blob/master/text/1000-migrations.rst
-.. _tutorial_files: https://github.com/edgedb/website/tree/main/content/tutorial/dbschema/migrations
+.. _tutorial_files: https://github.com/geldata/website/tree/main/content/tutorial/dbschema/migrations
