@@ -1,5 +1,3 @@
-.. versionadded:: 3.0
-
 .. _ref_sql_adapter:
 
 ===========

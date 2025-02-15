@@ -1,5 +1,3 @@
-.. versionadded:: 3.0
-
 .. _ref_eql_sdl_triggers:
 
 ========
@@ -94,11 +92,9 @@ This declaration defines a new trigger with the following options:
     objects were modified. ``__new__`` and ``__old__`` in this context within
     the expression refer to sets of the modified objects.
 
-.. versionadded:: 4.0
-
-    :eql:synopsis:`when (<condition>)`
-        Optionally provide a condition for the trigger. If the condition is
-        met, the trigger will run. If not, the trigger is skipped.
+:eql:synopsis:`when (<condition>)`
+    Optionally provide a condition for the trigger. If the condition is
+    met, the trigger will run. If not, the trigger is skipped.
 
 :eql:synopsis:`<expr>`
     The expression to be evaluated when the trigger is invoked.

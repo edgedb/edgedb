@@ -643,8 +643,6 @@ There are 4 available target deletion policies.
 Source deletion
 ^^^^^^^^^^^^^^^
 
-.. versionadded:: 2.0
-
 Source deletion policies determine what action should be taken when the
 *source* of a given link is deleted. They are declared with the ``on source
 delete`` clause.

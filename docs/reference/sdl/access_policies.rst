@@ -1,5 +1,3 @@
-.. versionadded:: 2.0
-
 .. _ref_eql_sdl_access_policies:
 
 ===============
@@ -150,11 +148,9 @@ The access policy declaration options are as follows:
     When omitted, it is assumed that this policy applies to all eligible
     objects of a given type.
 
-.. versionadded:: 3.0
-
-    :eql:synopsis:`set errmessage := <value>`
-        Set a custom error message of :eql:synopsis:`<value>` that is displayed
-        when this access policy prevents a write action.
+:eql:synopsis:`set errmessage := <value>`
+    Set a custom error message of :eql:synopsis:`<value>` that is displayed
+    when this access policy prevents a write action.
 
 :sdl:synopsis:`<annotation-declarations>`
     Set access policy :ref:`annotation <ref_eql_sdl_annotations>`

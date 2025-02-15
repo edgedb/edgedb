@@ -496,8 +496,6 @@ functionality.
 
 .. eql:type:: cal::date_duration
 
-    .. versionadded:: 2.0
-
     A type for representing a span of time in days.
 
     This type is similar to :eql:type:`cal::relative_duration`, except it only
@@ -879,8 +877,6 @@ functionality.
                                     el: str) -> float64
                   std::duration_get(dt: cal::date_duration, \
                                     el: str) -> float64
-
-    .. versionadded:: 2.0
 
     Returns the element of a duration given a unit name.
 
@@ -1420,8 +1416,6 @@ functionality.
 
     :index: justify_hours
 
-    .. versionadded:: 2.0
-
     Convert 24-hour chunks into days.
 
     This function converts all 24-hour chunks into day units. The resulting
@@ -1451,8 +1445,6 @@ functionality.
                   ) -> cal::date_duration
 
     :index: justify_days
-
-    .. versionadded:: 2.0
 
     Convert 30-day chunks into months.
 

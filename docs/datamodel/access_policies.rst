@@ -1,5 +1,3 @@
-.. versionadded:: 2.0
-
 .. _ref_datamodel_access_policies:
 
 ===============
@@ -441,8 +439,6 @@ making the current user able to see their own ``User`` record.
 
 Custom error messages
 ^^^^^^^^^^^^^^^^^^^^^
-
-.. versionadded:: 3.0
 
 .. index:: access policy, errmessage, using
 

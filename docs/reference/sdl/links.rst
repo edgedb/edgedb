@@ -167,12 +167,6 @@ The following options are available:
     If there is no conflict, the link properties are merged to form a
     single property in the new link item.
 
-    .. versionadded:: 3.0
-
-        As of |EdgeDB| 3.0, the ``extending`` clause is now a sub-declaration of
-        the link and included inside the curly braces rather than an option as
-        in earlier versions.
-
 :eql:synopsis:`<type>`
     The type must be a valid :ref:`type expression <ref_eql_types>`
     denoting an object type.

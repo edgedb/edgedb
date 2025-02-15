@@ -69,11 +69,9 @@ Introspection command:
 
 * :eql:stmt:`describe`.
 
-.. versionadded:: 3.0
+Performance analysis statement:
 
-    Performance analysis statement:
-
-    * :eql:stmt:`analyze`.
+* :eql:stmt:`analyze`.
 
 
 .. toctree::
