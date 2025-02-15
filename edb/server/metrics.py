@@ -47,6 +47,12 @@ current_branches = registry.new_labeled_gauge(
     labels=('tenant',),
 )
 
+current_introspected_branches = registry.new_labeled_gauge(
+    'branches_introspected_current',
+    'Current number of branches whose schemas are introspected.',
+    labels=('tenant',),
+)
+
 total_backend_connections = registry.new_labeled_counter(
     'backend_connections_total',
     'Total number of backend connections established.',
@@ -211,9 +217,14 @@ extension_used = registry.new_labeled_gauge(
     labels=('tenant', 'extension'),
 )
 
-feature_used = registry.new_labeled_gauge(
+feature_used_branches = registry.new_labeled_gauge(
     'feature_used_branch_count_current',
     'How many branches a schema feature is used by.',
+    labels=('tenant', 'feature'),
+)
+feature_used = registry.new_labeled_gauge(
+    'feature_used_num_count_current',
+    'How many times a schema feature is used.',
     labels=('tenant', 'feature'),
 )
 
