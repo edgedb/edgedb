@@ -310,7 +310,7 @@ functionality.
         db> select <duration>'48 hours 45 minutes';
         {<duration>'48:45:00'}
         db> select <duration>'11 months';
-        edgedb error: InvalidValueError: invalid input syntax for type
+        gel error: InvalidValueError: invalid input syntax for type
         std::duration: '11 months'
           Hint: Units bigger than hours cannot be used for std::duration.
 

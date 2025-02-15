@@ -160,7 +160,7 @@ omitted, but if they are present, they must be consistent with an empty range:
     ...   "inc_upper": false,
     ...   "empty": true
     ... }');
-    edgedb error: InvalidValueError: conflicting arguments in range
+    gel error: InvalidValueError: conflicting arguments in range
     constructor: "empty" is ``true`` while the specified bounds suggest
     otherwise
 
