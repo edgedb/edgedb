@@ -559,7 +559,7 @@ this:
     {
       default::User {
         name: 'Cameron',
-        email: 'cameron@edgedb.com',
+        email: 'cameron@example.com',
         status: {},
         badge: default::Badge {name: 'admin'},
         bookmark: {

@@ -290,7 +290,7 @@ Let's do some experiments.
 
 .. code-block:: edgeql-repl
 
-  db> insert User { email := "test@geldata.com" };
+  db> insert User { email := "test@example.com" };
   {default::User {id: be44b326-03db-11ed-b346-7f1594474966}}
   db> set global current_user :=
   ...   <uuid>"be44b326-03db-11ed-b346-7f1594474966";

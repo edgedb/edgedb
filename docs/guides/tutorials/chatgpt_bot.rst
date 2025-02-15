@@ -595,13 +595,13 @@ libraries that will help us.
 
     $ npm install openai edgedb
     $ npm install \
-        @edgedb/generate \
+        @gel/generate \
         gpt-tokenizer \
         dotenv \
         tsx \
         --save-dev
 
-The ``@edgedb/generate`` package provides a set of code generation tools that
+The ``@gel/generate`` package provides a set of code generation tools that
 are useful when developing an Gel-backed applications with
 TypeScript/JavaScript. We're going to write queries using our
 :ref:`query builder <gel-js-qb>`, but before we can, we
@@ -609,7 +609,7 @@ need to run the query builder generator.
 
 .. code-block:: bash
 
-    $ npx @edgedb/generate edgeql-js
+    $ npx @gel/generate edgeql-js
 
 Answer "y" when asked about adding the query builder to ``.gitignore``.
 
@@ -1139,7 +1139,7 @@ Let's add a script to ``package.json`` that will invoke and execute
           "typescript": "5.1.6"
         },
         "devDependencies": {
-          "@edgedb/generate": "^0.3.3",
+          "@gel/generate": "^0.3.3",
           "@types/node": "20.4.8",
           "@types/react": "18.2.18",
           "@types/react-dom": "18.2.7",

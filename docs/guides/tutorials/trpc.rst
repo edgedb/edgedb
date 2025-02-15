@@ -287,7 +287,7 @@ context that provides the user session and Gel client to the tRPC API.
    .. code-block:: typescript
 
       import { createClient } from "edgedb";
-      import createAuth from "@edgedb/auth-nextjs/app";
+      import createAuth from "@gel/auth-nextjs/app";
 
       // Initialize Gel client
       export const edgedbClient = createClient();
@@ -375,7 +375,7 @@ authentication and context for tRPC procedures.
    .. code-block:: typescript
 
       import { createClient } from "edgedb";
-      import createExpressAuth from "@edgedb/auth-express";
+      import createExpressAuth from "@gel/auth-express";
 
       // Initialize Gel client
       const edgedbClient = createClient();
