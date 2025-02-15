@@ -17,7 +17,7 @@ Additionally, client libraries might provide:
 * Query builder
 
 This is a **work-in-progress** reference for writing client libraries for
-EdgeDB.
+|Gel|.
 
 External Links:
 
