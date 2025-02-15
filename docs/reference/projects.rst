@@ -12,8 +12,8 @@ run :gelcmd:`project init`. You'll see something like this:
 
 .. code-block:: bash
 
-  $ edgedb project init
-  No `edgedb.toml` found in this repo or above.
+  $ gel project init
+  No `gel.toml` found in this repo or above.
   Do you want to initialize a new project? [Y/n]
   > Y
   Checking Gel versions...
@@ -51,11 +51,11 @@ How does this help me?
 
 Once you've initialized a project, your project directory is *linked* to a
 particular instance. That means, you can run CLI commands without connection
-flags. For instance, :gelcmd:`-I my_instance migrate` becomes simply ``edgedb
-migrate``. The CLI detects the existence of the |gel.toml| file, reads the
-current directory, and checks if it's associated with an existing project. If
-it is, it looks up the credentials of the linked instance (they're stored in a
-:ref:`standardized location <ref_cli_gel_paths>`), uses that information to
+flags. For instance, :gelcmd:`-I my_instance migrate` becomes simply
+:gelcmd:`migrate`. The CLI detects the existence of the |gel.toml| file, reads
+the current directory, and checks if it's associated with an existing project.
+If it is, it looks up the credentials of the linked instance (they're stored in
+a :ref:`standardized location <ref_cli_gel_paths>`), uses that information to
 connect to the instance, and applies the command.
 
 Similarly, all :ref:`client libraries <ref_clients_index>` will use the same
@@ -98,8 +98,8 @@ schema directory for a project. The server version value in the generated
 |gel.toml| is determined by the Gel version you selected when you ran
 :ref:`ref_cli_gel_project_init`.
 
-Read :ref:`our reference documentation on edgedb.toml
-<ref_reference_gel_toml>` to learn more.
+Read :ref:`our reference documentation on gel.toml <ref_reference_gel_toml>`
+to learn more.
 
 .. note::
 
@@ -145,14 +145,14 @@ How do I unlink a project?
 
 If you want to remove the link between your project and its linked instance,
 run :gelcmd:`project unlink` anywhere inside the project. This doesn't affect
-the instance, it continues running as before. After unlinking, can run ``edgedb
-project init`` inside project again to create or select a new instance.
+the instance, it continues running as before. After unlinking, can run
+:gelcmd:`project init` inside project again to create or select a new instance.
 
 
 .. code-block:: bash
 
-  $ edgedb project init
-  No `edgedb.toml` found in `~/path/to/my_project` or above.
+  $ gel project init
+  No `gel.toml` found in `~/path/to/my_project` or above.
   Do you want to initialize a new project? [Y/n]
   > Y
   Specify the name of Gel instance to use with this project

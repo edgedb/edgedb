@@ -137,7 +137,7 @@ From the application's root directory, run the following command:
 .. code-block:: bash
 
   $ npx edgedb project init
-  No `edgedb.toml` found in `~/nextjs-blog` or above
+  No `gel.toml` found in `~/nextjs-blog` or above
   Do you want to initialize a new project? [Y/n]
   > Y
   Specify the name of Gel instance to use with this project [default:
@@ -148,7 +148,7 @@ From the application's root directory, run the following command:
   >
   ┌─────────────────────┬──────────────────────────────────────────────┐
   │ Project directory   │ ~/nextjs-blog                                │
-  │ Project config      │ ~/nextjs-blog/edgedb.toml                    │
+  │ Project config      │ ~/nextjs-blog/gel.toml                       │
   │ Schema dir (empty)  │ ~/nextjs-blog/dbschema                       │
   │ Installation method │ portable package                             │
   │ Start configuration │ manual                                       │

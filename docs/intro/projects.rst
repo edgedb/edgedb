@@ -45,13 +45,13 @@ and connect to its linked instance with no additional configuration.
 Initializing
 ^^^^^^^^^^^^
 
-To initialize a project, create a new directory and run ``edgedb
-project init`` inside it. You'll see something like this:
+To initialize a project, create a new directory and run :gelcmd:`project init`
+inside it. You'll see something like this:
 
 .. code-block:: bash
 
-  $ edgedb project init
-  No `edgedb.toml` found in this repo or above.
+  $ gel project init
+  No `gel.toml` found in this repo or above.
   Do you want to initialize a new project? [Y/n]
   > Y
   Specify the name of Gel instance to use with this project
@@ -73,8 +73,7 @@ This command does a couple important things.
 1. It spins up a new Gel instance called ``my_instance``.
 2. If no |gel.toml| file exists, it will create one. This is a
    configuration file that marks a given directory as an Gel project. Learn
-   more about it in :ref:`our edgedb.toml reference
-   <ref_reference_gel_toml>`.
+   more about it in the :ref:`gel.toml reference <ref_reference_gel_toml>`.
 
    .. code-block:: toml
 
@@ -121,7 +120,7 @@ with the ``-I`` flag.
 
   $ cd ~
   $ edgedb
-  gel error: no `edgedb.toml` found and no connection options are specified
+  gel error: no `gel.toml` found and no connection options are specified
     Hint: Run `edgedb project init` or use any of `-H`, `-P`, `-I` arguments to
     specify connection parameters. See `--help` for details
   $ edgedb -I my_instance
