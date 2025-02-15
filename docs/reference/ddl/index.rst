@@ -34,14 +34,14 @@ commands against your database, just like any other EdgeQL query.
 
 .. code-block:: edgeql-repl
 
-    edgedb> create type Person {
-    .......     create required property name -> str;
-    ....... };
+    gel> create type Person {
+    ....     create required property name -> str;
+    .... };
     OK: CREATE TYPE
-    edgedb> create type Movie {
-    .......     create required property title -> str;
-    .......     create required link director -> Person;
-    ....... };
+    gel> create type Movie {
+    ....     create required property title -> str;
+    ....     create required link director -> Person;
+    .... };
     OK: CREATE TYPE
 
 In DDL, the *order* of commands is important. In the example above, you

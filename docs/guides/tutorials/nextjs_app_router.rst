@@ -174,7 +174,7 @@ To test this, run the |gelcmd| command to open a REPL to the linked instance.
   $ edgedb
   Gel x.x (repl x.x)
   Type \help for help, \quit to quit.
-  edgedb> select 2 + 2;
+  gel> select 2 + 2;
   {4}
   >
 
@@ -240,22 +240,22 @@ the REPL.
   $ edgedb
   Gel x.x (repl x.x)
   Type \help for help, \quit to quit.
-  edgedb>
+  gel>
 
 
 Then execute the following ``insert`` statements.
 
 .. code-block:: edgeql-repl
 
-  edgedb> insert BlogPost {
-  .......   title := "This one weird trick makes using databases fun",
-  .......   content := "Use Gel"
-  ....... };
+  gel> insert BlogPost {
+  ....   title := "This one weird trick makes using databases fun",
+  ....   content := "Use Gel"
+  .... };
   {default::BlogPost {id: 7f301d02-c780-11ec-8a1a-a34776e884a0}}
-  edgedb> insert BlogPost {
-  .......   title := "How to build a blog with Gel and Next.js",
-  .......   content := "Let's start by scaffolding our app..."
-  ....... };
+  gel> insert BlogPost {
+  ....   title := "How to build a blog with Gel and Next.js",
+  ....   content := "Let's start by scaffolding our app..."
+  .... };
   {default::BlogPost {id: 88c800e6-c780-11ec-8a1a-b3a3020189dd}}
 
 
@@ -629,7 +629,7 @@ database. Open a REPL and ``insert`` some blog posts:
   $ npx edgedb --dsn <your-instance-dsn> --tls-security insecure
   Gel x.x (repl x.x)
   Type \help for help, \quit to quit.
-  edgedb> insert BlogPost { title := "Test post" };
+  gel> insert BlogPost { title := "Test post" };
   {default::BlogPost {id: c00f2c9a-cbf5-11ec-8ecb-4f8e702e5789}}
 
 
