@@ -362,7 +362,7 @@ Copying the data
 
 Now that we have a schema, we can use :ref:`ref_cli_gel_project_init` to
 set up our new Gel database. A new schema migration is added via
-:ref:`ref_cli_gel_migration_create` and then :ref:`edgedb migrate
+:ref:`ref_cli_gel_migration_create` and then :ref:`gel migrate
 <ref_cli_gel_migration_apply>` applies the schema changes to the database.
 After the schema migration, we'll still need to copy the existing data from
 Postgres. JSON is a pretty good intermediate format for this operation. Gel

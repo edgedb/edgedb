@@ -212,8 +212,7 @@ Let's construct the DSN (AKA "connection string") for our instance. DSNs have
 the following format: :geluri:`<username>:<password>@<hostname>:<port>`. We
 can construct the DSN with the following components:
 
-- ``<username>``: the default value — |admin| (the default used to be
-  ``edgedb`` for |EdgeDB| <= 5)
+- ``<username>``: the default value — |admin|
 - ``<password>``: the value we assigned to ``$PASSWORD``
 - ``<hostname>``: the name of your Gel app (stored in the
   ``$EDB_APP`` environment variable) suffixed with ``.internal``. Fly uses this

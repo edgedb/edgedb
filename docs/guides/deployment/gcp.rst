@@ -142,7 +142,7 @@ the secrets we declared in the previous step.
 .. code-block:: bash
 
    $ wget "https://raw.githubusercontent.com\
-   /edgedb/edgedb-deploy/dev/gcp/deployment.yaml"
+   /geldata/gel-deploy/dev/gcp/deployment.yaml"
 
    $ kubectl apply -f deployment.yaml
 

@@ -13,7 +13,7 @@ related to the Gel docs.*
 .. lint-off
 
 .. _our blog post about why and how we use ChatGPT via embeddings:
-  https://www.edgedb.com/blog/chit-chatting-with-edgedb-docs-via-chatgpt-and-pgvector
+  https://www.geldata.com/blog/chit-chatting-with-edgedb-docs-via-chatgpt-and-pgvector
 
 .. lint-on
 
@@ -185,31 +185,7 @@ will make it easier to import them.
 
 .. lint-on
 
-Now, we'll create an instance of Gel for our project, but first, we need to
-install Gel!
-
-
-Install the Gel CLI
--------------------
-
-*If you already have Gel installed, you can skip to creating an instance.*
-
-Before we can create an instance for our project, we need to install the Gel
-CLI. On Linux or MacOS, run the following in your terminal and follow the
-on-screen instructions:
-
-.. code-block:: bash
-
-    $ curl --proto '=https' --tlsv1.2 -sSf https://sh.edgedb.com | sh
-
-Windows Powershell users can use this command:
-
-.. code-block:: powershell
-
-    PS> iwr https://ps1.edgedb.com -useb | iex
-
-For other installation scenarios, see the "Additional installation methods"
-section of `our "Install" page <https://www.edgedb.com/install>`_.
+Now, we'll create an instance of Gel for our project.
 
 
 Create a local Gel instance
@@ -220,7 +196,7 @@ the following in the root of the project:
 
 .. code-block:: bash
 
-    $ gel project init
+    $ npx gel project init
     No `gel.toml` found in `/<path>/<to>/<project>/docs-chatbot`
     or above
 
@@ -264,13 +240,13 @@ We're going to add a couple of variables to that file to configure the Gel
 client. We'll need to run a command on our new instance to get the value for
 one of those. Since we'll be using the `Edge runtime
 <https://nextjs.org/docs/app/api-reference/edge>`_ in our Next.js project, the
-edgedb-js client won't be able to access the Node.js filesystem APIs it usually
+gel-js client won't be able to access the Node.js filesystem APIs it usually
 uses to automatically find your instance, so we need to provide the DSN for the
 instance instead. To get that, run this command:
 
 .. code-block:: bash
 
-    $ gel instance credentials --insecure-dsn
+    $ npx gel instance credentials --insecure-dsn
 
 Copy what it logs out. Open the ``.env.local`` file in your text editor and add
 this to it:
@@ -546,8 +522,8 @@ We apply this schema by creating and running a migration.
 
 .. code-block:: bash
 
-    $ gel migration create
-    $ gel migrate
+    $ npx gel migration create
+    $ npx gel migrate
 
 .. note::
 
@@ -593,7 +569,7 @@ libraries that will help us.
 
 .. code-block:: bash
 
-    $ npm install openai edgedb
+    $ npm install openai gel
     $ npm install \
         @gel/generate \
         gpt-tokenizer \
@@ -642,7 +618,7 @@ tasks we need to perform.
     import { join } from "path";
     import dotenv from "dotenv";
     import { encode } from "gpt-tokenizer";
-    import * as edgedb from "edgedb";
+    import * as gel from "gel";
     import e from "dbschema/edgeql-js";
     import { initOpenAIClient } from "./utils";
 
@@ -917,7 +893,7 @@ Again, we'll break the ``storeEmbeddings`` function apart and walk through it.
 
     // …
     async function storeEmbeddings() {
-      const client = edgedb.createClient();
+      const client = gel.createClient();
 
       const sectionPaths = await walk("docs");
 
@@ -976,7 +952,7 @@ Here's what the whole function looks like:
 
     // …
     async function storeEmbeddings() {
-      const client = edgedb.createClient();
+      const client = gel.createClient();
 
       const sectionPaths = await walk("docs");
 
@@ -1017,7 +993,7 @@ into your ``generate-embeddings.ts`` file.
     import { join } from "path";
     import dotenv from "dotenv";
     import { encode } from "gpt-tokenizer";
-    import * as edgedb from "edgedb";
+    import * as gel from "gel";
     import e from "dbschema/edgeql-js";
     import { initOpenAIClient } from "@/utils";
 
@@ -1079,7 +1055,7 @@ into your ``generate-embeddings.ts`` file.
     }
 
     async function storeEmbeddings() {
-      const client = edgedb.createClient();
+      const client = gel.createClient();
 
       const sectionPaths = await walk("docs");
 
@@ -1116,6 +1092,7 @@ Running the script
 Let's add a script to ``package.json`` that will invoke and execute
 ``generate-embeddings.ts``.
 
+.. XXX gel version - fix
 .. code-block:: json-diff
 
       {
@@ -1131,7 +1108,7 @@ Let's add a script to ``package.json`` that will invoke and execute
     +     "embeddings": "tsx generate-embeddings.ts"
         },
         "dependencies": {
-          "edgedb": "^1.3.5",
+          "gel": "^1.3.5",
           "next": "^13.4.19",
           "openai": "^4.0.1",
           "react": "18.2.0",
@@ -1165,7 +1142,7 @@ After the script finishes, open the Gel UI.
 
 .. code-block:: bash
 
-  $ gel ui
+   $ npx gel ui
 
 Open your "main" branch and switch to the Data Explorer tab. You should see
 that the database has been updated with the embeddings and other relevant data.
@@ -1260,7 +1237,7 @@ writing some configuration.
     :caption: app/api/generate-answer/route.ts
 
     import { stripIndents, oneLineTrim } from "common-tags";
-    import * as edgedb from "edgedb";
+    import * as gel from "gel";
     import e from "dbschema/edgeql-js";
     import { errors } from "../../constants";
     import { initOpenAIClient } from "@/utils";
@@ -1269,7 +1246,7 @@ writing some configuration.
 
     const openai = initOpenAIClient();
 
-    const client = edgedb.createHttpClient();
+    const client = gel.createHttpClient();
 
     export async function POST(req: Request) {
         // …
@@ -1664,7 +1641,7 @@ Now, let's take a look at the whole thing. Copy and paste this into your
     :caption: app/api/generate-answer/route.ts
 
     import { stripIndents, oneLineTrim } from "common-tags";
-    import * as edgedb from "edgedb";
+    import * as gel from "gel";
     import e from "dbschema/edgeql-js";
     import { errors } from "../../constants";
     import { initOpenAIClient } from "@/utils";
@@ -1673,7 +1650,7 @@ Now, let's take a look at the whole thing. Copy and paste this into your
 
     const openai = initOpenAIClient();
 
-    const client = edgedb.createHttpClient();
+    const client = gel.createHttpClient();
 
     export async function POST(req: Request) {
       try {
@@ -2296,11 +2273,11 @@ try tweaking:
 You can see the finished source code for this build in `our examples repo on
 GitHub <https://github.com/geldata/gel-examples/tree/main/docs-chatbot>`_.
 You might also find our actual implementation interesting. You'll find it in
-`our website repo <https://github.com/edgedb/website>`_. Pay close attention to
+`our website repo <https://github.com/geldata/website>`_. Pay close attention to
 the contents of `buildTools/gpt
-<https://github.com/edgedb/website/tree/main/buildTools/gpt>`_, where the
+<https://github.com/geldata/website/tree/main/buildTools/gpt>`_, where the
 embedding generation happens and `components/gpt
-<https://github.com/edgedb/website/tree/main/components/gpt>`_, which contains
+<https://github.com/geldata/website/tree/main/components/gpt>`_, which contains
 most of the UI for our chatbot.
 
 If you have trouble with the build or just want to hang out with other Gel
