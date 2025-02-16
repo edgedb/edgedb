@@ -12,7 +12,6 @@ DDL
     properties
     aliases
     globals
-    access_policies
     mutation_rewrites
     future
     migrations
