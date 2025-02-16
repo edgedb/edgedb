@@ -317,8 +317,6 @@ This section describes the low-level DDL commands for creating, altering, and
 dropping functions. You typically don't need to use these commands directly, but
 knowing about them is useful for reviewing migrations.
 
-
-
 Create function
 ---------------
 

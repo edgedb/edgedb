@@ -251,7 +251,7 @@ Create index
 Creates a new index for a given object type or link using *index-expr*.
 
 - Most parameters/options match those in
-  :ref:`SDL > Indexes <ref_eql_sdl_indexes>`.
+  :ref:`Declaring indexes <ref_eql_sdl_indexes>`.
 
 - Allowed subcommand:
 

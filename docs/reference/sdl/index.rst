@@ -107,6 +107,5 @@ to the previous migration:
     properties
     aliases
     globals
-    access_policies
     mutation_rewrites
     future

@@ -1,7 +1,7 @@
 .. _ref_datamodel_future:
 
 ===============
-Future Behavior
+Future behavior
 ===============
 
 .. index:: future, nonrecursive_access_policies
@@ -37,10 +37,22 @@ added to the schema by the developer in order to gain early access to it.
 
 At the moment there is only one ``future`` available:
 
-- ``nonrecursive_access_policies``: makes access policies :ref:`non-recursive
-  <ref_datamodel_access_policies_nonrecursive>` and simplifies policy
-  interactions.
+.. _ref_datamodel_access_policies_nonrecursive:
+.. _nonrecursive:
 
+- ``nonrecursive_access_policies``: makes access policies non-recursove:
+
+  Starting with |EdgeDB| 3.0, access policy restrictions do **not** apply
+  to any access policy expression. This means that when reasoning about access
+  policies it is no longer necessary to take other policies into account.
+  Instead, all data is visible for the purpose of *defining* an access
+  policy.
+
+  This change is being made to simplify reasoning about access policies and
+  to allow certain patterns to be express efficiently. Since those who have
+  access to modifying the schema can remove unwanted access policies, no
+  additional security is provided by applying access policies to each
+  other's expressions.
 
 .. list-table::
   :class: seealso
