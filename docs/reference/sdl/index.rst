@@ -104,7 +104,6 @@ to the previous migration:
 
     objects
     scalars
-    links
     properties
     aliases
     globals
