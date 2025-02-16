@@ -193,8 +193,7 @@ Indexes can include annotations:
 Declaring indexes
 =================
 
-|Gel's| Schema Definition Language (SDL) supports inline index declarations,
-as seen above. The following syntax details how to declare an index in SDL.
+This section describes the syntax to use indexes in your schema.
 
 Syntax
 ------
@@ -229,7 +228,7 @@ Syntax
 DDL commands
 ============
 
-This section describes the DDL statements for creating, altering, and
+This section describes the low-level DDL commands for creating, altering, and
 dropping indexes.
 
 Create index
