@@ -463,7 +463,9 @@ DDL commands
 ============
 
 This section describes the low-level DDL commands for creating and dropping
-triggers.
+triggers. You typically don't need to use these commands directly, but
+knowing about them is useful for reviewing migrations.
+
 
 Create trigger
 --------------

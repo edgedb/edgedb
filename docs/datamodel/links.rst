@@ -801,7 +801,8 @@ DDL commands
 ============
 
 This section describes the low-level DDL commands for creating, altering, and
-dropping links.
+dropping links. You typically don't need to use these commands directly, but
+knowing about them is useful for reviewing migrations.
 
 Create link
 -----------
