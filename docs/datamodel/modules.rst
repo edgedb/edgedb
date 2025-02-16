@@ -1,4 +1,5 @@
 .. _ref_datamodel_modules:
+.. _ref_eql_sdl_modules:
 
 =======
 Modules
@@ -53,25 +54,16 @@ types, utility functions, and operators:
   :ref:`databases <ref_datamodel_databases>`
 * ``cfg``: configuration and settings
 
-
-.. _ref_eql_sdl_modules:
-
-Declaring modules
-=================
-
-This section describes the syntax to declare a module.
-
-Example
--------
-
-Declare an empty module:
+Example: empty module
+=====================
 
 .. code-block:: sdl
 
     module my_module {}
 
 
-Declare a module with some content:
+Example: flat module
+====================
 
 .. code-block:: sdl
 
@@ -81,7 +73,9 @@ Declare a module with some content:
       }
     }
 
-Declare a nested module:
+
+Example: nested modules
+=======================
 
 .. code-block:: sdl
 
@@ -109,6 +103,13 @@ You can chain together module names in a fully-qualified name to traverse a
 tree of nested modules. For example, to call the ``fight`` function in the
 nested module example above, you would use
 ``dracula::combat::fight(<arguments>)``.
+
+
+Declaring modules
+=================
+
+This section describes the syntax to declare a module.
+
 
 Syntax
 ------
