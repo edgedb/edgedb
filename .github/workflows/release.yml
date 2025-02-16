@@ -2155,6 +2155,24 @@ jobs:
         PKG_PLATFORM_VERSION: "aarch64"
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
 
+
+  publish-github-release:
+    needs: collect
+    runs-on: ubuntu-latest
+
+    steps:
+
+    - name: Publish Github Release
+      uses: elprans/gh-action-create-release@master
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ github.ref }}
+        release_name: ${{ github.ref }}
+        target: ${{ github.event.pull_request.base.ref }}
+        body: EdgeDB v${{ steps.relver.outputs.version }}
+
+
   publish-docker:
     needs:
       - check-published-debian-bookworm-x86_64

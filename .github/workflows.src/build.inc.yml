@@ -375,6 +375,27 @@
 <%- endfor %>
 <%- endif %>
 
+<% if subdist == "" or subdist == "testing" %>
+  publish-github-release:
+    needs: collect
+    runs-on: ubuntu-latest
+
+    steps:
+
+    - name: Publish Github Release
+      uses: elprans/gh-action-create-release@master
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ github.ref }}
+        release_name: ${{ github.ref }}
+        target: ${{ github.event.pull_request.base.ref }}
+        body: EdgeDB v${{ steps.relver.outputs.version }}
+<% if subdist == "testing" %>
+        prerelease: true
+<% endif %>
+<%- endif %>
+
 <%- set docker_tgts = targets.linux | selectattr("docker_arch") | list %>
 <%- if docker_tgts and publications %>
 <%- set pub_outputs = "needs.check-published-" + (docker_tgts|first)["name"] + ".outputs" %>
