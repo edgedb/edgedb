@@ -9,7 +9,6 @@ DDL
 
     objects
     scalars
-    links
     properties
     aliases
     globals
