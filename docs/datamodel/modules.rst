@@ -54,16 +54,18 @@ types, utility functions, and operators:
   :ref:`databases <ref_datamodel_databases>`
 * ``cfg``: configuration and settings
 
-Example: empty module
-=====================
+
+Modules are containers
+======================
+
+They can contain types, functions, and other modules. Here's an example of an
+empty module:
 
 .. code-block:: sdl
 
     module my_module {}
 
-
-Example: flat module
-====================
+And here's an example of a module with a type:
 
 .. code-block:: sdl
 
@@ -74,8 +76,8 @@ Example: flat module
     }
 
 
-Example: nested modules
-=======================
+Nested modules
+==============
 
 .. code-block:: sdl
 
