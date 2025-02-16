@@ -1,4 +1,5 @@
 .. _ref_datamodel_triggers:
+.. _ref_eql_sdl_triggers:
 
 ========
 Triggers
@@ -358,17 +359,8 @@ both a friend and an enemy of any other person.
    gel error: GelError: Invalid frenemies
 
 
-.. _ref_eql_sdl_triggers:
-
-
-Declaring triggers
-==================
-
-This section describes the syntax to declare a trigger.
-
-
-Examples
---------
+Example: logging
+================
 
 Declare a trigger that inserts a ``Log`` object for each new ``User`` object:
 
@@ -404,7 +396,14 @@ query makes a change to a ``User`` object:
      );
    }
 
+
 .. _ref_eql_sdl_triggers_syntax:
+
+
+Declaring triggers
+==================
+
+This section describes the syntax to declare a trigger.
 
 Syntax
 ------

@@ -1,4 +1,5 @@
 .. _ref_datamodel_functions:
+.. _ref_eql_sdl_functions:
 
 =========
 Functions
@@ -152,29 +153,12 @@ aggregated into an array as described above:
     );
 
 
-.. _ref_eql_sdl_functions:
+.. _ref_eql_sdl_functions_syntax:
 
 Declaring functions
 ===================
 
 This section describes the syntax to declare a function.
-
-
-Example
--------
-
-Declare a custom function that concatenates the length of a string
-to the end of that string:
-
-.. code-block:: sdl
-
-    function foo(s: str) -> str
-      using (
-        select s ++ <str>len(a)
-      );
-
-
-.. _ref_eql_sdl_functions_syntax:
 
 Syntax
 ------
