@@ -511,7 +511,9 @@ DDL commands
 ============
 
 This section describes the low-level DDL commands for creating and dropping
-constraints and abstract constraints.
+constraints and abstract constraints. You typically don't need to use these
+commands directly, but knowing about them is useful for reviewing migrations.
+
 
 Create abstract constraint
 --------------------------
