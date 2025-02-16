@@ -403,13 +403,10 @@ query makes a change to a ``User`` object:
 Declaring triggers
 ==================
 
-This section describes the syntax to declare a trigger.
+This section describes the syntax to declare a trigger in your schema.
 
 Syntax
 ------
-
-Define a new trigger corresponding to the :ref:`more explicit DDL
-commands <ref_eql_ddl_triggers>`.
 
 .. sdl:synopsis::
 
@@ -465,7 +462,8 @@ on the same type.
 DDL commands
 ============
 
-This section describes the DDL statements for creating and dropping triggers.
+This section describes the low-level DDL commands for creating and dropping
+triggers.
 
 Create trigger
 --------------

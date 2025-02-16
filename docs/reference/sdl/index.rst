@@ -107,7 +107,6 @@ to the previous migration:
     links
     properties
     aliases
-    annotations
     globals
     access_policies
     mutation_rewrites
