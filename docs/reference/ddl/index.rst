@@ -12,7 +12,6 @@ DDL
     links
     properties
     aliases
-    constraints
     annotations
     globals
     access_policies
