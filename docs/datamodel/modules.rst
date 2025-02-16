@@ -108,14 +108,11 @@ nested module example above, you would use
 Declaring modules
 =================
 
-This section describes the syntax to declare a module.
+This section describes the syntax to declare a module in your schema.
 
 
 Syntax
 ------
-
-Define a module corresponding to the :ref:`more explicit DDL
-commands <ref_eql_ddl_modules>`.
 
 .. sdl:synopsis::
 
@@ -205,7 +202,7 @@ modules' names: ``<ParentModuleName>::<ModuleName>::<EntityName>``
 DDL commands
 ============
 
-This section describes the DDL commands for creating and dropping
+This section describes the low-level DDL commands for creating and dropping
 modules.
 
 Create module

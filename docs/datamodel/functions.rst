@@ -158,13 +158,10 @@ aggregated into an array as described above:
 Declaring functions
 ===================
 
-This section describes the syntax to declare a function.
+This section describes the syntax to declare a function in your schema.
 
 Syntax
 ------
-
-Define a new function corresponding to the :ref:`more explicit DDL
-commands <ref_eql_ddl_functions>`.
 
 .. sdl:synopsis::
 
@@ -316,7 +313,7 @@ are called *overloaded functions*.
 DDL commands
 ============
 
-This section describes the DDL statements for creating, altering, and
+This section describes the low-level DDL commands for creating, altering, and
 dropping functions.
 
 

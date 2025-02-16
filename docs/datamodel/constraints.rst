@@ -399,13 +399,10 @@ name as the existing one.
 Declaring constraints
 =====================
 
-This section describes the syntax to declare a constraints.
+This section describes the syntax to declare constraints in your schema.
 
 Syntax
 ------
-
-Define a constraint corresponding to the :ref:`more explicit DDL
-commands <ref_eql_ddl_constraints>`.
 
 .. sdl:synopsis::
 
@@ -513,7 +510,7 @@ The valid SDL sub-declarations are listed below:
 DDL commands
 ============
 
-This section describes the DDL commands for creating and dropping
+This section describes the low-level DDL commands for creating and dropping
 constraints and abstract constraints.
 
 Create abstract constraint
@@ -522,7 +519,7 @@ Create abstract constraint
 :eql-statement:
 :eql-haswith:
 
-:ref:`Define <ref_eql_sdl_constraints>` a new abstract constraint.
+Define a new abstract constraint.
 
 .. eql:synopsis::
 
