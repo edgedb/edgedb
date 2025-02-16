@@ -125,7 +125,10 @@ DDL commands
 ============
 
 This section describes the low-level DDL commands for creating, altering,
-and dropping annotations and abstract annotations.
+and dropping annotations and abstract annotations. You typically don't need to
+use these commands directly, but knowing about them is useful for reviewing
+migrations.
+
 
 Create abstract annotation
 --------------------------
