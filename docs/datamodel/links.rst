@@ -777,7 +777,7 @@ Syntax
   # Abstract link form:
   abstract link <name>
   [ "{"
-      [extending <base> [, ...] ; ]
+      [ extending <base> [, ...] ; ]
       [ readonly := {true | false} ; ]
       [ <annotation-declarations> ]
       [ <property-declarations> ]

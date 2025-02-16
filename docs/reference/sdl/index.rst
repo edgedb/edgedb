@@ -109,5 +109,4 @@ to the previous migration:
     globals
     access_policies
     mutation_rewrites
-    extensions
     future
