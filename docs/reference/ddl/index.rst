@@ -14,7 +14,6 @@ DDL
     globals
     access_policies
     mutation_rewrites
-    extensions
     future
     migrations
 
