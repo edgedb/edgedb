@@ -29,6 +29,9 @@ Standard constraints
 Constraints on properties
 =========================
 
+Example: enforce all ``User`` objects to have a unique ``username``
+no longer than 25 characters:
+
 .. code-block:: sdl
 
   type User {
@@ -41,37 +44,18 @@ Constraints on properties
     };
   }
 
-
-Custom constraints
-==================
-
-The ``expression`` constraint is used to define custom constraint logic. Inside
-custom constraints, the keyword ``__subject__`` can be used to reference the
-*value* being constrained.
-
-.. code-block:: sdl
-
-  type User {
-    required username: str {
-      # max length (as custom constraint)
-      constraint expression on (len(__subject__) <= 25);
-    };
-  }
-
-
 .. _ref_datamodel_constraints_objects:
 
 Constraints on object types
 ===========================
 
+.. index:: __subject__
+
 Constraints can be defined on object types. This is useful when the
 constraint logic must reference multiple links or properties.
 
-.. important::
-
-  Inside an object type declaration, you can omit ``__subject__`` and simply
-  refer to properties with the :ref:`leading dot notation <ref_dot_notation>`
-  (e.g. ``.<name>``).
+Example: enforce that the magnitude of ``ConstrainedVector`` objects
+is no more than 5
 
 .. code-block:: sdl
 
@@ -80,27 +64,42 @@ constraint logic must reference multiple links or properties.
     required y: float64;
 
     constraint expression on (
-      .x ^ 2 + .y ^ 2 <= 25
+      (.x ^ 2 + .y ^ 2) ^ 0.5 <= 5
+      # or, long form: `(__subject__.x + __subject__.y) ^ 0.5 <= 5`
     );
   }
 
-Note that the constraint expression are fairly restricted. Due
-to how constraints are implemented, you can only reference ``single``
-(non-multi) properties and links defined on the object type:
+The ``expression`` constraint is used here to define custom constraint logic.
+Inside constraints, the keyword ``__subject__`` can be used to reference the
+*value* being constrained.
 
-.. code-block:: sdl
+.. note::
+   Note that inside an object type declaration, you can omit ``__subject__``
+   and simply refer to properties with the
+   :ref:`leading dot notation <ref_dot_notation>` (e.g. ``.property``).
 
-  # Not valid!
-  type User {
-    required username: str;
-    multi friends: User;
+.. note::
 
-    # ❌ constraints cannot contain paths with more than one hop
-    constraint expression on ('bob' in .friends.username);
-  }
+   Also note that the constraint expression are fairly restricted. Due
+   to how constraints are implemented, you can only reference ``single``
+   (non-multi) properties and links defined on the object type:
+
+   .. code-block:: sdl
+
+     # Not valid!
+     type User {
+       required username: str;
+       multi friends: User;
+
+       # ❌ constraints cannot contain paths with more than one hop
+       constraint expression on ('bob' in .friends.username);
+     }
 
 Abstract constraints
 ====================
+
+You can re-use constraints across multiple object types by declaring them as
+abstract constraints. Example:
 
 .. code-block:: sdl
 
