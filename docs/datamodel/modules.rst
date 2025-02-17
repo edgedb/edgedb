@@ -218,19 +218,13 @@ Create a new module.
 
 .. eql:synopsis::
 
-    create module <name> [ if not exists ];
+    create module [ <parent-name>:: ] <name>
+      [ if not exists ];
 
 There's a :ref:`corresponding SDL declaration <ref_eql_sdl_modules>`
 for a module, although in SDL a module declaration is likely to also
 include that module's content.
 
-.. versionadded:: 3.0
-
-    You may also create a nested module.
-
-    .. eql:synopsis::
-
-        create module <parent-name>::<name> [ if not exists ];
 
 Description
 ^^^^^^^^^^^
@@ -260,13 +254,11 @@ Create a new module:
 
     create module payments;
 
-.. versionadded:: 3.0
+Create a new nested module:
 
-    Create a new nested module:
+.. code-block:: edgeql
 
-    .. code-block:: edgeql
-
-        create module payments::currencies;
+    create module payments::currencies;
 
 
 Drop module
