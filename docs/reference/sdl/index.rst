@@ -22,6 +22,8 @@ keywords omitted.  The typical SDL structure is to use :ref:`module
 blocks <ref_eql_sdl_modules>` with the rest of the declarations being
 nested in their respective modules.
 
+.. XXX: Move this to some other file.
+
 .. versionadded:: 3.0
 
     |EdgeDB| 3.0 introduces a new SDL syntax which diverges slightly from DDL.
