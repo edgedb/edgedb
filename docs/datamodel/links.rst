@@ -4,17 +4,18 @@
 Links
 =====
 
-Links define a relationship between two :ref:`object types <ref_datamodel_object_types>` in Gel.
+Links define a relationship between two
+:ref:`object types <ref_datamodel_object_types>` in Gel.
 
 Links in |Gel| are incredibly powerful and flexible. They can be used to model
 relationships of any cardinality, can be traversed in both directions,
-can be polymorphic, and can have constraints, and many other things.
+can be polymorphic, can have constraints, and many other things.
 
 
-Defining links
-==============
+Links are directional
+=====================
 
-Links are *directional*; they have a **source** (the type on which they are
+Links are *directional*: they have a **source** (the type on which they are
 declared) and a **target** (the type they point to).
 
 E.g. the following schema defines a link from ``Person`` to ``Person`` and
@@ -786,13 +787,89 @@ Syntax
       ...
     "}" ]
 
-There are several forms of link declaration:
+There are several forms of link declaration, as shown in the syntax synopsis
+above:
 
-- The *concrete link form* (inside a type) that points to an object type.
-- The *computed link form* (inside a type) that provides a link via an
-  EdgeQL expression.
-- The *abstract link form*, which can be declared at the module level
-  and extended in other types.
+- the first form is the canonical definition form;
+- the second form is used for defining a
+  :ref:`computed link <ref_datamodel_computed>`;
+- and the last form is used to define an abstract link.
+
+The following options are available:
+
+:eql:synopsis:`overloaded`
+    If specified, indicates that the link is inherited and that some
+    feature of it may be altered in the current object type.  It is an
+    error to declare a link as *overloaded* if it is not inherited.
+
+:eql:synopsis:`required`
+    If specified, the link is considered *required* for the parent
+    object type.  It is an error for an object to have a required
+    link resolve to an empty value.  Child links **always** inherit
+    the *required* attribute, i.e it is not possible to make a
+    required link non-required by extending it.
+
+:eql:synopsis:`optional`
+    This is the default qualifier assumed when no qualifier is
+    specified, but it can also be specified explicitly. The link is
+    considered *optional* for the parent object type, i.e. it is
+    possible for the link to resolve to an empty value.
+
+:eql:synopsis:`multi`
+    Specifies that there may be more than one instance of this link
+    in an object, in other words, ``Object.link`` may resolve to a set
+    of a size greater than one.
+
+:eql:synopsis:`single`
+    Specifies that there may be at most *one* instance of this link
+    in an object, in other words, ``Object.link`` may resolve to a set
+    of a size not greater than one.  ``single`` is assumed if nether
+    ``multi`` nor ``single`` qualifier is specified.
+
+:eql:synopsis:`extending <base> [, ...]`
+    Optional clause specifying the *parents* of the new link item.
+
+    Use of ``extending`` creates a persistent schema relationship
+    between the new link and its parents.  Schema modifications
+    to the parent(s) propagate to the child.
+
+    If the same *property* name exists in more than one parent, or
+    is explicitly defined in the new link and at least one parent,
+    then the data types of the property targets must be *compatible*.
+    If there is no conflict, the link properties are merged to form a
+    single property in the new link item.
+
+:eql:synopsis:`<type>`
+    The type must be a valid :ref:`type expression <ref_eql_types>`
+    denoting an object type.
+
+The valid SDL sub-declarations are listed below:
+
+:eql:synopsis:`default := <expression>`
+    Specifies the default value for the link as an EdgeQL expression.
+    The default value is used in an ``insert`` statement if an explicit
+    value for this link is not specified.
+
+    The expression must be :ref:`Stable <ref_reference_volatility>`.
+
+:eql:synopsis:`readonly := {true | false}`
+    If ``true``, the link is considered *read-only*.  Modifications
+    of this link are prohibited once an object is created.  All of the
+    derived links **must** preserve the original *read-only* value.
+
+:sdl:synopsis:`<annotation-declarations>`
+    Set link :ref:`annotation <ref_eql_sdl_annotations>`
+    to a given *value*.
+
+:sdl:synopsis:`<property-declarations>`
+    Define a concrete :ref:`property <ref_eql_sdl_props>` on the link.
+
+:sdl:synopsis:`<constraint-declarations>`
+    Define a concrete :ref:`constraint <ref_eql_sdl_constraints>` on the link.
+
+:sdl:synopsis:`<index-declarations>`
+    Define an :ref:`index <ref_eql_sdl_indexes>` for this abstract
+    link. Note that this index can only refer to link properties.
 
 
 .. _ref_eql_ddl_links:
