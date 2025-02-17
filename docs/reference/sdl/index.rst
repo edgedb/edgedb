@@ -107,7 +107,6 @@ to the previous migration:
     objects
     scalars
     properties
-    aliases
     globals
     mutation_rewrites
     future
