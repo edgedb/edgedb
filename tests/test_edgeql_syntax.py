@@ -4169,7 +4169,7 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  "Missing keyword 'EMPTY'",
+                  "Missing one of keywords 'EMPTY', 'SCHEMA' or 'DATA'",
                   line=2, col=15)
     def test_edgeql_syntax_ddl_branch_07(self):
         """

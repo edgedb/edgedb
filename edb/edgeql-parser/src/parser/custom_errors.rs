@@ -110,7 +110,7 @@ impl<'s> Parser<'s> {
             ParserRule::Create => {
                 if matches!(token.kind, Kind::Keyword(Keyword("branch"))) {
                     return Some(Error {
-                        message: r#"Missing one of keywords "EMPTY", "SCHEMA" or "DATA""#.to_string(),
+                        message: "Missing one of keywords 'EMPTY', 'SCHEMA' or 'DATA'".to_string(),
                         span: Span { start: token.span.start - 1, end: token.span.start },
                         hint: None,
                         details: None,
