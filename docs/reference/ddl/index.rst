@@ -10,7 +10,6 @@ DDL
     objects
     scalars
     properties
-    aliases
     globals
     mutation_rewrites
     future
