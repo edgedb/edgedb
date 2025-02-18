@@ -105,4 +105,3 @@ class PGConnection(asyncio.Protocol):
 
 SETUP_TEMP_TABLE_SCRIPT: str
 SETUP_CONFIG_CACHE_SCRIPT: str
-SETUP_DML_DUMMY_TABLE_SCRIPT: str

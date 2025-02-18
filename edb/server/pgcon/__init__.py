@@ -33,7 +33,6 @@ from .connect import (
     pg_connect,
     SETUP_TEMP_TABLE_SCRIPT,
     SETUP_CONFIG_CACHE_SCRIPT,
-    SETUP_DML_DUMMY_TABLE_SCRIPT,
     RESET_STATIC_CFG_SCRIPT,
 )
 
@@ -46,6 +45,5 @@ __all__ = (
     'BackendCatalogNameError',
     'SETUP_TEMP_TABLE_SCRIPT',
     'SETUP_CONFIG_CACHE_SCRIPT',
-    'SETUP_DML_DUMMY_TABLE_SCRIPT',
     'RESET_STATIC_CFG_SCRIPT'
 )
