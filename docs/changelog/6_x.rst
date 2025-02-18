@@ -374,9 +374,6 @@ EdgeQL
 
       function foo(x: A | B) -> int64 using (x.n);
 
-* Add new ``Modifying`` volatility level for DML.
-  (:eql:gh:`#7808`)
-
 * Search ``std`` for module name when using ``with`` clause.
   (:eql:gh:`#7753`, :eql:gh:`#7836`, :eql:gh:`#7743`)
 
@@ -397,6 +394,20 @@ EdgeQL
           )),
       }
 
+* Enable DML in user-defined functions.
+  (:eql:gh:`#7945`)
+
+  It is now possible to create this kind of function:
+
+  .. code-block:: sdl
+
+      function add_foo(x: int64) -> Foo using ((
+          insert Foo { val := x }
+      ));
+
+  A new ``Modifying`` volatility level is introduced to represent this.
+  (:eql:gh:`#7808`)
+
 * Support ``drop extension package`` of user-installed extensions.
   (:eql:gh:`#7926`)
 
@@ -410,11 +421,9 @@ EdgeQL
 * Expose ``administer statistics_update()``.
   (:eql:gh:`#8335`)
 
+
 Other changes
 -------------
-
-* Enable type checking in edb.server.protocol.
-  (:eql:gh:`#7489`)
 
 * Require extension modules to live in ``ext::``.
   (:eql:gh:`#7526`)
@@ -447,9 +456,6 @@ Other changes
 * Implement warnings in the server.
   (:eql:gh:`#7823`)
 
-* Ensure ``Modifying`` function are always inlined.
-  (:eql:gh:`#7871`)
-
 * Update the ``ext::pgvector`` extension.
   (:eql:gh:`#7812`)
 
@@ -458,47 +464,17 @@ Other changes
 * Avoid computing globals json if not needed for inlined function.
   (:eql:gh:`#7920`)
 
-* Disable overloading ``Modifying`` functions.
-  (:eql:gh:`#7929`)
-
-* Enable DML in user-defined functions.
-  (:eql:gh:`#7945`)
-
-  It is now possible to create this kind of function:
-
-  .. code-block:: sdl
-
-      function add_foo(x: int64) -> Foo using ((
-          insert Foo { val := x }
-      ));
-
 * Allow volatile ``with`` in DML statements.
   (:eql:gh:`#7969`)
 
 * Make ``admin`` the default role instead of ``edgedb``.
   (:eql:gh:`#8010`)
 
-* Make username ``edgedb`` still work on Postgres protocol.
-  (:eql:gh:`#8057`)
-
 * Support extension upgrades.
   (:eql:gh:`#7998`)
 
 * Replace headers with annotations in Parse/Execute.
   (:eql:gh:`#8037`)
-
-* Add ``cfg::Config.track_query_stats`` to turn off query stats.
-  (:eql:gh:`#8033`)
-
-* Add ``sys::QueryStats.tag`` prperty to make it easier to annotate queries.
-  (:eql:gh:`#8036`)
-
-* Rename ``cfg::Config::apply_access_policies_sql`` to
-  ``cfg::Config::apply_access_policies_pg``.
-  (:eql:gh:`#8075`)
-
-* Add query tags to internal queries made by extensions.
-  (:eql:gh:`#8080`)
 
 * Add TOML config file support.
   (:eql:gh:`#8121`)
@@ -509,8 +485,6 @@ Other changes
 * Add a ``cors-always-allowed-origins`` option.
   (:eql:gh:`#8233`)
 
-* Handle session state sync properly with transaction behavior settings.
-  (:eql:gh:`#8318`)
 
 Bug fixes
 ---------
@@ -530,7 +504,7 @@ Bug fixes
 * Improve :eql:type:`json` cast error messages.
   (:eql:gh:`#7312`)
 
-* Improve error when accessing a non-existant tuple field.
+* Improve error when accessing a non-existent tuple field.
   (:eql:gh:`#7373`)
 
 * Fix an ISE on some specific operations with arrays.
@@ -553,17 +527,11 @@ Bug fixes
 * Fix issue with abstract types, exclusive constraints, and ``analyze``.
   (:eql:gh:`#7454`)
 
-* Fix nested config objects that add new exclusive props.
-  (:eql:gh:`#7505`)
-
 * Fix an issue with deletion policies affecting properties.
   (:eql:gh:`#7675`)
 
 * Fix errors when resolving type intersections.
   (:eql:gh:`#7662`)
-
-* Workaround Cython bug under Clang
-  (:eql:gh:`#7764`)
 
 * Fix issues with ``branch`` commands that arise from network issues.
   (:eql:gh:`#7773`)
@@ -593,14 +561,8 @@ Bug fixes
 * Garbage collect ``std::net::http::ScheduleRequest``.
   (:eql:gh:`#7888`)
 
-* Fix SQL introspection for old PostgreSQL versions.
-  (:eql:gh:`#7886`)
-
 * Fix error when dropping non overloaded function.
   (:eql:gh:`#7899`)
-
-* Fix older Postgres versions.
-  (:eql:gh:`#7892`)
 
 * Fix embedding data being stored with the wrong entry.
   (:eql:gh:`#7932`)
@@ -617,12 +579,6 @@ Bug fixes
 
 * Fix an edge case of calling value functions from range vars.
   (:eql:gh:`#7982`)
-
-* HTTP streaming fixes.
-  (:eql:gh:`#7984`)
-
-* Fix ``auth_jwt`` under Cython 3.
-  (:eql:gh:`#7986`)
 
 * Fix ISE when enumerating a call to an aggregate function.
   (:eql:gh:`#7988`)
@@ -651,20 +607,8 @@ Bug fixes
 * Delete old ``.s.EDGEDB.admin.XXX`` sockets.
   (:eql:gh:`#8248`)
 
-* Fix ``administer schema_repair()``.
-  (:eql:gh:`#8279`, :eql:gh:`#8304`)
-
-* Fix inline functions substituting parameters from hidden nodes.
-  (:eql:gh:`#8288`)
-
 * Fix broken error messages for type mismatches in a number of schema objects.
   (:eql:gh:`#8294`)
-
-* Fix a number of problems with toggling the new scoping futures.
-  (:eql:gh:`#8293`)
-
-* Fix DML function in ``for`` loops in ``with`` blocks.
-  (:eql:gh:`#8306`)
 
 * Don't emit instance configs matching their defaults in
   ``describe instance config``.
