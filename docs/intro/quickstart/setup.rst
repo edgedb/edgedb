@@ -60,7 +60,7 @@ Setting up your environment
 
   - ``gel.toml``: The configuration file for the Gel project instance. Notice that we have a ``hooks.migration.apply.after`` hook that will run ``npx @gel/generate edgeql-js`` after migrations are applied. This will generate the query builder code that you'll use to interact with the database. More details on that to come!
   - ``dbschema/``: This directory contains the schema for the database, and later supporting files like migrations, and generated code.
-  - ``dbschema/default.gel``: The default schema file that you'll use to define your data model. It is empty for now, but you'll add your data model to this file in the next step.
+  - :dotgel:`dbschema/default`: The default schema file that you'll use to define your data model. It is empty for now, but you'll add your data model to this file in the next step.
   - ``lib/gel.ts``: A utility module that exports the Gel client, which you'll use to interact with the database.
 
   .. tabs::

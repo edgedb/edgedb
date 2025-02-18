@@ -25,7 +25,7 @@ Modeling the data
 
 .. edb:split-section::
 
-  Starting with this simple model, add these types to the ``default.gel`` schema file. As you can see, the types closely mirror the JSON mock data.
+  Starting with this simple model, add these types to the :dotgel:`dbschema/default` schema file. As you can see, the types closely mirror the JSON mock data.
 
   Also of note, the link between ``Card`` and ``Deck`` objects creates a "1-to-n" relationship, where each ``Deck`` object has a link to zero or more ``Card`` objects. When you query the ``Deck.cards`` link, the cards will be unordered, so the ``Card`` type needs an explicit ``order`` property to allow sorting them at query time.
 
