@@ -252,7 +252,7 @@ Updating data
 
     +   await e
     +     .update(e.Deck, (d) => ({
-    +       filter_single: e.op(d.id, "=", id),
+    +       filter_single: e.op(d.id, "=", e.uuid(id)),
     +       set: {
     +         ...nameSet,
     +         ...descriptionSet,
@@ -346,7 +346,7 @@ Adding linked data
 
         await e
           .update(e.Deck, (d) => ({
-            filter_single: e.op(d.id, "=", id),
+            filter_single: e.op(d.id, "=", e.uuid(id)),
             set: {
               ...nameSet,
               ...descriptionSet,
@@ -471,7 +471,7 @@ Deleting linked data
 
         await e
           .update(e.Deck, (d) => ({
-            filter_single: e.op(d.id, "=", id),
+            filter_single: e.op(d.id, "=", e.uuid(id)),
             set: {
               ...nameSet,
               ...descriptionSet,
@@ -606,7 +606,7 @@ Querying data
       -   return decks.find((deck) => deck.id === id) ?? null;
       +   return await e
       +     .select(e.Deck, (deck) => ({
-      +       filter_single: e.op(deck.id, "=", id),
+      +       filter_single: e.op(deck.id, "=", e.uuid(id)),
       +       id: true,
       +       name: true,
       +       description: true,
