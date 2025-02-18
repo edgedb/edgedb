@@ -212,7 +212,7 @@ In this section, you will update the existing application to use |Gel| to store 
   This may seem a bit intimidating at first, but the key to making this query dynamic is the ``nameSet`` and ``descriptionSet`` variables. These variables conditionally add the ``name`` or ``description`` fields to the ``set`` parameter of the ``update`` call.
 
   .. code-block:: typescript-diff
-    :caption: app/(authenticated)/deck/[id]/actions.ts
+    :caption: app/deck/[id]/actions.ts
 
       "use server";
 
@@ -256,29 +256,6 @@ In this section, you will update the existing application to use |Gel| to store 
         revalidatePath(`/deck/${id}`);
       }
 
-    + const addCardQuery = e.params(
-    +   {
-    +     front: e.str,
-    +     back: e.str,
-    +     deckId: e.uuid,
-    +   },
-    +   (params) => {
-    +     const deck = e.assert_exists(
-    +       e.select(e.Deck, (d) => ({
-    +         filter_single: e.op(d.id, "=", params.deckId),
-    +       }))
-    +     );
-    +
-    +     const order = e.cast(e.int64, e.max(deck.cards.order));
-    +     return e.insert(e.Card, {
-    +       front: params.front,
-    +       back: params.back,
-    +       deck: e.cast(e.Deck, params.deckId),
-    +       order: e.op(order, "+", 1),
-    +     });
-    +   }
-    + );
-    +
       export async function addCard(formData: FormData) {
         const deckId = formData.get("deckId");
         const front = formData.get("front");
@@ -301,21 +278,44 @@ In this section, you will update the existing application to use |Gel| to store 
     -
     -   deck.cards.push({ front, back, id: crypto.randomUUID() });
     -   await writeFile("./decks.json", JSON.stringify(decks, null, 2));
-    +   await addCardQuery.run(client, {
-    +     front,
-    +     back,
-    +     deckId,
-    +   });
+    +   await e
+    +     .params(
+    +       {
+    +         front: e.str,
+    +         back: e.str,
+    +         deckId: e.uuid,
+    +       },
+    +       (params) => {
+    +         const deck = e.assert_exists(
+    +           e.select(e.Deck, (d) => ({
+    +             filter_single: e.op(d.id, "=", params.deckId),
+    +           }))
+    +         );
+    +
+    +         const order = e.cast(e.int64, e.max(deck.cards.order));
+    +         const card = e.insert(e.Card, {
+    +           front: params.front,
+    +           back: params.back,
+    +           order: e.op(order, "+", 1),
+    +         });
+    +         return e.update(deck, (d) => ({
+    +           set: {
+    +             cards: {
+    +               "+=": card
+    +             },
+    +           },
+    +         }))
+    +       }
+    +     )
+    +     .run(client, {
+    +       front,
+    +       back,
+    +       deckId,
+    +     });
 
         revalidatePath(`/deck/${deckId}`);
       }
 
-    + const deleteCardQuery = e.params({ id: e.uuid }, (params) =>
-    +   e.delete(e.Card, (c) => ({
-    +     filter_single: e.op(c.id, "=", params.id),
-    +   }))
-    + );
-    +
       export async function deleteCard(formData: FormData) {
         const cardId = formData.get("cardId");
 
@@ -331,7 +331,14 @@ In this section, you will update the existing application to use |Gel| to store 
     -
     -   deck.cards = deck.cards.filter((card) => card.id !== cardId);
     -   await writeFile("./decks.json", JSON.stringify(decks, null, 2));
-    +   await deleteCardQuery.run(client, { id: cardId });
+    +   await e
+    +     .params({ id: e.uuid }, (params) =>
+    +       e.delete(e.Card, (c) => ({
+    +         filter_single: e.op(c.id, "=", params.id),
+    +       }))
+    +     )
+    +     .run(client, { id: cardId });
+    +
 
         revalidatePath(`/`);
       }
