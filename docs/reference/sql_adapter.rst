@@ -1,17 +1,13 @@
-.. versionadded:: 3.0
-
 .. _ref_sql_adapter:
 
 ===========
 SQL adapter
 ===========
 
-.. edb:youtube-embed:: 0KdY2MPb2oc
-
 Connecting
 ==========
 
-EdgeDB server supports PostgreSQL connection interface. It implements PostgreSQL
+|Gel| server supports PostgreSQL connection interface. It implements PostgreSQL
 wire protocol as well as SQL query language.
 
 As of |Gel| 6.0, it also supports a subset of Data Modification Language,
@@ -20,7 +16,8 @@ namely INSERT, DELETE and UPDATE statements.
 It does not, however, support PostgreSQL Data Definition Language
 (e.g. ``CREATE TABLE``). This means that it is not possible to use SQL
 connections to Gel to modify its schema. Instead, the schema should be
-managed using ESDL (Gel Schema Definition Language) and migration commands.
+managed in |.gel| files using Gel Schema Definition Language and migration
+commands.
 
 Any Postgres-compatible client can connect to an Gel database by using the
 same port that is used for the Gel protocol and the
@@ -30,17 +27,17 @@ for the database.
 .. versionchanged:: 5.0
 
     Here's how you might connect to a local instance on port 10701 (determined
-    by running ``gel instance list``) on a branch ``main`` using the
+    by running :gelcmd:`instance list`) on a branch |main| using the
     ``psql`` CLI:
 
     .. code-block:: bash
 
-        $ psql -h localhost -p 10701 -U edgedb -d main
+        $ psql -h localhost -p 10701 -U admin -d main
 
     You'll then be prompted for a password. If you don't have it, you can run
-    ``edgedb instance credentials --insecure-dsn`` and grab it out of the DSN
+    :gelcmd:`instance credentials --insecure-dsn` and grab it out of the DSN
     the command returns. (It's the string between the second colon and the "at"
-    symbol: ``edgedb://edgedb:PASSWORD_IS_HERE@<host>:<port>/<branch>``)
+    symbol: :geluri:`admin:PASSWORD_IS_HERE@<host>:<port>/<branch>`)
 
 .. note::
 
@@ -52,7 +49,7 @@ for the database.
 
     .. code-block:: edgeql-repl
 
-        db> alter role edgedb {
+        db> alter role admin {
         ...   set password := 'my-password'
         ... };
         OK: ALTER ROLE
@@ -86,17 +83,9 @@ name as your user name when you connect via your SQL client.
       set password := 'your-password'
     };
 
-.. versionchanged:: _default
+.. code-block:: bash
 
-    .. code-block:: bash
-
-        $ psql -h localhost -p 10701 -U sql -d edgedb
-
-.. versionchanged:: 5.0
-
-    .. code-block:: bash
-
-        $ psql -h localhost -p 10701 -U sql -d main
+    $ psql -h localhost -p 10701 -U sql -d main
 
 In this example, when prompted for the password, you would enter
 ``your-password``.
@@ -106,7 +95,7 @@ In this example, when prompted for the password, you would enter
     Gel server requires TLS by default, and this is also true for our SQL
     support. Make sure to require SSL encryption in your SQL tool or client
     when using Gel's SQL support. Alternatively, you can disable the TLS
-    requirement by setting the ``EDGEDB_SERVER_BINARY_ENDPOINT_SECURITY``
+    requirement by setting the :gelenv:`SERVER_BINARY_ENDPOINT_SECURITY`
     environment variable to ``optional``.
 
 
@@ -255,12 +244,12 @@ Tested SQL tools
    https://www.postgresql.org/docs/15/ddl-system-columns.html
 
 
-ESDL to PostgreSQL
-==================
+Gel to PostgreSQL
+=================
 
 As mentioned, the SQL schema of the database is managed trough Gel Schema
-Definition Language (ESDL). Here is a breakdown of how each of the ESDL
-construct is mapped to PostgreSQL schema:
+Definition Language. Here is a breakdown of how each of its
+constructs is mapped to PostgreSQL schema:
 
 - Objects types are mapped into tables.
   Each table has columns ``id UUID`` and ``__type__ UUID`` and one column for
@@ -563,4 +552,4 @@ for the client language of choice. The ORM-based code can now also be gradually
 rewritten to use EdgeQL, one model at the time.
 
 For a detailed migration example, see repository
-`edgedb/hibernate-example <https://github.com/edgedb/hibernate-example>`_.
+`geldata/hibernate-example <https://github.com/geldata/hibernate-example>`_.

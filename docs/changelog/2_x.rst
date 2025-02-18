@@ -55,7 +55,7 @@ the DSN of the newly created instance handy.
 
    .. code-block:: bash
 
-     $ edgedb dump --dsn <old dsn> --all my_database.dump/
+     $ gel dump --dsn <old dsn> --all my_database.dump/
 
    This will dump the schema and contents of your current database to a file
    on your local disk called ``my_database.dump``. The file name isn't
@@ -65,7 +65,7 @@ the DSN of the newly created instance handy.
 
    .. code-block:: bash
 
-     $ edgedb restore --all my_database.dump/ --dsn <new dsn>
+     $ gel restore --all my_database.dump/ --dsn <new dsn>
 
    Once the restore is complete, update your application to connect to the new
    instance.
@@ -93,11 +93,11 @@ upgrade.
 
 .. list-table::
 
-  * - :ref:`TypeScript/JS <edgedb-js-intro>`
+  * - :ref:`TypeScript/JS <gel-js-intro>`
     - ``edgedb@0.21.0``
-  * - :ref:`Python <edgedb-python-intro>`
+  * - :ref:`Python <gel-python-intro>`
     - ``edgedb@0.24.0``
-  * - :ref:`Golang <edgedb-go-intro>`
+  * - :ref:`Golang <gel-go-intro>`
     - ``edgedb@0.12.0``
   * - `Rust <https://github.com/edgedb/edgedb-rust>`_
     - ``edgedb-tokio@0.3.0``

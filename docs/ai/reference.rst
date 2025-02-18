@@ -58,12 +58,12 @@ Providers
 ---------
 
 Provider configs are required for AI indexes (for embedding generation) and for
-RAG (for text generation). They may be added via :ref:`ref_cli_edgedb_ui` or by
+RAG (for text generation). They may be added via :ref:`ref_cli_gel_ui` or by
 via EdgeQL:
 
 .. code-block:: edgeql
 
-    configure current database
+    configure current branch
     insert ext::ai::OpenAIProviderConfig {
       secret := 'sk-....',
     };
@@ -93,7 +93,7 @@ Available values are ``ext::ai::ProviderAPIStyle.OpenAI`` and
 Prompts
 -------
 
-You may add prompts either via :ref:`ref_cli_edgedb_ui` or via EdgeQL. Here's
+You may add prompts either via :ref:`ref_cli_gel_ui` or via EdgeQL. Here's
 an example of how you might add a prompt with a single message:
 
 .. code-block:: edgeql
@@ -184,10 +184,10 @@ When indexes aren't working…
 ----------------------------
 
 If you find your queries are not returning the expected results, try
-inspecting your instance logs. On an |Gel| Cloud instance, use the "Logs"
+inspecting your instance logs. On a |Gel| Cloud instance, use the "Logs"
 tab in your instance dashboard. On local or :ref:`CLI-linked remote
-instances <ref_cli_edgedb_instance_link>`, use ``gel instance logs -I
-<instance-name>``. You may find the problem there.
+instances <ref_cli_gel_instance_link>`, use :gelcmd:`instance logs -I
+<instance-name>`. You may find the problem there.
 
 Providers impose rate limits on their APIs which can often be the source of
 AI index problems. If index creation hits a rate limit, Gel will wait

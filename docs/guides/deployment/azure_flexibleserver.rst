@@ -49,7 +49,7 @@ variable; we'll use this variable in multiple later commands.
 
 .. code-block:: bash
 
-   $ PG_SERVER_NAME=postgres-for-edgedb
+   $ PG_SERVER_NAME=postgres-for-gel
 
 Use the ``read`` command to securely assign a value to the ``PASSWORD``
 environment variable.
@@ -66,7 +66,7 @@ Then create a Postgres Flexible server.
        --resource-group $GROUP \
        --name $PG_SERVER_NAME \
        --location westus \
-       --admin-user edgedb \
+       --admin-user admin \
        --admin-password $PASSWORD \
        --sku-name Standard_D2s_v3 \
        --version 14 \
@@ -88,7 +88,7 @@ Allow other Azure services access to the Postgres instance.
        --start-ip-address 0.0.0.0 \
        --end-ip-address 0.0.0.0
 
-EdgeDB requires Postgres' ``uuid-ossp`` extension which needs to be enabled.
+|Gel| requires Postgres' ``uuid-ossp`` extension which needs to be enabled.
 
 .. code-block:: bash
 
@@ -108,53 +108,53 @@ Start an Gel container.
          --query "[?name=='$PG_SERVER_NAME'].fullyQualifiedDomainName | [0]" \
          --output tsv
      )
-   $ DSN="postgresql://edgedb:$PASSWORD@$PG_HOST/postgres?sslmode=require"
+   $ DSN="postgresql://gel:$PASSWORD@$PG_HOST/postgres?sslmode=require"
    $ az container create \
        --resource-group $GROUP \
-       --name edgedb-container-group \
-       --image edgedb/edgedb \
-       --dns-name-label edgedb \
+       --name gel-container-group \
+       --image geldata/gel \
+       --dns-name-label gel \
        --ports 5656 \
        --secure-environment-variables \
-         "EDGEDB_SERVER_PASSWORD=$PASSWORD" \
-         "EDGEDB_SERVER_BACKEND_DSN=$DSN" \
+         "GEL_SERVER_PASSWORD=$PASSWORD" \
+         "GEL_SERVER_BACKEND_DSN=$DSN" \
        --environment-variables \
-         EDGEDB_SERVER_TLS_CERT_MODE=generate_self_signed \
+         GEL_SERVER_TLS_CERT_MODE=generate_self_signed \
 
 Persist the SSL certificate. We have configured Gel to generate a self
 signed SSL certificate when it starts. However, if the container is restarted a
 new certificate would be generated. To preserve the certificate across failures
 or reboots copy the certificate files and use their contents in the
-``EDGEDB_SERVER_TLS_KEY`` and ``EDGEDB_SERVER_TLS_CERT`` environment variables.
+:gelenv:`SERVER_TLS_KEY` and :gelenv:`SERVER_TLS_CERT` environment variables.
 
 .. code-block:: bash
 
    $ key="$( az container exec \
                --resource-group $GROUP \
-               --name edgedb-container-group \
-               --exec-command "cat /tmp/edgedb/edbprivkey.pem" \
+               --name gel-container-group \
+               --exec-command "cat /tmp/gel/edbprivkey.pem" \
              | tr -d "\r" )"
    $ cert="$( az container exec \
                 --resource-group $GROUP \
-                --name edgedb-container-group \
-                --exec-command "cat /tmp/edgedb/edbtlscert.pem" \
+                --name gel-container-group \
+                --exec-command "cat /tmp/gel/edbtlscert.pem" \
              | tr -d "\r" )"
    $ az container delete \
        --resource-group $GROUP \
-       --name edgedb-container-group \
+       --name gel-container-group \
        --yes
    $ az container create \
        --resource-group $GROUP \
-       --name edgedb-container-group \
-       --image edgedb/edgedb \
-       --dns-name-label edgedb \
+       --name gel-container-group \
+       --image geldata/gel \
+       --dns-name-label gel \
        --ports 5656 \
        --secure-environment-variables \
-         "EDGEDB_SERVER_PASSWORD=$PASSWORD" \
-         "EDGEDB_SERVER_BACKEND_DSN=$DSN" \
-         "EDGEDB_SERVER_TLS_KEY=$key" \
+         "GEL_SERVER_PASSWORD=$PASSWORD" \
+         "GEL_SERVER_BACKEND_DSN=$DSN" \
+         "GEL_SERVER_TLS_KEY=$key" \
        --environment-variables \
-         "EDGEDB_SERVER_TLS_CERT=$cert"
+         "GEL_SERVER_TLS_CERT=$cert"
 
 
 To access the Gel instance you've just provisioned on Azure from your local
@@ -162,27 +162,27 @@ machine link the instance.
 
 .. code-block:: bash
 
-   $ printf $PASSWORD | edgedb instance link \
+   $ printf $PASSWORD | gel instance link \
        --password-from-stdin \
        --non-interactive \
        --trust-tls-cert \
        --host $( \
          az container list \
            --resource-group $GROUP \
-           --query "[?name=='edgedb-container-group'].ipAddress.fqdn | [0]" \
+           --query "[?name=='gel-container-group'].ipAddress.fqdn | [0]" \
            --output tsv ) \
        azure
 
 .. note::
 
-   The command groups ``edgedb instance`` and ``edgedb project`` are not
+   The command groups :gelcmd:`instance` and :gelcmd:`project` are not
    intended to manage production instances.
 
 You can now connect to your instance.
 
 .. code-block:: bash
 
-   $ edgedb -I azure
+   $ gel -I azure
 
 Health Checks
 =============

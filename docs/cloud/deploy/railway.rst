@@ -12,9 +12,9 @@ Railway
 4. Select the repository you want to deploy
 5. Click the "Add variables" button to add the following environment variables:
 
-   - ``EDGEDB_INSTANCE`` containing your Gel Cloud instance name (in
+   - :gelenv:`INSTANCE` containing your Gel Cloud instance name (in
      ``<org>/<instance-name>`` format)
-   - ``EDGEDB_SECRET_KEY`` containing the secret key you created and noted
+   - :gelenv:`SECRET_KEY` containing the secret key you created and noted
      previously.
 
 6. Click "Deploy"

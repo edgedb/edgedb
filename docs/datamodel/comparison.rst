@@ -4,7 +4,7 @@
 vs SQL and ORMs
 ===============
 
-EdgeDB's approach to schema modeling builds upon the foundation of SQL while
+|Gel's| approach to schema modeling builds upon the foundation of SQL while
 taking cues from modern tools like ORM libraries. Let's see how it stacks up.
 
 .. _ref_datamodel_sql_comparison:
@@ -35,18 +35,6 @@ to query across tables.
 
 In |Gel|, connections between tables are represented with :ref:`Links
 <ref_datamodel_links>`.
-
-.. code-block:: sdl
-    :version-lt: 3.0
-
-    type Movie {
-      required property title -> str;
-      required link director -> Person;
-    }
-
-    type Person {
-      required property name -> str;
-    }
 
 .. code-block:: sdl
 

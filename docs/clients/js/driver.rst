@@ -1,4 +1,4 @@
-.. _edgedb-js-driver:
+.. _gel-js-driver:
 
 
 Client
@@ -7,7 +7,7 @@ Client
 The ``Client`` class implements the basic functionality required to establish a
 connection to your database and execute queries.
 
-.. _edgedb-js-create-client:
+.. _gel-js-create-client:
 
 Creating clients
 ----------------
@@ -45,7 +45,7 @@ Connections
 
 Notice we didn't pass any arguments into ``createClient``. That's intentional.
 
-**In development**, we recommend using ``gel project init`` to create an
+**In development**, we recommend using :gelcmd:`project init` to create an
 instance and link it to your project directory. As long as you're inside this
 directory, ``createClient()`` with auto-detect the project and connect to the
 associated instance automatically.
@@ -114,7 +114,7 @@ To execute a basic query:
   }
 
 
-.. _edgedb-js-typescript:
+.. _gel-js-typescript:
 
 In TypeScript, you can supply a type hint to receive a strongly typed result.
 
@@ -377,7 +377,7 @@ a query, use the ``.ensureConnected()`` method.
     await client.ensureConnected();
   }
 
-.. _edgedb-js-api-transaction:
+.. _gel-js-api-transaction:
 
 Transactions
 ------------
@@ -414,7 +414,7 @@ JavaScript code. Here is an example:
 
 .. code-block:: javascript
 
-    const email = "timmy@geldata.com"
+    const email = "timmy@example.com"
 
     await client.transaction(async tx => {
       await tx.execute(
@@ -455,7 +455,7 @@ Next up
 -------
 
 If you're a TypeScript user and want autocompletion and type inference, head
-over to the :ref:`Query Builder docs <edgedb-js-qb>`. If you're using plain
+over to the :ref:`Query Builder docs <gel-js-qb>`. If you're using plain
 JavaScript that likes writing queries with composable code-first syntax, you
 should check out the query builder too! If you're content writing queries as
 strings, the vanilla Client API will meet your needs.

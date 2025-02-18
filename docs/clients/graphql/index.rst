@@ -39,7 +39,7 @@ Then create a new migration and apply it.
   $ gel migration create
   $ gel migrate
 
-Refer to the :ref:`connection docs <edgedb_client_connection>` for various
+Refer to the :ref:`connection docs <gel_client_connection>` for various
 methods of running these commands against remotely-hosted instances.
 
 Connection
@@ -50,12 +50,12 @@ GraphQL queries via HTTP at the following URL.
 
 ``http://<instance-hostname><instance-port>/branch/<branch-name>/graphql``
 
-The default ``branch-name`` will be ``main``, and after initializing your
+The default ``branch-name`` will be |main|, and after initializing your
 database, all queries are executed against it by default. If you want to query
 another branch instead, simply use that branch name in the URL.
 
-To find the port number associated with a local instance, run ``gel
-instance list``.
+To find the port number associated with a local instance, run
+:gelcmd:`instance list`.
 
 .. code-block:: bash
 
@@ -68,12 +68,12 @@ instance list``.
   │ local  │ inst3        │ 10703    │ 6.x           │ running     │
   └────────┴──────────────┴──────────┴───────────────┴─────────────┘
 
-To execute a GraphQL query against the branch ``main`` on the instance
+To execute a GraphQL query against the |main| branch on the instance
 named ``inst2``, we would send an HTTP request to
 ``http://localhost:10702/branch/gel/main``.
 
-To determine the URL of an |Gel| Cloud instance, find the host by running
-``gel instance credentials -I <org-name>/<instance-name>``. Use the
+To determine the URL of a |Gel| Cloud instance, find the host by running
+:gelcmd:`instance credentials -I <org-name>/<instance-name>`. Use the
 ``host`` and ``port`` from that table in the URL format at the top of this
 section. Change the protocol to ``https`` since Gel Cloud instances are
 secured with TLS.

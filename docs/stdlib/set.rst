@@ -172,8 +172,6 @@ Sets
 
     :index: intersect, common, set of
 
-    .. versionadded:: 3.0
-
     Produces a set containing the common items between the given sets.
 
     .. note::
@@ -191,8 +189,6 @@ Sets
                                 -> set of anytype
 
     :index: except, set of
-
-    .. versionadded:: 3.0
 
     Produces a set of all items in the first set which are not in the second.
 
@@ -436,25 +432,6 @@ Sets
     with :ref:`backlinks <ref_datamodel_links>`.
 
     Consider the following types:
-
-    .. code-block:: sdl
-        :version-lt: 3.0
-
-        type User {
-            required property name -> str;
-        }
-
-        abstract type Owned {
-            required link owner -> User;
-        }
-
-        type Issue extending Owned {
-            required property title -> str;
-        }
-
-        type Comment extending Owned {
-            required property body -> str;
-        }
 
     .. code-block:: sdl
 

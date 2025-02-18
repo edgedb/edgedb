@@ -80,11 +80,11 @@ base64url encode the resulting string. This new string is called the
    import crypto from "node:crypto";
 
    /**
-    * You can get this value by running `edgedb instance credentials`.
+    * You can get this value by running `gel instance credentials`.
     * Value should be:
     * `${protocol}://${host}:${port}/branch/${branch}/ext/auth/
     */
-   const EDGEDB_AUTH_BASE_URL = process.env.EDGEDB_AUTH_BASE_URL;
+   const GEL_AUTH_BASE_URL = process.env.GEL_AUTH_BASE_URL;
    const SERVER_PORT = 3000;
 
    /**
@@ -175,7 +175,7 @@ Sign up
          return;
        }
 
-       const registerUrl = new URL("magic-link/register", EDGEDB_AUTH_BASE_URL);
+       const registerUrl = new URL("magic-link/register", GEL_AUTH_BASE_URL);
        const registerResponse = await fetch(registerUrl.href, {
          method: "post",
          headers: {
@@ -201,7 +201,7 @@ Sign up
        }
 
        res.writeHead(204, {
-         "Set-Cookie": `edgedb-pkce-verifier=${pkce.verifier}; HttpOnly; Path=/; Secure; SameSite=Strict`,
+         "Set-Cookie": `gel-pkce-verifier=${pkce.verifier}; HttpOnly; Path=/; Secure; SameSite=Strict`,
        });
        res.end();
      });
@@ -242,7 +242,7 @@ authenticate.
          return;
        }
 
-       const emailUrl = new URL("magic-link/email", EDGEDB_AUTH_BASE_URL);
+       const emailUrl = new URL("magic-link/email", GEL_AUTH_BASE_URL);
        const authenticateResponse = await fetch(emailUrl.href, {
          method: "post",
          headers: {
@@ -263,7 +263,7 @@ authenticate.
        }
 
        res.writeHead(204, {
-         "Set-Cookie": `edgedb-pkce-verifier=${pkce.verifier}; HttpOnly; Path=/; Secure; SameSite=Strict`,
+         "Set-Cookie": `gel-pkce-verifier=${pkce.verifier}; HttpOnly; Path=/; Secure; SameSite=Strict`,
        });
        res.end();
      });
@@ -304,7 +304,7 @@ this code for an authentication token.
 
       const cookies = req.headers.cookie?.split("; ");
       const verifier = cookies
-         ?.find((cookie) => cookie.startsWith("edgedb-pkce-verifier="))
+         ?.find((cookie) => cookie.startsWith("gel-pkce-verifier="))
          ?.split("=")[1];
       if (!verifier) {
          res.status = 400;
@@ -314,7 +314,7 @@ this code for an authentication token.
          return;
       }
 
-      const codeExchangeUrl = new URL("token", EDGEDB_AUTH_BASE_URL);
+      const codeExchangeUrl = new URL("token", GEL_AUTH_BASE_URL);
       codeExchangeUrl.searchParams.set("code", code);
       codeExchangeUrl.searchParams.set("verifier", verifier);
       const codeExchangeResponse = await fetch(codeExchangeUrl.href, {
@@ -330,7 +330,7 @@ this code for an authentication token.
 
       const { auth_token } = await codeExchangeResponse.json();
       res.writeHead(204, {
-         "Set-Cookie": `edgedb-auth-token=${auth_token}; HttpOnly; Path=/; Secure; SameSite=Strict`,
+         "Set-Cookie": `gel-auth-token=${auth_token}; HttpOnly; Path=/; Secure; SameSite=Strict`,
       });
       res.end();
    };

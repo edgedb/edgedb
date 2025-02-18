@@ -716,7 +716,7 @@ Definitions
     .. code-block:: edgeql-repl
 
         db> select bit_lshift(123, -2);
-        edgedb error: InvalidValueError: bit_lshift(): cannot shift by
+        gel error: InvalidValueError: bit_lshift(): cannot shift by
         negative amount
 
 
@@ -765,7 +765,7 @@ Definitions
     .. code-block:: edgeql-repl
 
         db> select bit_rshift(123, -2);
-        edgedb error: InvalidValueError: bit_rshift(): cannot shift by
+        gel error: InvalidValueError: bit_rshift(): cannot shift by
         negative amount
 
 

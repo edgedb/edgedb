@@ -1,10 +1,10 @@
-.. _edgedb-js-api-reference:
+.. _gel-js-api-reference:
 
 #########
 Reference
 #########
 
-.. _edgedb-js-api-client:
+.. _gel-js-api-client:
 
 Client
 ======
@@ -22,12 +22,11 @@ Client
         If this parameter is a string it can represent either a
         DSN or an instance name:
 
-        * when the string does not start with ``gel://`` (or legacy
-          ``edgedb://``) it is a :ref:`name of an instance
-          <ref_reference_connection_instance_name>`;
+        * when the string does not start with |geluri| it is a
+          :ref:`name of an instance <ref_reference_connection_instance_name>`;
 
         * otherwise it specifies a single string in the connection URI format:
-          ``gel://user:password@host:port/database?option=value``.
+          :geluri:`user:password@host:port/database?option=value`.
 
           See the :ref:`Connection Parameters <ref_reference_connection>`
           docs for full details.
@@ -129,7 +128,7 @@ Client
     :js:func:`createClient` should be used instead.
 
 
-    .. _edgedb-js-api-async-optargs:
+    .. _gel-js-api-async-optargs:
 
     .. note::
 
@@ -153,7 +152,7 @@ Client
         :param query: Query text.
 
         This method takes :ref:`optional query arguments
-        <edgedb-js-api-async-optargs>`.
+        <gel-js-api-async-optargs>`.
 
         Example:
 
@@ -174,7 +173,7 @@ Client
         This method **always** returns an array.
 
         This method takes :ref:`optional query arguments
-        <edgedb-js-api-async-optargs>`.
+        <gel-js-api-async-optargs>`.
 
     .. js:method:: queryRequired<T>( \
             query: string, \
@@ -185,7 +184,7 @@ Client
         array.
 
         This method takes :ref:`optional query arguments
-        <edgedb-js-api-async-optargs>`.
+        <gel-js-api-async-optargs>`.
 
         The *query* must return at least one element. If the query less than one
         element, a ``ResultCardinalityMismatchError`` error is thrown.
@@ -198,7 +197,7 @@ Client
         Run an optional singleton-returning query and return the result.
 
         This method takes :ref:`optional query arguments
-        <edgedb-js-api-async-optargs>`.
+        <gel-js-api-async-optargs>`.
 
         The *query* must return no more than one element. If the query returns
         more than one element, a ``ResultCardinalityMismatchError`` error is
@@ -212,7 +211,7 @@ Client
         Run a singleton-returning query and return the result.
 
         This method takes :ref:`optional query arguments
-        <edgedb-js-api-async-optargs>`.
+        <gel-js-api-async-optargs>`.
 
         The *query* must return exactly one element. If the query returns
         more than one element, a ``ResultCardinalityMismatchError`` error is
@@ -224,7 +223,7 @@ Client
         Run a query and return the results as a JSON-encoded string.
 
         This method takes :ref:`optional query arguments
-        <edgedb-js-api-async-optargs>`.
+        <gel-js-api-async-optargs>`.
 
         .. note::
 
@@ -248,7 +247,7 @@ Client
         JSON-encoded string.
 
         This method takes :ref:`optional query arguments
-        <edgedb-js-api-async-optargs>`.
+        <gel-js-api-async-optargs>`.
 
         The *query* must return at least one element. If the query less than one
         element, a ``ResultCardinalityMismatchError`` error is thrown.
@@ -275,7 +274,7 @@ Client
         as a JSON-encoded string.
 
         This method takes :ref:`optional query arguments
-        <edgedb-js-api-async-optargs>`.
+        <gel-js-api-async-optargs>`.
 
         The *query* must return at most one element.  If the query returns
         more than one element, an ``ResultCardinalityMismatchError`` error
@@ -303,7 +302,7 @@ Client
         JSON-encoded string.
 
         This method takes :ref:`optional query arguments
-        <edgedb-js-api-async-optargs>`.
+        <gel-js-api-async-optargs>`.
 
         The *query* must return exactly one element.  If the query returns
         more than one element, a ``ResultCardinalityMismatchError`` error
@@ -381,7 +380,7 @@ Client
         transaction, and the backoff timeout between retries can be
         configured with :js:meth:`Client.withRetryOptions`.
 
-        See :ref:`edgedb-js-api-transaction` for more details.
+        See :ref:`gel-js-api-transaction` for more details.
 
         Example:
 
@@ -552,7 +551,7 @@ Client
         anything.
 
 
-.. _edgedb-js-datatypes:
+.. _gel-js-datatypes:
 
 Type conversion
 ===============
@@ -654,7 +653,7 @@ Gel ``array``  maps onto the JavaScript ``Array``.
 
     main();
 
-.. _edgedb-js-types-object:
+.. _gel-js-types-object:
 
 Objects
 =======
@@ -764,7 +763,7 @@ Local Date
         month: number, \
         day: number)
 
-    A JavaScript representation of an |Gel| ``local_date`` value. Implements
+    A JavaScript representation of a |Gel| ``local_date`` value. Implements
     a subset of the `TC39 Temporal Proposal`_ ``PlainDate`` type.
 
     Assumes the calendar is always `ISO 8601`_.
@@ -910,7 +909,7 @@ Local Date and Time
         microsecond: number = 0, \
         nanosecond: number = 0) extends LocalDate, LocalTime
 
-    A JavaScript representation of an |Gel| ``local_datetime`` value.
+    A JavaScript representation of a |Gel| ``local_datetime`` value.
     Implements a subset of the `TC39 Temporal Proposal`_ ``PlainDateTime``
     type.
 

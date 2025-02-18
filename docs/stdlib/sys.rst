@@ -95,15 +95,16 @@ System
 
     Return the name of the current database as a string.
 
+    .. note::
+
+        This function is deprecated in |Gel|.
+        Use :eql:func:`sys::get_current_branch` instead
+        (it works in the same way).
+
     .. code-block:: edgeql-repl
 
         db> select sys::get_current_database();
         {'my_database'}
-
-    .. versionadded:: 5.0
-
-        In |EdgeDB| 5, this function will return the name of the current
-        database branch.
 
 
 ----------

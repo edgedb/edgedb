@@ -30,17 +30,6 @@ Object types can *extend* other object types. The extending type (AKA the
 *supertypes*.
 
 .. code-block:: sdl
-    :version-lt: 3.0
-
-    abstract type Animal {
-      property species -> str;
-    }
-
-    type Dog extending Animal {
-      property breed -> str;
-    }
-
-.. code-block:: sdl
 
     abstract type Animal {
       species: str;
@@ -58,21 +47,6 @@ an abstract one. In the schema below the ``Animal`` type is now concrete
 and can be inserted, which was not the case in the example above. The new
 ``CanBark`` type however is abstract and thus the database will not have
 any individual ``CanBark`` objects.
-
-.. code-block:: sdl
-    :version-lt: 3.0
-
-    abstract type CanBark {
-      required property bark_sound -> str;
-    }
-
-    type Animal {
-      property species -> str;
-    }
-
-    type Dog extending Animal, CanBark {
-      property breed -> str;
-    }
 
 .. code-block:: sdl
 
@@ -105,22 +79,6 @@ than one type <ref_eql_sdl_object_types_inheritance>` — that's called
 types out of combinations of more basic types.
 
 .. code-block:: sdl
-    :version-lt: 3.0
-
-    abstract type HasName {
-      property first_name -> str;
-      property last_name -> str;
-    }
-
-    abstract type HasEmail {
-      property email -> str;
-    }
-
-    type Person extending HasName, HasEmail {
-      property profession -> str;
-    }
-
-.. code-block:: sdl
 
     abstract type HasName {
       first_name: str;
@@ -146,21 +104,6 @@ Overloading
 An object type can overload an inherited property or link. All overloaded
 declarations must be prefixed with the ``overloaded`` prefix to avoid
 unintentional overloads.
-
-.. code-block:: sdl
-    :version-lt: 3.0
-
-    abstract type Person {
-      property name -> str;
-      multi link friends -> Person;
-    }
-
-    type Student extending Person {
-      overloaded property name -> str {
-        constraint exclusive;
-      }
-      overloaded multi link friends -> Student;
-    }
 
 .. code-block:: sdl
 
@@ -207,18 +150,6 @@ It's possible to define ``abstract`` links that aren't tied to a particular
 annotations, property declarations, constraints, and indexes.
 
 .. code-block:: sdl
-    :version-lt: 3.0
-
-    abstract link link_with_strength {
-      property strength -> float64;
-      index on (__subject__@strength);
-    }
-
-    type Person {
-      multi link friends extending link_with_strength -> Person;
-    }
-
-.. code-block:: sdl
 
     abstract link link_with_strength {
       strength: float64;
@@ -238,21 +169,6 @@ Constraints
 
 
 Use ``abstract`` to declare reusable, user-defined constraint types.
-
-.. code-block:: sdl
-    :version-lt: 3.0
-
-    abstract constraint in_range(min: anyreal, max: anyreal) {
-      errmessage :=
-        'Value must be in range [{min}, {max}].';
-      using (min <= __subject__ and __subject__ < max);
-    }
-
-    type Player {
-      property points -> int64 {
-        constraint in_range(0, 100);
-      }
-    }
 
 .. code-block:: sdl
 

@@ -24,7 +24,7 @@ Install it with ``npm`` or ``yarn``:
 
 .. code-block:: bash
 
-   $ npm install edgedb
+   $ npm install gel
 
 and it is ready for use:
 
@@ -47,7 +47,7 @@ and it is ready for use:
 
     main();
 
-The documentation can be found :ref:`here <edgedb-js-intro>`.
+The documentation can be found :ref:`here <gel-js-intro>`.
 
 
 Standard Library
@@ -145,8 +145,8 @@ Other Fixes and Enhancements
 Dump / Restore
 ==============
 
-The new :ref:`edgedb dump <ref_cli_edgedb_dump>` and
-:ref:`edgedb restore <ref_cli_edgedb_restore>` commands can be used to
+The new :ref:`edgedb dump <ref_cli_gel_dump>` and
+:ref:`edgedb restore <ref_cli_gel_restore>` commands can be used to
 safely dump and restore |EdgeDB| databases, including when upgrading to new
 versions of |EdgeDB|.
 

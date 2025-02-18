@@ -22,22 +22,22 @@ your schema from its current state to a new state.
 The basics of creating a project, modifying its schema, and migrating
 it in Gel are pretty easy:
 
-- Type ``edgedb project init`` to start a project,
-- Open the newly created empty schema at ``dbschema/default.esdl`` and add
+- Type :gelcmd:`project init` to start a project,
+- Open the newly created empty schema at :dotgel:`dbschema/default` and add
   a simple type like  ``SomeType { name: str; }`` inside the empty ``module``
-- Run ``edgedb migration create``, type ``y`` to confirm the change,
-  then run ``edgedb migrate``, and you are done! You can now
+- Run :gelcmd:`migration create`, type ``y`` to confirm the change,
+  then run :gelcmd:`migrate`, and you are done! You can now
   ``insert SomeType;`` in your database to your heart's content.
 
 .. note::
 
    If you ever feel like outright removing and creating an instance anew
    during this migration guide, you can use the command
-   ``edgedb instance destroy -I <instancename> --force``. And if you want to
+   :gelcmd:`instance destroy -I <instancename> --force`. And if you want to
    remove all existing migrations as well, you can manually delete them inside
    your ``/migrations`` folder (otherwise, the CLI will try to apply the
    migrations again when you recreate your instance with
-   ``edgedb migration create``). Once that is done, you will have a blank
+   :gelcmd:`migration create`). Once that is done, you will have a blank
    slate on which to start over again.
 
 But many Gel users have needs that go beyond these basics. In addition,
@@ -47,9 +47,9 @@ a casual migration user into one with a lot more tools at hand, along
 with a deeper understanding of the internals of Gel at the same
 time.
 
-EdgeDB's built-in tools are what make schema migrations easy, and
+|Gel's| built-in tools are what make schema migrations easy, and
 the way they work is through a pretty interesting interaction between
-EdgeDB's SDL (Schema Definition Language) and DDL (Data Definition
+Gel's SDL (Schema Definition Language) and DDL (Data Definition
 Language). The first thing to understand about migrations is the difference
 between SDL and DDL, and how they are used.
 
@@ -79,13 +79,13 @@ Here is a simple example of a schema:
      }
    }
 
-If you have Gel installed and want to follow along, type ``edgedb
-project init`` and copy the above schema into your ``default.esdl``
+If you have Gel installed and want to follow along, run
+:gelcmd:` project init` and copy the above schema into your :dotgel:`default`
 file inside the ``/dbschema`` folder it creates. Then save the file.
 
 .. note::
 
-    While schema is usually contained inside the ``default.esdl`` file,
+    While schema is usually contained inside the :dotgel:`default` file,
     you can divide a schema over multiple files if you like. Gel will
     combine all |.gel| files inside the ``/dbschema`` folder into a
     single schema.
@@ -113,9 +113,9 @@ necessary changes.
 DDL: For computers (mostly)
 ===========================
 
-To see what a schema migration file looks like, type ``edgedb migration
-create``. Now look inside your ``/dbschema/migrations`` folder. You should
-see a file called ``00001.esdl`` with the following, our first view into
+To see what a schema migration file looks like, type :gelcmd:`migration
+create`. Now look inside your ``/dbschema/migrations`` folder. You should
+see a file called ``00001.edgeql`` with the following, our first view into
 what DDL looks like.
 
 .. code-block::
@@ -133,7 +133,7 @@ at all that doesn't already have a type called ``User``.
 
 Let's try one more small migration, in which we decide that we don't
 want the ``name`` property anymore. Once again, we are declaring the
-final state: a ``User`` type with nothing inside. Update your ``default.esdl``
+final state: a ``User`` type with nothing inside. Update your :dotgel:`default`
 to look like this:
 
 .. code-block:: sdl
@@ -142,7 +142,7 @@ to look like this:
       type User;
     }
 
-As before, typing ``edgedb migration create`` will create a DDL statement to
+As before, typing :gelcmd:`migration create` will create a DDL statement to
 change the schema from the current state to the one we have declared. This
 time we aren't starting from a blank schema, so the stakes are a bit higher.
 After all, dropping a property from a type will also drop all existing data
@@ -174,7 +174,7 @@ a property called ``name`` anymore.
 
 .. note::
 
-    Gel commands inside the REPL use a backslash instead of the ``edgedb``
+    Gel commands inside the REPL use a backslash instead of the |gelcmd|
     command, so you can migrate your schema inside the REPL by typing
     ``\migration create`` , followed by ``\migrate``. Not only are the comands
     shorter, but they also execute faster. This is because the database client
@@ -264,7 +264,7 @@ It's SDL, but the order matches that of the DDL statements.
     };
 
 Although the schema produced with ``describe schema as sdl;`` may not match
-the schema you've written inside ``default.esdl``, it will
+the schema you've written inside :dotgel:`default`, it will
 show you the order in which statements were needed to reach this final
 schema.
 
@@ -280,13 +280,13 @@ has no properties.
       type User;
     }
 
-Creating a migration with ``edgedb migration create`` will result
+Creating a migration with :gelcmd:`migration create` will result
 in two questions, one to confirm that we wanted to drop the ``name``
 property, and another to drop the ``Name`` type.
 
 .. code-block:: bash
 
-    $ edgedb migration create
+    $ gel migration create
     did you drop property 'name' of object type 'default::User'?
     [y,n,l,c,b,s,q,?]
     > y
@@ -302,7 +302,7 @@ First go into your ``/dbschema/migrations`` folder and delete the
 most recent ``.edgeql`` file that drops the property ``name`` and
 the scalar type ``Name``. Don't worry - the migration hasn't been
 applied yet, so you won't confuse the database by deleting it at this
-point. And now type ``edgedb migration create --non-interactive``.
+point. And now type :gelcmd:`migration create --non-interactive`.
 
 You'll see the same file generated, except that this time there weren't
 any questions to answer. A non-interactive migration will work as
@@ -392,7 +392,7 @@ look like this:
 
 This migration will alter the ``User`` type by creating a new property and
 dropping the old one. If that is what we wanted, then we can now type
-``\migrate`` in the REPL or ``edgedb migrate`` at the command line to complete
+``\migrate`` in the REPL or :gelcmd:`migrate` at the command line to complete
 the migration.
 
 Questions from the CLI
@@ -522,13 +522,13 @@ Sometimes you may want to initialize a database with some default
 data, or add some data to a migration that you have just created before
 you apply it.
 
-EdgeDB assumes by default that a migration involves a change to your
+|Gel| assumes by default that a migration involves a change to your
 schema, so it won't create a migration for you if it doesn't see a
 schema change:
 
 .. code-block:: bash
 
-    $ edgedb migration create
+    $ gel migration create
     No schema changes detected.
 
 So how do you create a migration with only data? To do this, just
@@ -536,7 +536,7 @@ add ``--allow-empty`` to the command:
 
 .. code-block:: bash
 
-    $ edgedb migration create --allow-empty
+    $ gel migration create --allow-empty
     Created myproject/dbschema/migrations/00002.edgeql,
     id: m1xseswmheqzxutr55cu66ko4oracannpddujg7gkna2zsjpqm2g3a
 
@@ -564,7 +564,7 @@ such as the following:
         delete User filter .name = 'User 2';
     };
 
-The problem is, if you save that migration and run ``edgedb migrate``, the CLI
+The problem is, if you save that migration and run :gelcmd:`migrate`, the CLI
 will complain that the migration hash doesn't match what it is supposed to be.
 However, it helpfully provides the reason: "Migration names are computed from
 the hash of the migration contents."
@@ -595,8 +595,8 @@ If you change the statement to read in exactly the way the output suggests,
 the migration will now work.
 
 That's the manual way to do a data migration, but Gel also has an
-``edgedb migration edit`` command that will automate the process for you.
-Using ``edgedb migration edit`` will open up the most recent migration for
+:gelcmd:`migration edit` command that will automate the process for you.
+Using :gelcmd:`migration edit` will open up the most recent migration for
 you to change, and update the migration hash when you close the window.
 
 Aside from exclusive data migrations, you can also create a migration that
@@ -604,13 +604,13 @@ combines schema changes *and* data. This is even easier, since it doesn't even
 require appending ``--allow-empty`` to the command. Just do the following:
 
 1. Change your schema
-2. Type ``edgedb migration create`` and respond to the CLI's questions
+2. Type :gelcmd:`migration create` and respond to the CLI's questions
 3. Add your queries to the file (best done on the bottom after the
    DDL statements have changed the schema) either manually or using
-   ``edgedb migration edit``
-4. Type ``edgedb migrate`` to migrate the schema. If you have changed the
+   :gelcmd:`migration edit`
+4. Type :gelcmd:`migrate` to migrate the schema. If you have changed the
    schema file manually, copy the suggested name into the migration hash
-   and type ``edgedb migrate`` again.
+   and type :gelcmd:`migrate` again.
 
 The Gel tutorial is a good example of a database
 set up with both a schema migration and a data migration. Setting
@@ -623,7 +623,7 @@ Squashing migrations
 
 Users often end up making many changes to their schema because
 of how effortless it is to do. (And in the next section we will learn
-about ``edgedb watch``, which is even more effortless!) This leads to
+about :gelcmd:`watch`, which is even more effortless!) This leads to
 an interesting side effect: lots of ``.edgeql`` files, many of which
 represent trials and approaches that don't end up making it to the
 final schema.
@@ -650,7 +650,7 @@ to work through:
     ...and so on...
     Project initialized.
 
-To squash your migrations, just run ``edgedb migration create`` with the
+To squash your migrations, just run :gelcmd:`migration create` with the
 ``--squash`` option. Running this command will first display some helpful
 info to keep in mind before committing to the operation:
 
@@ -666,7 +666,7 @@ info to keep in mind before committing to the operation:
     2. Ensure that other users of the database have the revision
     above or can create database from scratch.
         To check a specific instance, run:
-        edgedb -I <name> migration log --from-db --newest-first --limit 1
+        gel -I <name> migration log --from-db --newest-first --limit 1
     1. Merge version control branches that contain schema changes
     if possible.
 
@@ -727,12 +727,12 @@ Next, change to this schema **without migrating it**:
     nickname: str;
   }
 
-Now run ``edgedb migration create --squash``. The output is first
+Now run :gelcmd:`migration create --squash`. The output is first
 the same as with our previous squash:
 
 .. code-block:: bash
 
-    $ edgedb migration create --squash
+    $ gel migration create --squash
     Current database revision:
     m16awk2tzhtbupjrzoc4fikgw5okxpfnaazupb6rxudxwin2qfgy5q
     While squashing migrations is non-destructive,
@@ -743,7 +743,7 @@ the same as with our previous squash:
     2. Ensure that other users of the database have the revision
     above or can create database from scratch.
         To check a specific instance, run:
-        edgedb -I <name> migration log --from-db --newest-first --limit 1
+        gel -I <name> migration log --from-db --newest-first --limit 1
     3. Merge version control branches that contain schema changes
     if possible.
 
@@ -786,13 +786,13 @@ working with git after doing a squash with a fixup.
         git add dbschema
 
     The normal migration process will update your migration history:
-        edgedb migrate
+        gel migrate
 
 We'll take its suggestion to apply the migration:
 
 .. code-block:: bash
 
-    $ edgedb migrate
+    $ gel migrate
 
     Applied m1v3vqmwif4ml3ucbzi555mjgm4myxs2husqemopo2sz2m7otr22ka
     (m16awk2tzhtbupjrzoc4fikgw5okxpfnaazupb6rxudxwin2qfgy5q-
@@ -804,24 +804,24 @@ We'll take its suggestion to apply the migration:
     Squashing is limited to schema changes, so queries inside
     data migrations will be discarded during a squash.
 
-EdgeDB Watch
-============
+Gel Watch
+=========
 
-Another option when quickly iterating over schema changes is ``edgedb watch``.
+Another option when quickly iterating over schema changes is :gelcmd:`watch`.
 This will create a long-running process that keeps track of every time you
 save an |.gel| file inside your ``/migrations`` folder, letting you know
-if your changes have successfully compiled or not. The ``edgedb watch``
+if your changes have successfully compiled or not. The :gelcmd:`watch`
 command itself will show the following input when the process starts up:
 
 .. code-block::
 
     Connecting to Gel instance 'anything' at localhost:10700...
     Gel Watch initialized.
-    Hint: Use `edgedb migration create` and `edgedb migrate --dev-mode`
+    Hint: Use `gel migration create` and `gel migrate --dev-mode`
     to apply changes once done.
     Monitoring "/home/instancename".
 
-Unseen to the user, ``edgedb watch`` will begin creating individual migration
+Unseen to the user, :gelcmd:`watch` will begin creating individual migration
 scripts for every time you save a change to one of your files. These
 are stored as separate "dev mode" migrations, which are sort of like
 preliminary migrations that haven't been turned into a standalone
@@ -849,7 +849,7 @@ hit after making a change to the following schema:
       }
     }
 
-You will see a quick "calculating diff" show up as ``edgedb watch`` checks
+You will see a quick "calculating diff" show up as :gelcmd:`watch` checks
 to see that the change we made was a valid one. As the change we made was
 to a valid schema, the "calculating diff" message will disappear pretty
 quickly.
@@ -867,19 +867,19 @@ more verbose. Let's add some incorrect syntax to the existing schema:
       }
     }
 
-Once you hit save, ``edgedb watch`` will suddenly pipe up and inform you
+Once you hit save, :gelcmd:`watch` will suddenly pipe up and inform you
 that the schema can't be resolved:
 
 .. code-block::
 
     error: type 'default::i32' does not exist
-    ┌─ myproject/dbschema/default.esdl:5:25
+    ┌─ myproject/dbschema/default.gel:5:25
     │
     5 │         wrong_property: i32;
     │                         ^^^ error
 
     Schema migration error:
-    cannot proceed until .esdl files are fixed
+    cannot proceed until .gel files are fixed
 
 Once you correct the ``i32`` type to ``int32``, you will see a message
 letting you know that things are okay now.
@@ -891,12 +891,12 @@ letting you know that things are okay now.
 The process will once again quieten down, but will continue to watch your
 schema and apply migrations to any changes you make to your schema.
 
-``edgedb watch`` is best run in a separate instance of your command line so
+:gelcmd:`watch` is best run in a separate instance of your command line so
 that you can take care of other tasks — including officially migrating
 when you are satisfied with your current schema — without having to
 stop the process.
 
-If you are curious what is happening as ``edgedb watch`` does its thing,
+If you are curious what is happening as :gelcmd:`watch` does its thing,
 try the following query after you have made some changes. It will return
 a few lists of applied migrations, grouped by the way they were generated.
 
@@ -908,7 +908,7 @@ a few lists of applied migrations, grouped by the way they were generated.
     } by .generated_by;
 
 Some migrations will contain nothing in their ``generated_by`` property,
-while those generated by ``edgedb watch`` will have a
+while those generated by :gelcmd:`watch` will have a
 ``MigrationGeneratedBy.DevMode``.
 
 .. note::
@@ -918,30 +918,29 @@ while those generated by ``edgedb watch`` will have a
     show up if you directly change your schema by using DDL, which is
     generally not recommended.
 
-Once you are satisfied with your changes while running ``edgedb watch``,
-just create the migration with ``edgedb migration create`` and then
+Once you are satisfied with your changes while running :gelcmd:`watch`,
+just create the migration with :gelcmd:`migration create` and then
 apply them with one small tweak to the ``migrate`` command:
-``edgedb migrate --dev-mode`` to let the CLI know to apply the migrations
-made during dev mode that were made by ``edgedb watch``.
+:gelcmd:`migrate --dev-mode` to let the CLI know to apply the migrations
+made during dev mode that were made by :gelcmd:`watch`.
 
 Branches
 ========
 
-EdgeDB's branches can be a useful part of your schema migrations, especially
+|Gel's| branches can be a useful part of your schema migrations, especially
 when you're developing new features or prototyping experimental features. By
 creating a new branch, you can isolate schema changes from your other branches.
 
-Imagine a scenario in which your main branch is called ``main`` (which is the
-default name for the initial branch) and your feature branch is called
-``feature``. This is the ideal workflow for using an Gel branch alongside a feature
-branch in your VCS to develop a new feature:
+Imagine a scenario in which your main branch is |main| and your feature branch
+is called ``feature``. This is the ideal workflow for using an Gel branch
+alongside a feature branch in your VCS to develop a new feature:
 
-1. Create a new feature branch with :ref:`ref_cli_edgedb_branch_create`
+1. Create a new feature branch with :ref:`ref_cli_gel_branch_create`
 2. Build your feature
-3. Pull any changes on ``main``
-4. Rebase your feature branch on ``main`` with
-   :ref:`ref_cli_edgedb_branch_rebase`
-5. Merge ``feature`` onto ``main`` with :ref:`ref_cli_edgedb_branch_merge`
+3. Pull any changes on |main|
+4. Rebase your feature branch on |main| with
+   :ref:`ref_cli_gel_branch_rebase`
+5. Merge ``feature`` onto |main| with :ref:`ref_cli_gel_branch_merge`
 
 The workflow is outlined in detail in :ref:`the branches guide in our "Get
 started" section <ref_intro_branches>`.
@@ -951,11 +950,11 @@ started" section <ref_intro_branches>`.
 How rebasing works
 ------------------
 
-Rebasing the branch in step 4 above happens with a single command — ``edgedb
-branch rebase main`` — but that one command has quite a bit going on under the
-hood. Here's how it works:
+Rebasing the branch in step 4 above happens with a single command —
+:gelcmd:`branch rebase main` — but that one command has quite a bit going on
+under the hood. Here's how it works:
 
-1. The CLI first clones the ``main`` branch with the data into a ``temp``
+1. The CLI first clones the |main| branch with the data into a ``temp``
    branch.
 2. It introspects the migration histories of ``temp`` and the ``feature``
    branch to establish where they diverge.
@@ -988,7 +987,7 @@ will not work:
     │ ^^^^^^^^^^^^^^^^^^ Use the migration commands instead.
     │
     = The `allow_bare_ddl` configuration variable is set to
-    'NeverAllow'.  The `edgedb migrate` command normally sets
+    'NeverAllow'.  The `gel migrate` command normally sets
     this to avoid accidental schema changes outside of the
     migration flow.
 
@@ -1060,7 +1059,7 @@ you try to apply the change:
     Error executing command: Database must be updated to
     the last migration on the filesystem for
     `migration create`. Run:
-    edgedb migrate
+    gel migrate
 
     db> \migrate
     Error executing command: database applied migration
@@ -1093,18 +1092,18 @@ see it with the following query:
     }
 
 Fortunately, the fix is not too hard: we can use the command
-``edgedb migration extract``. This command will retrieve the migration(s)
+:gelcmd:`migration extract`. This command will retrieve the migration(s)
 created using DDL and assign each of them a proper file name and hash
 inside the ``/dbschema/migrations`` folder, effectively giving them a proper
 position inside the migration flow.
 
 Note that at this point your |.gel| schema will still not match
-the database schema, so if you were to type ``edgedb migration create``
+the database schema, so if you were to type :gelcmd:`migration create`
 the CLI would then ask you if you want to drop the type that you just
 created - because it doesn't exist inside there. So be sure to change
 your schema to match the schema inside the database that you have
 manually changed via DDL. If in doubt, use ``describe schema as sdl``
-to compare or use ``edgedb migration create`` and check the output.
+to compare or use :gelcmd:`migration create` and check the output.
 If the CLI is asking you if you want to drop a type, that means that
 you forgot to add it to the schema inside your |.gel| file(s).
 
@@ -1184,11 +1183,11 @@ we will keep the ``friends`` link, while adding a new property called
       }
     }
 
-Upon using ``edgedb migration create``, the CLI will simply ask us if we
+Upon using :gelcmd:`migration create`, the CLI will simply ask us if we
 created a property called ``friend_names``. We haven't applied the migration
 yet, so we might as well put the data inside the same migration. A simple
 ``update`` will do the job! As we learned previously,
-``edgedb migration edit`` is the easiest way to add data to a migration. Or
+:gelcmd:`migration edit` is the easiest way to add data to a migration. Or
 you can manually add the ``update``, try to apply the migration, and change
 the migration hash to the output suggested by the CLI.
 
@@ -1242,7 +1241,7 @@ We've now reached the most optional part of the migrations tutorial,
 but an interesting one for those curious about what goes on behind
 the scenes during a migration.
 
-Migrations in Gel before the advent of the ``edgedb project`` flow
+Migrations in Gel before the advent of the :gelcmd:`project` flow
 were still automated but required more manual work if you didn't
 want to accept all of the suggestions provided by the server. This
 process is in fact still used to migrate even today; the CLI just
@@ -1279,7 +1278,7 @@ this format as readable as possible with the following command:
     db> \set output-format json-pretty
 
 First, let's begin with the same same simple schema used in the previous
-examples, via the regular ``edgedb migration create`` and ``edgedb migrate``
+examples, via the regular :gelcmd:`migration create` and :gelcmd:`migrate`
 commands.
 
 .. code-block:: sdl
@@ -1392,10 +1391,10 @@ will be complete.
     OK: COMMIT MIGRATION
 
 Since this migration was created using direct DDL statements,
-you will need to use ``edgedb migration extract`` to extract the latest
+you will need to use :gelcmd:`migration extract` to extract the latest
 migration and give it a proper ``.edgeql`` file in the same way we
 did above in the "So you really wanted to use DDL but now regret it?"
 section.
 
-.. _rfc: https://github.com/edgedb/rfcs/blob/master/text/1000-migrations.rst
-.. _tutorial_files: https://github.com/edgedb/website/tree/main/content/tutorial/dbschema/migrations
+.. _rfc: https://github.com/geldata/rfcs/blob/master/text/1000-migrations.rst
+.. _tutorial_files: https://github.com/geldata/website/tree/main/content/tutorial/dbschema/migrations

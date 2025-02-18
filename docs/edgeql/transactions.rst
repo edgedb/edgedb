@@ -99,7 +99,7 @@ Using the querybuilder:
     await query2.run(tx);
   });
 
-Full documentation at :ref:`Client Libraries > TypeScript/JS <edgedb-js-intro>`;
+Full documentation at :ref:`Client Libraries > TypeScript/JS <gel-js-intro>`;
 
 Python
 ^^^^^^
@@ -115,14 +115,14 @@ Python
               filter .name = 'Customer2'
               set { bank_balance := .bank_balance +10 };""")
 
-Full documentation at :ref:`Client Libraries > Python <edgedb-python-intro>`;
+Full documentation at :ref:`Client Libraries > Python <gel-python-intro>`;
 
 Golang
 ^^^^^^
 
 .. code-block:: go
 
-	err = client.Tx(ctx, func(ctx context.Context, tx *edgedb.Tx) error {
+	err = client.Tx(ctx, func(ctx context.Context, tx *gel.Tx) error {
 		query1 := `update BankCustomer
 			filter .name = 'Customer1'
 			set { bank_balance := .bank_balance -10 };`
@@ -141,7 +141,7 @@ Golang
 		log.Fatal(err)
 	}
 
-Full documentation at :ref:`Client Libraries > Go <edgedb-go-intro>`.
+Full documentation at :ref:`Client Libraries > Go <gel-go-intro>`.
 
 Rust
 ^^^^

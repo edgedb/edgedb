@@ -117,7 +117,7 @@ directory.
 
 .. code-block:: bash
 
-    $ edgedb project init
+    $ gel project init
     No `edgedb.toml` found in `/home/username/dev/hw` or above
     Do you want to initialize a new project? [Y/n]
     > Y
@@ -157,7 +157,7 @@ running ``edgedb project init`` in the existing project's directory:
 
 .. code-block:: bash
 
-    $ edgedb project init
+    $ gel project init
     No `edgedb.toml` found in `/home/username/dev/myproject` or above
     Do you want to initialize a new project? [Y/n]
     > Y

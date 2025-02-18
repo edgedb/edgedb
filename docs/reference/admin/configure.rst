@@ -8,27 +8,20 @@ Configure
 
 ``configure`` -- change a server configuration parameter
 
-.. versionchanged:: _default
+.. eql:synopsis::
 
-    .. eql:synopsis::
+    configure {session | current branch | instance}
+        set <parameter> := <value> ;
+    configure instance insert <parameter-class> <insert-shape> ;
+    configure {session | current branch | instance} reset <parameter> ;
+    configure {current branch | instance}
+        reset <parameter-class> [ filter <filter-expr> ] ;
 
-        configure {session | current database | instance}
-            set <parameter> := <value> ;
-        configure instance insert <parameter-class> <insert-shape> ;
-        configure {session | current database | instance} reset <parameter> ;
-        configure {current database | instance}
-            reset <parameter-class> [ filter <filter-expr> ] ;
-
-.. versionchanged:: 5.0
-
-    .. eql:synopsis::
-
-        configure {session | current branch | instance}
-            set <parameter> := <value> ;
-        configure instance insert <parameter-class> <insert-shape> ;
-        configure {session | current branch | instance} reset <parameter> ;
-        configure {current branch | instance}
-            reset <parameter-class> [ filter <filter-expr> ] ;
+.. note::
+    Prior to |Gel| and |EdgeDB| 5.0 *branches* were called *databases*.
+    ``configure current branch`` is used to be called
+    ``configure current database``, which is still supported for backwards
+    compatibility.
 
 
 Description
@@ -41,17 +34,9 @@ current session. Some configuration parameters cannot be modified by
 :eql:synopsis:`configure session` and can only be set by
 :eql:synopsis:`configure instance`.
 
-.. versionchanged:: _default
-
-    :eql:synopsis:`configure current database` is used to configure an
-    individual Gel database within a server instance with the
-    changes persisted across server restarts.
-
-.. versionchanged:: 5.0
-
-    :eql:synopsis:`configure current branch` is used to configure an
-    individual Gel branch within a server instance with the
-    changes persisted across server restarts.
+:eql:synopsis:`configure current branch` is used to configure an
+individual Gel branch within a server instance with the
+changes persisted across server restarts.
 
 :eql:synopsis:`configure instance` is used to configure the entire Gel
 instance with the changes persisted across server restarts.  This variant

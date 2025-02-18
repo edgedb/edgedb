@@ -1,5 +1,3 @@
-.. versionadded:: 2.0
-
 .. _ref_datamodel_access_policies:
 
 ===============
@@ -15,18 +13,6 @@ This is known as *object-level security* and it is similar in function to SQL's
 row-level security.
 
 Let's start with a simple schema for a blog without any access policies.
-
-.. code-block:: sdl
-    :version-lt: 3.0
-
-    type User {
-      required property email -> str { constraint exclusive; }
-    }
-
-    type BlogPost {
-      required property title -> str;
-      required link author -> User;
-    }
 
 .. code-block:: sdl
 
@@ -70,24 +56,6 @@ A global makes sense in this case because a user's current country is
 context-specific: the same user who can access certain content in one country
 might not be able to in another country due to different legal frameworks
 (such as copyright length).
-
-.. code-block:: sdl-diff
-    :version-lt: 3.0
-
-    +   scalar type Country extending enum<Full, ReadOnly, None>;
-    +   global current_user -> uuid;
-    +   required global current_country -> Country {
-    +     default := Country.None
-    +   }
-
-        type User {
-          required property email -> str { constraint exclusive; }
-        }
-
-        type BlogPost {
-          required property title -> str;
-          required link author -> User;
-        }
 
 .. code-block:: sdl-diff
 
@@ -204,35 +172,6 @@ Defining a policy
 Let's add two policies to our sample schema.
 
 .. code-block:: sdl-diff
-    :version-lt: 3.0
-
-        global current_user -> uuid;
-        required global current_country -> Country {
-          default := Country.None
-        }
-        scalar type Country extending enum<Full, ReadOnly, None>;
-
-        type User {
-          required property email -> str { constraint exclusive; }
-        }
-
-        type BlogPost {
-          required property title -> str;
-          required link author -> User;
-
-    +     access policy author_has_full_access
-    +       allow all
-    +       using (global current_user    ?= .author.id
-    +         and  global current_country ?= Country.Full) {
-    +        errmessage := "User does not have full access";
-    +       }
-    +      access policy author_has_read_access
-    +        allow select
-    +        using (global current_user    ?= .author.id
-    +          and  global current_country ?= Country.ReadOnly);
-        }
-
-.. code-block:: sdl-diff
 
         global current_user: uuid;
         required global current_country: Country {
@@ -290,7 +229,7 @@ Let's do some experiments.
 
 .. code-block:: edgeql-repl
 
-  db> insert User { email := "test@geldata.com" };
+  db> insert User { email := "test@example.com" };
   {default::User {id: be44b326-03db-11ed-b346-7f1594474966}}
   db> set global current_user :=
   ...   <uuid>"be44b326-03db-11ed-b346-7f1594474966";
@@ -447,32 +386,6 @@ of this, great care needs to be taken when creating access policies based on
 objects other than the ones they are defined on. For example:
 
 .. code-block:: sdl
-    :version-lt: 3.0
-
-    global current_user_id -> uuid;
-    global current_user := (
-      select User filter .id = global current_user_id
-    );
-
-    type User {
-      required property email -> str { constraint exclusive; }
-      required property is_admin -> bool { default := false };
-
-      access policy admin_only
-        allow all
-        using (global current_user.is_admin ?? false);
-    }
-
-    type BlogPost {
-      required property title -> str;
-      link author -> User;
-
-      access policy author_has_full_access
-        allow all
-        using (global current_user ?= .author.id);
-    }
-
-.. code-block:: sdl
 
     global current_user_id: uuid;
     global current_user := (
@@ -526,8 +439,6 @@ making the current user able to see their own ``User`` record.
 
 Custom error messages
 ^^^^^^^^^^^^^^^^^^^^^
-
-.. versionadded:: 3.0
 
 .. index:: access policy, errmessage, using
 
@@ -598,7 +509,7 @@ You may disable all access policies by setting the ``apply_access_policies``
 
 You may also toggle access policies using the "Disable Access Policies"
 checkbox in the "Config" dropdown in the Gel UI (accessible by running
-the CLI command ``gel ui`` from inside your project). This is the most
+the CLI command :gelcmd:`ui` from inside your project). This is the most
 convenient way to temporarily disable access policies since it applies only to
 your UI session.
 
@@ -608,28 +519,6 @@ Examples
 
 Blog posts are publicly visible if ``published`` but only writable by the
 author.
-
-.. code-block:: sdl-diff
-    :version-lt: 3.0
-
-      global current_user -> uuid;
-
-      type User {
-        required property email -> str { constraint exclusive; }
-      }
-
-      type BlogPost {
-        required property title -> str;
-        required link author -> User;
-    +   required property published -> bool { default := false };
-
-        access policy author_has_full_access
-          allow all
-          using (global current_user ?= .author.id);
-    +   access policy visible_if_published
-    +     allow select
-    +     using (.published);
-      }
 
 .. code-block:: sdl-diff
 
@@ -653,28 +542,6 @@ author.
       }
 
 Blog posts are visible to friends but only modifiable by the author.
-
-.. code-block:: sdl-diff
-    :version-lt: 3.0
-
-      global current_user -> uuid;
-
-      type User {
-        required property email -> str { constraint exclusive; }
-    +   multi link friends -> User;
-      }
-
-      type BlogPost {
-        required property title -> str;
-        required link author -> User;
-
-        access policy author_has_full_access
-          allow all
-          using (global current_user ?= .author.id);
-    +   access policy friends_can_read
-    +     allow select
-    +     using ((global current_user in .author.friends.id) ?? false);
-      }
 
 .. code-block:: sdl-diff
 
@@ -701,28 +568,6 @@ Blog posts are publicly visible except to users that have been ``blocked`` by
 the author.
 
 .. code-block:: sdl-diff
-    :version-lt: 3.0
-
-      type User {
-        required property email -> str { constraint exclusive; }
-    +   multi link blocked -> User;
-      }
-
-      type BlogPost {
-        required property title -> str;
-        required link author -> User;
-
-        access policy author_has_full_access
-          allow all
-          using (global current_user ?= .author.id);
-    +   access policy anyone_can_read
-    +     allow select;
-    +   access policy exclude_blocked
-    +     deny select
-    +     using ((global current_user in .author.blocked.id) ?? false);
-      }
-
-.. code-block:: sdl-diff
 
       type User {
         required email: str { constraint exclusive; }
@@ -745,28 +590,6 @@ the author.
 
 
 "Disappearing" posts that become invisible after 24 hours.
-
-.. code-block:: sdl-diff
-    :version-lt: 3.0
-
-      type User {
-        required property email -> str { constraint exclusive; }
-      }
-
-      type BlogPost {
-        required property title -> str;
-        required link author -> User;
-    +   required property created_at -> datetime {
-    +     default := datetime_of_statement() # non-volatile
-    +   }
-
-        access policy author_has_full_access
-          allow all
-          using (global current_user ?= .author.id);
-    +   access policy hide_after_24hrs
-    +     allow select
-    +     using (datetime_of_statement() - .created_at < <duration>'24 hours');
-      }
 
 .. code-block:: sdl-diff
 
@@ -804,46 +627,6 @@ will be rolled back.
   links.
 
 Here's a policy that limits the number of blog posts a ``User`` can post.
-
-.. code-block:: sdl-diff
-    :version-lt: 3.0
-
-      type User {
-        required property email -> str { constraint exclusive; }
-    +   multi link posts := .<author[is BlogPost]
-      }
-
-      type BlogPost {
-        required property title -> str;
-        required link author -> User;
-
-        access policy author_has_full_access
-          allow all
-          using (global current_user ?= .author.id);
-    +   access policy max_posts_limit
-    +     deny insert
-    +     using (count(.author.posts) > 500);
-      }
-
-.. code-block:: sdl-diff
-    :version-lt: 4.0
-
-      type User {
-        required email: str { constraint exclusive; }
-    +   multi link posts := .<author[is BlogPost]
-      }
-
-      type BlogPost {
-        required title: str;
-        required author: User;
-
-        access policy author_has_full_access
-          allow all
-          using (global current_user ?= .author.id);
-    +   access policy max_posts_limit
-    +     deny insert
-    +     using (count(.author.posts) > 500);
-      }
 
 .. code-block:: sdl-diff
 

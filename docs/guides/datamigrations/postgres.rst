@@ -239,7 +239,7 @@ Then we look at the ``posts`` table:
 The ``posts`` table also has an ``id`` that we want to keep around, at least
 during the transition. We have a couple of columns using a ``timestamp with
 time zone`` value, so they'll become :eql:type:`datetime` properties in
-EdgeDB. The ``user_id``, ``thread_id``, and ``reply_to_id`` columns will
+|Gel|. The ``user_id``, ``thread_id``, and ``reply_to_id`` columns will
 become *links* to ``User``, ``Thread``, and ``Post`` respectively:
 
 .. code-block:: sql
@@ -360,10 +360,10 @@ type. In the end we end up with a schema that looks something like this:
 Copying the data
 ----------------
 
-Now that we have a schema, we can use :ref:`ref_cli_edgedb_project_init` to
+Now that we have a schema, we can use :ref:`ref_cli_gel_project_init` to
 set up our new Gel database. A new schema migration is added via
-:ref:`ref_cli_edgedb_migration_create` and then :ref:`edgedb migrate
-<ref_cli_edgedb_migration_apply>` applies the schema changes to the database.
+:ref:`ref_cli_gel_migration_create` and then :ref:`gel migrate
+<ref_cli_gel_migration_apply>` applies the schema changes to the database.
 After the schema migration, we'll still need to copy the existing data from
 Postgres. JSON is a pretty good intermediate format for this operation. Gel
 can cast data from :eql:type:`json` to all of the built-in scalar types, so we
@@ -559,7 +559,7 @@ this:
     {
       default::User {
         name: 'Cameron',
-        email: 'cameron@edgedb.com',
+        email: 'cameron@example.com',
         status: {},
         badge: default::Badge {name: 'admin'},
         bookmark: {

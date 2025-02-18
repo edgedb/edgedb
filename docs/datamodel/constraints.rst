@@ -21,15 +21,6 @@ valid. They can be defined on :ref:`properties <ref_datamodel_props>`,
 Below is a simple property constraint.
 
 .. code-block:: sdl
-    :version-lt: 3.0
-
-    type User {
-      required property username -> str {
-        constraint exclusive;
-      }
-    }
-
-.. code-block:: sdl
 
     type User {
       required username: str {
@@ -54,19 +45,6 @@ The ``max_len_value`` constraint below uses the built-in :eql:func:`len`
 function, which returns the length of a string.
 
 .. code-block:: sdl
-    :version-lt: 3.0
-
-    type User {
-      required property username -> str {
-        # usernames must be unique
-        constraint exclusive;
-
-        # max length (built-in)
-        constraint max_len_value(25);
-      };
-    }
-
-.. code-block:: sdl
 
     type User {
       required username: str {
@@ -84,16 +62,6 @@ Custom constraints
 The ``expression`` constraint is used to define custom constraint logic. Inside
 custom constraints, the keyword ``__subject__`` can used to reference the
 *value* being constrained.
-
-.. code-block:: sdl
-    :version-lt: 3.0
-
-    type User {
-      required property username -> str {
-        # max length (as custom constraint)
-        constraint expression on (len(__subject__) <= 25);
-      };
-    }
 
 .. code-block:: sdl
 
@@ -119,18 +87,6 @@ constraint logic must reference multiple links or properties.
   (e.g. ``.<name>``).
 
 .. code-block:: sdl
-    :version-lt: 3.0
-
-    type ConstrainedVector {
-      required property x -> float64;
-      required property y -> float64;
-
-      constraint expression on (
-        .x ^ 2 + .y ^ 2 <= 25
-      );
-    }
-
-.. code-block:: sdl
 
     type ConstrainedVector {
       required x: float64;
@@ -144,18 +100,6 @@ constraint logic must reference multiple links or properties.
 Note that the constraint expression cannot contain arbitrary EdgeQL! Due to
 how constraints are implemented, you can only reference ``single`` (non-multi)
 properties and links defined on the object type.
-
-.. code-block:: sdl
-    :version-lt: 3.0
-
-    # Not valid!
-    type User {
-      required property username -> str;
-      multi link friends -> User;
-
-      # ❌ constraints cannot contain paths with more than one hop
-      constraint expression on ('bob' in .friends.username);
-    }
 
 .. code-block:: sdl
 
@@ -172,26 +116,6 @@ Computed constraints
 ^^^^^^^^^^^^^^^^^^^^
 
 Constraints can be defined on computed properties.
-
-.. code-block:: sdl
-    :version-lt: 3.0
-
-    type User {
-      required property username -> str;
-      required property clean_username := str_trim(str_lower(.username));
-
-      constraint exclusive on (.clean_username);
-    }
-
-.. code-block:: sdl
-    :version-lt: 4.0
-
-    type User {
-      required username: str;
-      required property clean_username := str_trim(str_lower(.username));
-
-      constraint exclusive on (.clean_username);
-    }
 
 .. code-block:: sdl
 
@@ -212,20 +136,6 @@ To define a composite constraint, create an ``exclusive`` constraint on a
 tuple of properties or links.
 
 .. code-block:: sdl
-    :version-lt: 3.0
-
-    type User {
-      property username -> str;
-    }
-
-    type BlogPost {
-      property title -> str;
-      link author -> User;
-
-      constraint exclusive on ((.title, .author));
-    }
-
-.. code-block:: sdl
 
     type User {
       username: str;
@@ -243,23 +153,10 @@ tuple of properties or links.
 Partial constraints
 ^^^^^^^^^^^^^^^^^^^
 
-.. versionadded:: 2.0
-
 .. index:: constraint exclusive on, except
 
 Constraints on object types can be made partial, so that they don't apply
 when some condition holds.
-
-.. code-block:: sdl
-    :version-lt: 3.0
-
-    type User {
-      required property username -> str;
-      property deleted -> bool;
-
-      # Usernames must be unique unless marked deleted
-      constraint exclusive on (.username) except (.deleted);
-    }
 
 .. code-block:: sdl
 
@@ -281,19 +178,6 @@ You can constrain links such that a given object can only be linked once by
 using :eql:constraint:`exclusive`:
 
 .. code-block:: sdl
-    :version-lt: 3.0
-
-    type User {
-        required property name -> str;
-
-        # Make sure none of the "owned" items belong
-        # to any other user.
-        multi link owns -> Item {
-            constraint exclusive;
-        }
-    }
-
-.. code-block:: sdl
 
     type User {
         required name: str;
@@ -310,19 +194,6 @@ Link property constraints
 
 You can also add constraints for :ref:`link properties
 <ref_datamodel_link_properties>`:
-
-.. code-block:: sdl
-    :version-lt: 3.0
-
-    type User {
-      property name -> str;
-      multi link friends -> User {
-        single property strength -> float64;
-        constraint expression on (
-          @strength >= 0
-        );
-      }
-    }
 
 .. code-block:: sdl
 
@@ -429,17 +300,6 @@ will *not* be applied individually to each extending type. Instead, it will
 apply globally across all the types that inherited the constraint.
 
 .. code-block:: sdl
-    :version-lt: 3.0
-
-    type User {
-      required property name -> str {
-        constraint exclusive;
-      }
-    }
-    type Administrator extending User;
-    type Moderator extending User;
-
-.. code-block:: sdl
 
     type User {
       required name: str {
@@ -458,14 +318,14 @@ apply globally across all the types that inherited the constraint.
     db> insert Moderator {
     ...   name := 'Jan'
     ... };
-    edgedb error: ConstraintViolationError: name violates exclusivity
+    gel error: ConstraintViolationError: name violates exclusivity
     constraint
       Detail: value of property 'name' of object type 'default::Moderator'
       violates exclusivity constraint
     db> insert User {
     ...   name := 'Jan'
     ... };
-    edgedb error: ConstraintViolationError: name violates exclusivity
+    gel error: ConstraintViolationError: name violates exclusivity
     constraint
       Detail: value of property 'name' of object type 'default::User'
       violates exclusivity constraint
@@ -479,17 +339,6 @@ If that's not what you want, you can instead delegate the constraint to the
 inheriting types by prepending the ``delegated`` keyword to the constraint.
 The constraint would then be applied just as if it were declared individually
 on each of the inheriting types.
-
-.. code-block:: sdl
-    :version-lt: 3.0
-
-    type User {
-      required property name -> str {
-        delegated constraint exclusive;
-      }
-    }
-    type Administrator extending User;
-    type Moderator extending User;
 
 .. code-block:: sdl
 
@@ -518,7 +367,7 @@ on each of the inheriting types.
     db> insert Moderator {
     ...   name := 'Jan'
     ... };
-    edgedb error: ConstraintViolationError: name violates exclusivity
+    gel error: ConstraintViolationError: name violates exclusivity
     constraint
       Detail: value of property 'name' of object type 'default::Moderator'
       violates exclusivity constraint

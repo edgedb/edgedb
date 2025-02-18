@@ -1,4 +1,4 @@
-.. _edgedb-js-insert:
+.. _gel-js-insert:
 
 Insert
 ------
@@ -158,5 +158,5 @@ properties in a tuple.
 Bulk inserts
 ^^^^^^^^^^^^
 
-You can use a :ref:`for loop <edgedb-js-for>` to perform :ref:`bulk inserts
-<edgedb-js-for-bulk-inserts>`.
+You can use a :ref:`for loop <gel-js-for>` to perform :ref:`bulk inserts
+<gel-js-for-bulk-inserts>`.

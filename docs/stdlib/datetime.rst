@@ -101,7 +101,7 @@ Dates and Times
 
 .. _ref_std_datetime_intro:
 
-EdgeDB offers two ways of representing date/time values:
+|Gel| offers two ways of representing date/time values:
 
 * a timezone-aware :eql:type:`std::datetime` type;
 
@@ -119,7 +119,7 @@ There are also two different ways of measuring duration:
 All related operators, functions, and type casts are designed to maintain a
 strict separation between timezone-aware and "local" date/time values.
 
-EdgeDB stores and outputs timezone-aware values in UTC format.
+|Gel| stores and outputs timezone-aware values in UTC format.
 
 .. note::
 
@@ -310,7 +310,7 @@ functionality.
         db> select <duration>'48 hours 45 minutes';
         {<duration>'48:45:00'}
         db> select <duration>'11 months';
-        edgedb error: InvalidValueError: invalid input syntax for type
+        gel error: InvalidValueError: invalid input syntax for type
         std::duration: '11 months'
           Hint: Units bigger than hours cannot be used for std::duration.
 
@@ -495,8 +495,6 @@ functionality.
 
 
 .. eql:type:: cal::date_duration
-
-    .. versionadded:: 2.0
 
     A type for representing a span of time in days.
 
@@ -879,8 +877,6 @@ functionality.
                                     el: str) -> float64
                   std::duration_get(dt: cal::date_duration, \
                                     el: str) -> float64
-
-    .. versionadded:: 2.0
 
     Returns the element of a duration given a unit name.
 
@@ -1420,8 +1416,6 @@ functionality.
 
     :index: justify_hours
 
-    .. versionadded:: 2.0
-
     Convert 24-hour chunks into days.
 
     This function converts all 24-hour chunks into day units. The resulting
@@ -1451,8 +1445,6 @@ functionality.
                   ) -> cal::date_duration
 
     :index: justify_days
-
-    .. versionadded:: 2.0
 
     Convert 30-day chunks into months.
 

@@ -1,11 +1,11 @@
-.. _edgedb-js-select:
+.. _gel-js-select:
 
 Select
 ======
 
 The full power of the EdgeQL ``select`` statement is available as a top-level
 ``e.select`` function. All queries on this page assume the Netflix schema
-described on the :ref:`Objects page <edgedb-js-objects>`.
+described on the :ref:`Objects page <gel-js-objects>`.
 
 Selecting scalars
 -----------------
@@ -418,7 +418,7 @@ Links can be filtered using traditional filters.
 
 
 You can also use the :ref:`type intersection
-<edgedb-js-objects-type-intersections>` operator to filter a link based on its
+<gel-js-objects-type-intersections>` operator to filter a link based on its
 type. For example, since ``actor.roles`` might be of type ``Movie`` or
 ``TVShow``, to only return ``roles`` that are ``Movie`` types, you would use
 the ``.is`` type intersection operator:
@@ -638,7 +638,7 @@ fact that they will only occur in certain objects.
 Detached
 --------
 
-Sometimes you need to "detach" a set reference from the current scope. (Read the `reference docs <https://www.edgedb.com/docs/reference/edgeql/with#detached>`_ for details.) You can achieve this in the query builder with the top-level ``e.detached`` function.
+Sometimes you need to "detach" a set reference from the current scope. (Read the `reference docs <ref_edgeql_with_detached>`_ for details.) You can achieve this in the query builder with the top-level ``e.detached`` function.
 
 .. code-block:: typescript
 

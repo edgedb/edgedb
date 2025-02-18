@@ -1,5 +1,3 @@
-.. versionadded:: 2.0
-
 .. _ref_datamodel_globals:
 
 =======
@@ -9,11 +7,6 @@ Globals
 .. index:: global, required global
 
 Schemas can contain scalar-typed *global variables*.
-
-.. code-block:: sdl
-    :version-lt: 3.0
-
-    global current_user_id -> uuid;
 
 .. code-block:: sdl
 
@@ -44,10 +37,10 @@ which client library you're using.
 
   .. code-tab:: typescript
 
-    import createClient from 'edgedb';
+    import createClient from 'gel';
 
     const baseClient = createClient();
-    // returns a new Client instance that stores the provided 
+    // returns a new Client instance that stores the provided
     // globals and sends them along with all future queries:
     const clientWithGlobals = baseClient.withGlobals({
       current_user_id: '2141a5b4-5634-4ccc-b835-437863534c51',
@@ -57,7 +50,7 @@ which client library you're using.
 
   .. code-tab:: python
 
-    from edgedb import create_client
+    from gel import create_client
 
     client = create_client().with_globals({
         'current_user_id': '580cc652-8ab8-4a20-8db9-4c79a4b1fd81'
@@ -77,23 +70,23 @@ which client library you're using.
       "fmt"
       "log"
 
-      "github.com/edgedb/edgedb-go"
+      "github.com/geldata/gel-go"
     )
 
     func main() {
       ctx := context.Background()
-      client, err := edgedb.CreateClient(ctx, edgedb.Options{})
+      client, err := gel.CreateClient(ctx, gel.Options{})
       if err != nil {
         log.Fatal(err)
       }
       defer client.Close()
 
-      id, err := edgedb.ParseUUID("2141a5b4-5634-4ccc-b835-437863534c51")
+      id, err := gel.ParseUUID("2141a5b4-5634-4ccc-b835-437863534c51")
       if err != nil {
         log.Fatal(err)
       }
 
-      var result edgedb.UUID
+      var result gel.UUID
       err = client.
         WithGlobals(map[string]interface{}{"current_user": id}).
         QuerySingle(ctx, "SELECT global current_user;", &result)
@@ -108,7 +101,7 @@ which client library you're using.
 
     use uuid::Uuid;
 
-    let client = edgedb_tokio::create_client().await.expect("Client init");
+    let client = gel_tokio::create_client().await.expect("Client init");
 
     let client_with_globals = client.with_globals_fn(|c| {
         c.set(
@@ -127,7 +120,7 @@ which client library you're using.
 
   .. code-tab:: edgeql
 
-    set global current_user_id := 
+    set global current_user_id :=
       <uuid>'2141a5b4-5634-4ccc-b835-437863534c51';
 
 
@@ -136,13 +129,6 @@ Cardinality
 
 Global variables can be marked ``required``; in this case, you must specify a
 default value.
-
-.. code-block:: sdl
-    :version-lt: 3.0
-
-    required global one_string -> str {
-      default := "Hi Mom!"
-    };
 
 .. code-block:: sdl
 
@@ -168,19 +154,6 @@ type is inferred from the computed expression.
 
 Computed globals are not subject to the same constraints as non-computed ones;
 specifically, they can be object-typed and have a ``multi`` cardinality.
-
-.. code-block:: sdl
-    :version-lt: 3.0
-
-    global current_user_id -> uuid;
-
-    # object-typed global
-    global current_user := (
-      select User filter .id = global current_user_id
-    );
-
-    # multi global
-    global current_user_friends := (global current_user).friends;
 
 .. code-block:: sdl
 
@@ -225,23 +198,6 @@ Unlike query parameters, globals can be referenced
 *inside your schema declarations*.
 
 .. code-block:: sdl
-    :version-lt: 3.0
-
-    type User {
-      property name -> str;
-      property is_self := (.id = global current_user_id)
-    };
-
-
-.. code-block:: sdl
-    :version-lt: 4.0
-
-    type User {
-      name: str;
-      property is_self := (.id = global current_user_id)
-    };
-
-.. code-block:: sdl
 
     type User {
       name: str;
@@ -250,14 +206,6 @@ Unlike query parameters, globals can be referenced
 
 This is particularly useful when declaring :ref:`access policies
 <ref_datamodel_access_policies>`.
-
-.. code-block:: sdl
-    :version-lt: 3.0
-
-    type Person {
-      required property name -> str;
-      access policy my_policy allow all using (.id = global current_user_id);
-    }
 
 .. code-block:: sdl
 

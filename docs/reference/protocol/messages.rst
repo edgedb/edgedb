@@ -682,4 +682,4 @@ Format:
 .. eql:struct:: edb.protocol.Terminate
 
 .. _RFC1004:
-    https://github.com/edgedb/rfcs/blob/master/text/1004-transactions-api.rst
+    https://github.com/geldata/rfcs/blob/master/text/1004-transactions-api.rst

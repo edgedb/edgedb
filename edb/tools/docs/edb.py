@@ -19,6 +19,8 @@
 
 from __future__ import annotations
 
+import re
+
 from sphinx import domains as s_domains
 from docutils import nodes as d_nodes
 from docutils.parsers import rst as d_rst
@@ -148,7 +150,11 @@ class GelSubstitutionTransform(transforms.SphinxTransform):
         # Traverse all substitution_reference nodes.
         for node in self.document.traverse(d_nodes.substitution_reference):
             nt = node.astext()
-            if nt in {"Gel", "EdgeDB", "gelcmd", ".gel", "gel.toml"}:
+            if nt.lower() in {
+                "gel", "gel's","edgedb", "gelcmd", ".gel", "gel.toml",
+                "gel-server", "geluri", "admin", "main",
+                "branch", "branches"
+            }:
                 if builder_name in {"xml", "edge-xml"}:
                     if nt == "gelcmd":
                         sub = d_nodes.literal(
@@ -156,6 +162,15 @@ class GelSubstitutionTransform(transforms.SphinxTransform):
                             **{
                                 "edb-gelcmd": "true",
                                 "edb-gelcmd-top": "true",
+                                "edb-substitution": "true",
+                            }
+                        )
+                    elif nt == "geluri":
+                        sub = d_nodes.literal(
+                            'gel', 'gel://',
+                            **{
+                                "edb-geluri": "true",
+                                "edb-geluri-top": "true",
                                 "edb-substitution": "true",
                             }
                         )
@@ -173,7 +188,19 @@ class GelCmdRole:
     def __call__(
         self, role, rawtext, text, lineno, inliner, options=None, content=None
     ):
-        text = f'gel {text.strip()}'
+        text = text.strip()
+        text = re.sub(r'(\n\s*)+', " ", text)
+        if text.startswith("edgedb"):
+            fn = inliner.document.current_source
+            raise Exception(
+                f"{fn}:{lineno} - :gelcmd:`{text}` - can't start with 'edgedb'"
+            )
+        if text.startswith("gel ") or text == "gel":
+            fn = inliner.document.current_source
+            raise Exception(
+                f"{fn}:{lineno} - :gelcmd:`{text}` - can't start with 'gel'"
+            )
+        text = f'gel {text}'
         node = d_nodes.literal(text, text)
         node["edb-gelcmd"] = "true"
         node["edb-gelcmd-top"] = "false"
@@ -181,8 +208,76 @@ class GelCmdRole:
         return [node], []
 
 
+class GelUriRole:
+
+    def __call__(
+        self, role, rawtext, text, lineno, inliner, options=None, content=None
+    ):
+        if text.startswith("edgedb://"):
+            fn = inliner.document.current_source
+            raise Exception(
+                f"{fn}:{lineno} - :geluri:`{text}`"
+                f" - can't start with 'edgedb://'"
+            )
+        if text.startswith("gel://"):
+            fn = inliner.document.current_source
+            raise Exception(
+                f"{fn}:{lineno} - :geluri:`{text}` - can't start with 'gel://'"
+            )
+        text = f'gel://{text}'
+        node = d_nodes.literal(text, text)
+        node["edb-geluri"] = "true"
+        node["edb-geluri-top"] = "false"
+        node["edb-substitution"] = "true"
+        return [node], []
+
+
+class DotGelRole:
+
+    def __call__(
+        self, role, rawtext, text, lineno, inliner, options=None, content=None
+    ):
+        if text.endswith(".gel") or text.endswith(".esdl"):
+            fn = inliner.document.current_source
+            raise Exception(
+                f"{fn}:{lineno} - :dotgel:`{text}`"
+                f" - can't end with '.esdl' or '.gel'"
+            )
+        text = f'{text}.gel'
+        node = d_nodes.literal(text, text)
+        node["edb-dotgel"] = "true"
+        node["edb-substitution"] = "true"
+        return [node], []
+
+
+class GelEnvRole:
+
+    def __call__(
+        self, role, rawtext, text, lineno, inliner, options=None, content=None
+    ):
+        if (
+            text.startswith("EDGEDB_") or
+            text.startswith("GEL_") or
+            text.startswith("_")
+        ):
+            fn = inliner.document.current_source
+            raise Exception(
+                f"{fn}:{lineno} - :gelenv:`{text}`"
+                f" - can't start with 'EDGEDB_', 'GEL_', or '_'"
+            )
+        text = f'GEL_{text}'
+        node = d_nodes.literal(text, text)
+        node["edb-gelenv"] = "true"
+        node["edb-substitution"] = "true"
+        return [node], []
+
+
 def setup_domain(app):
+
     app.add_role('gelcmd', GelCmdRole())
+    app.add_role('geluri', GelUriRole())
+    app.add_role('dotgel', DotGelRole())
+    app.add_role('gelenv', GelEnvRole())
     app.add_domain(GelDomain)
     app.add_transform(GelSubstitutionTransform)
 

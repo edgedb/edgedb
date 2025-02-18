@@ -27,22 +27,22 @@ There are several ways to uniquely identify an Gel instance.
     - **Environment variable**
   * - Instance name
     - ``--instance/-I <name>``
-    - ``EDGEDB_INSTANCE``
+    - :gelenv:`INSTANCE`
   * - Secret key (required in some Gel Cloud scenarios; see description)
     - ``--secret-key``
-    - ``EDGEDB_SECRET_KEY``
+    - :gelenv:`SECRET_KEY`
   * - DSN
     - ``--dsn <dsn>``
-    - ``EDGEDB_DSN``
+    - :gelenv:`DSN`
   * - Host and port
     - .. code-block::
 
         --host/-H <host>
         --port/-P <port>
-    - ``EDGEDB_HOST`` and ``EDGEDB_PORT``
+    - :gelenv:`HOST` and :gelenv:`PORT`
   * - Credentials file
     - ``--credentials-file <path>``
-    - ``EDGEDB_CREDENTIALS_FILE``
+    - :gelenv:`CREDENTIALS_FILE`
   * - *Project linking*
     - *N/A*
     - *N/A*
@@ -57,16 +57,16 @@ Let's dig into each of these a bit more.
   are associated with a name. This name is what's needed to connect; under the
   hood, the CLI stores the instance credentials (username, password, etc) on
   your file system in the Gel :ref:`config directory
-  <ref_cli_edgedb_paths>`. The CLI and client libraries look up these
+  <ref_cli_gel_paths>`. The CLI and client libraries look up these
   credentials to connect.
 
-  You can also assign names to remote instances using :ref:`edgedb instance
-  link <ref_cli_edgedb_instance_link>`. The CLI will save the credentials
+  You can also assign names to remote instances using :ref:`gel instance
+  link <ref_cli_gel_instance_link>`. The CLI will save the credentials
   locally, so you can connect to a remote instance using just its name, just
   like a local instance.
 
   If you have authenticated with Gel Cloud in the CLI using the
-  :ref:`ref_cli_edgedb_cloud_login` command, you can address your own Gel
+  :ref:`ref_cli_gel_cloud_login` command, you can address your own Gel
   Cloud instances using the instance name format
   ``<org-name>/<instance-name>``. If you are not authenticated,
 
@@ -82,7 +82,7 @@ Let's dig into each of these a bit more.
 
   you will need to provide a secret key in addition to the instance name.
   Generate a dedicated secret key for the instance via the CLI with
-  :ref:`ref_cli_edgedb_cloud_secretkey_create` or via the web UI's "Secret
+  :ref:`ref_cli_gel_cloud_secretkey_create` or via the web UI's "Secret
   Keys" pane in your instance dashboard.
 
 **DSN**
@@ -90,46 +90,17 @@ Let's dig into each of these a bit more.
   convenient and flexible way to specify connection information with a simple
   string. It takes the following form:
 
-  .. versionchanged:: _default
+  * :geluri:`USERNAME:PASSWORD@HOSTNAME:PORT/BRANCH`
+  * e.g.: :geluri:`alice:pa$$w0rd@example.com:1234/my_branch`
 
-    .. code-block::
-
-      edgedb://USERNAME:PASSWORD@HOSTNAME:PORT/DATABASE
-
-      # example
-      edgedb://alice:pa$$w0rd@example.com:1234/my_db
-
-  .. versionchanged:: 5.0
-
-    .. code-block::
-
-      edgedb://USERNAME:PASSWORD@HOSTNAME:PORT/BRANCH
-
-      # example
-      edgedb://alice:pa$$w0rd@example.com:1234/my_branch
-
-  All components of the DSN are optional; technically ``edgedb://`` is a valid
+  All components of the DSN are optional; technically |geluri| is a valid
   DSN. The unspecified values will fall back to their defaults:
 
-  .. versionchanged:: _default
-
-    .. code-block::
-
-      Host: "localhost"
-      Port: 5656
-      User: "edgedb"
-      Password: null
-      Database name: "edgedb"
-
-  .. versionchanged:: 5.0
-
-    .. code-block::
-
-      Host: "localhost"
-      Port: 5656
-      User: "edgedb"
-      Password: null
-      Branch name: "main"
+  * Host: ``"localhost"``
+  * Port: ``5656``
+  * User: |admin|
+  * Password: ``null``
+  * Branch name: |main|
 
   DSNs also accept query parameters to support advanced use cases. Read the
   :ref:`DSN Specification <ref_dsn>` reference for details.
@@ -149,36 +120,21 @@ Let's dig into each of these a bit more.
   file into version control could present a security risk and is not
   recommended.
 
-  .. versionchanged:: _default
+  .. code-block:: json
 
-    .. code-block:: json
-
-      {
-        "host": "localhost",
-        "port": 10702,
-        "user": "testuser",
-        "password": "testpassword",
-        "database": "edgedb",
-        "tls_cert_data": "-----BEGIN CERTIFICATE-----\nabcdef..."
-      }
-
-  .. versionchanged:: 5.0
-
-    .. code-block:: json
-
-      {
-        "host": "localhost",
-        "port": 10702,
-        "user": "testuser",
-        "password": "testpassword",
-        "branch": "main",
-        "tls_cert_data": "-----BEGIN CERTIFICATE-----\nabcdef..."
-      }
+    {
+      "host": "localhost",
+      "port": 10702,
+      "user": "testuser",
+      "password": "testpassword",
+      "branch": "main",
+      "tls_cert_data": "-----BEGIN CERTIFICATE-----\nabcdef..."
+    }
 
   Relative paths are resolved relative to the current working directory.
 
 **Project-linked instances**
-  When you run ``edgedb project init`` in a given directory, Gel creates an
+  When you run :gelcmd:`project init` in a given directory, Gel creates an
   instance and "links" it to that directory. There's nothing magical about this
   link; it's just a bit of metadata that gets stored in the Gel config
   directory. When you use the client libraries or run a CLI command inside a
@@ -186,7 +142,7 @@ Let's dig into each of these a bit more.
   instance's credentials, and connect automatically.
 
   For more information on how this works, check out the `release post
-  <https://www.edgedb.com/blog/introducing-edgedb-projects>`_ for ``edgedb project``.
+  <https://www.geldata.com/blog/introducing-edgedb-projects>`_ for :gelcmd:`project`.
 
 .. _ref_reference_connection_priority:
 
@@ -197,7 +153,7 @@ The section above describes the various ways of specifying an Gel instance.
 There are also several ways to provide this configuration information to the
 client. From highest to lowest priority, you can pass them explicitly as
 parameters/flags (useful for debugging), use environment variables (recommended
-for production), or rely on ``edgedb project`` (recommended for development).
+for production), or rely on :gelcmd:`project` (recommended for development).
 
 1. **Explicit connection parameters**. For security reasons,
    hard-coding connection information or credentials in your codebase is not
@@ -210,9 +166,9 @@ for production), or rely on ``edgedb project`` (recommended for development).
 
    .. code-block:: javascript
 
-      import * as edgedb from "edgedb";
+      import * as gel from "gel";
 
-      const pool = await edgedb.createClient({
+      const pool = await gel.createClient({
         instance: "my_instance"
       });
 
@@ -221,10 +177,10 @@ for production), or rely on ``edgedb project`` (recommended for development).
 
    .. code-block:: bash
 
-      $ edgedb --instance my_instance
+      $ gel --instance my_instance
       Gel x.x
       Type \help for help, \quit to quit.
-      edgedb>
+      gel>
 
 
 2. **Environment variables**.
@@ -233,10 +189,10 @@ for production), or rely on ``edgedb project`` (recommended for development).
    your Gel client, especially in production or when running Gel inside a
    container. All clients read the following variables from the environment:
 
-   - ``EDGEDB_DSN``
-   - ``EDGEDB_INSTANCE``
-   - ``EDGEDB_CREDENTIALS_FILE``
-   - ``EDGEDB_HOST`` / ``EDGEDB_PORT``
+   - :gelenv:`DSN`
+   - :gelenv:`INSTANCE`
+   - :gelenv:`CREDENTIALS_FILE`
+   - :gelenv:`HOST` / :gelenv:`PORT`
 
    When one of these environment variables is defined, there's no need to pass
    any additional information to the client. The CLI and client libraries will
@@ -245,16 +201,16 @@ for production), or rely on ``edgedb project`` (recommended for development).
 
    .. code-block:: bash
 
-      $ edgedb # no flags needed
+      $ gel  # no flags needed
       Gel x.x
       Type \help for help, \quit to quit.
-      edgedb>
+      gel>
 
    Using the JavaScript client library:
 
    .. code-block:: javascript
 
-      import { createClient } from "edgedb";
+      import { createClient } from "gel";
 
       const client = createClient();
       const result = await client.querySingle("select 2 + 2;");
@@ -263,18 +219,18 @@ for production), or rely on ``edgedb project`` (recommended for development).
    .. warning::
 
       Ambiguity is not permitted. For instance, specifying both
-      ``EDGEDB_INSTANCE`` and ``EDGEDB_DSN`` will result in an error. You *can*
-      use ``EDGEDB_HOST`` and ``EDGEDB_PORT`` simultaneously.
+      :gelenv:`INSTANCE` and :gelenv:`DSN` will result in an error. You *can*
+      use :gelenv:`HOST` and :gelenv:`PORT` simultaneously.
 
 
 3. **Project-linked credentials**
 
-   If you are using ``edgedb project`` (which we recommend!) and haven't
+   If you are using :gelcmd:`project` (which we recommend!) and haven't
    otherwise specified any connection parameters, the CLI and client libraries
    will connect to the instance that's been linked to your project.
 
    This makes it easy to get up and running with Gel. Once you've run
-   ``edgedb project init``, the CLI and client libraries will be able to
+   :gelcmd:`project init`, the CLI and client libraries will be able to
    connect to your database without any explicit flags or parameters, as long
    as you're inside the project directory.
 
@@ -286,7 +242,7 @@ connection fails.
 
    Within a given priority level, you cannot specify multiple instances of
    "instance selection parameters" simultaneously. For instance, specifying
-   both ``EDGEDB_INSTANCE`` and ``EDGEDB_DSN`` environment variables will
+   both :gelenv:`INSTANCE` and :gelenv:`DSN` environment variables will
    result in an error.
 
 
@@ -308,35 +264,35 @@ instance-level configuration object.
 
   * - **Environment variable**
     - **CLI flag**
-  * - ``EDGEDB_BRANCH``
+  * - :gelenv:`BRANCH`
     - ``--branch/-b <name>``
-  * - ``EDGEDB_USER``
+  * - :gelenv:`USER`
     - ``--user/-u <user>``
-  * - ``EDGEDB_PASSWORD``
+  * - :gelenv:`PASSWORD`
     - ``--password <pass>``
-  * - ``EDGEDB_TLS_CA_FILE``
+  * - :gelenv:`TLS_CA_FILE`
     - ``--tls-ca-file <path>``
-  * - ``EDGEDB_TLS_SERVER_NAME``
+  * - :gelenv:`TLS_SERVER_NAME`
     - ``--tls-server-name``
-  * - ``EDGEDB_CLIENT_TLS_SECURITY``
+  * - :gelenv:`CLIENT_TLS_SECURITY`
     - ``--tls-security``
-  * - ``EDGEDB_CLIENT_SECURITY``
+  * - :gelenv:`CLIENT_SECURITY`
     - N/A
 
-**EDGEDB_BRANCH**
+* :gelenv:`BRANCH`
+
   Each Gel *instance* can be branched multiple times. When an instance is
-  created, a default branch named ``main`` is created. For CLI-managed
+  created, a default branch named |main| is created. For CLI-managed
   instances, connections are made to the currently active branch. In other
-  cases, incoming connections connect to the ``main`` branch by default.
+  cases, incoming connections connect to the |main| branch by default.
 
-  Note, that for |EdgeDB| versions prior to 5, the default branch is
-  ``edgedb`` (and branches were called "databases").
+* :gelenv:`USER` / :gelenv:`PASSWORD`
 
-**EDGEDB_USER/EDGEDB_PASSWORD**
   These are the credentials of the database user account to connect to the
   Gel instance.
 
-**EDGEDB_TLS_CA_FILE**
+* :gelenv:`TLS_CA_FILE`
+
   TLS is required to connect to any Gel instance. To do so, the client needs
   a reference to the root certificate of your instance's certificate chain.
   Typically this will be handled for you when you create a local instance or
@@ -351,29 +307,32 @@ instance-level configuration object.
   and provide a path to its location on the filesystem. Otherwise TLS will fail
   to connect.
 
-**EDGEDB_TLS_SERVER_NAME (SNI)**
+* :gelenv:`TLS_SERVER_NAME` (SNI)
+
   If for some reason target instance IP address can't be resolved from the
   hostname, you can provide SNI.
 
-**EDGEDB_CLIENT_TLS_SECURITY**
+* :gelenv:`CLIENT_TLS_SECURITY`
+
   Sets the TLS security mode. Determines whether certificate and hostname
   verification is enabled. Possible values:
 
   - ``"strict"`` (**default**) — certificates and hostnames will be verified
   - ``"no_host_verification"`` — verify certificates but not hostnames
-  - ``"insecure"`` — client libraries will trust self-signed TLS certificates.
+  - ``"insecure"`` — client libraries will trust self-signed TLS certificates.
     Useful for self-signed or custom certificates.
 
   This setting defaults to ``"strict"`` unless a custom certificate is
   supplied, in which case it is set to ``"no_host_verification"``.
 
-**EDGEDB_CLIENT_SECURITY**
+* :gelenv:`CLIENT_SECURITY`
+
   Provides some simple "security presets".
 
   Currently there is only one valid value: ``insecure_dev_mode``. Setting
-  ``EDGEDB_CLIENT_SECURITY=insecure_dev_mode`` disables all TLS security
+  :gelenv:`CLIENT_SECURITY=insecure_dev_mode` disables all TLS security
   measures. Currently it is equivalent to setting
-  ``EDGEDB_CLIENT_TLS_SECURITY=insecure`` but it may encompass additional
+  :gelenv:`CLIENT_TLS_SECURITY=insecure` but it may encompass additional
   configuration settings later.  This is most commonly used when developing
   locally with Docker.
 
@@ -390,13 +349,13 @@ environment variables:
 
 .. code-block::
 
-  EDGEDB_DSN=edgedb://olduser:oldpass@hostname.com:5656
-  EDGEDB_USER=newuser
-  EDGEDB_PASSWORD=newpass
+  GEL_DSN=gel://olduser:oldpass@hostname.com:5656
+  GEL_USER=newuser
+  GEL_PASSWORD=newpass
 
 In this scenario, ``newuser`` will override ``olduser`` and ``newpass``
 will override ``oldpass``. The client library will try to connect using this
-modified DSN: ``edgedb://newuser:newpass@hostname.com:5656``.
+modified DSN: :geluri:`newuser:newpass@hostname.com:5656`.
 
 Overriding across priority levels
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -404,17 +363,18 @@ Overriding across priority levels
 Override behavior can only happen at the *same or lower priority level*. For
 instance:
 
-- ``EDGEDB_PASSWORD`` **will** override the password specified in
-  ``EDGEDB_DSN``
-- ``EDGEDB_PASSWORD`` **will be ignored** if a DSN is passed
+- :gelenv:`PASSWORD` **will** override the password specified in
+  :gelenv:`DSN`
+
+- :gelenv:`PASSWORD` **will be ignored** if a DSN is passed
   explicitly using the ``--dsn`` flag. Explicit parameters take
   precedence over environment variables. To override the password of
   an explicit DSN, you need to pass it explicitly as well:
 
   .. code-block:: bash
 
-     $ edgedb --dsn edgedb://username:oldpass@hostname.com --password qwerty
-     # connects to edgedb://username:qwerty@hostname.com
+     $ gel --dsn gel://username:oldpass@hostname.com --password qwerty
+     # connects to gel://username:qwerty@hostname.com
 
-- ``EDGEDB_PASSWORD`` **will** override the stored password associated
+- :gelenv:`PASSWORD` **will** override the stored password associated
   with a project-linked instance. (This is unlikely to be desirable.)

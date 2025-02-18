@@ -6,9 +6,9 @@ Migrations
 
 :index: migrations fill_expr cast_expr
 
-EdgeDB's baked-in migration system lets you painlessly evolve your schema
+|Gel's| baked-in migration system lets you painlessly evolve your schema
 throughout the development process. If you want to work along with this guide,
-start a new project with :ref:`ref_cli_edgedb_project_init`. This will create a
+start a new project with :ref:`ref_cli_gel_project_init`. This will create a
 new instance and some empty schema files to get you started.
 
 .. edb:youtube-embed:: _IUSPBm2xEA
@@ -17,14 +17,14 @@ new instance and some empty schema files to get you started.
 1. Start the ``watch`` command
 ------------------------------
 
-The easiest way to work with your schema in development is by running ``edgedb
-watch``. This long-running task will monitor your schema files and
+The easiest way to work with your schema in development is by running
+:gelcmd:`watch`. This long-running task will monitor your schema files and
 automatically apply schema changes in your database as you work.
 
 .. code-block:: bash
 
-    $ edgedb watch
-    Initialized. Monitoring "/projects/my-edgedb-project".
+    $ gel watch
+    Initialized. Monitoring "/projects/my-gel-project".
 
 If you get output similar to the output above, you're ready to get started!
 
@@ -40,11 +40,11 @@ your codebase.
 
   .
   ├── dbschema
-  │   └── default.esdl          # schema file (written by you)
-  └── edgedb.toml
+  │   └── default.gel          # schema file (written by you)
+  └── gel.toml
 
 The schema itself is written using Gel's schema definition language. Edit
-your ``dbschema/default.esdl`` and add the following schema inside your
+your :dotgel:`dbschema/default` and add the following schema inside your
 ``module default`` block:
 
 .. code-block:: sdl
@@ -60,7 +60,7 @@ your ``dbschema/default.esdl`` and add the following schema inside your
 
 
 It's common to keep your entire schema in a single file, and many users use
-this ``default.esdl`` that is created when you start a project. However it's
+this :dotgel:`default` that is created when you start a project. However it's
 also possible to split their schemas across a number of |.gel| files.
 
 Once you save your initial schema, assuming it is valid, the ``watch`` command
@@ -71,7 +71,7 @@ will pick it up and apply it to your database.
 -------------------------
 
 As your application evolves, directly edit your schema files to reflect your
-desired data model. Try updating your ``dbschema/default.esdl`` to add a
+desired data model. Try updating your :dotgel:`dbschema/default` to add a
 ``Comment`` type:
 
 .. code-block:: sdl-diff
@@ -109,12 +109,12 @@ and commit it to version control, it's time to generate a migration.
 4. Generate a migration
 -----------------------
 
-To generate a migration that reflects all your changes, run ``edgedb migration
-create``.
+To generate a migration that reflects all your changes, run :gelcmd:`migration
+create`.
 
 .. code-block:: bash
 
-  $ edgedb migration create
+  $ gel migration create
 
 
 The CLI reads your schema file and sends it to the active Gel instance. The
@@ -130,7 +130,7 @@ advanced options.
 
 .. code-block:: bash
 
-  $ edgedb migration create
+  $ gel migration create
   did you create object type 'default::Comment'? [y,n,l,c,b,s,q,?]
   > y
   did you create object type 'default::User'? [y,n,l,c,b,s,q,?]
@@ -147,21 +147,21 @@ Migration without iteration
 
 If you want to change the schema, but you already know exactly what you want to
 change and don't need to iterate on your schema — you want to lock in the
-migration right away — ``edgedb watch`` might not be the tool you reach for.
+migration right away — :gelcmd:`watch` might not be the tool you reach for.
 
 Instead, you might use this method:
 
 1. Edit your schema files
-2. Create your migration with ``edgedb migration create``
-3. Apply your migration with ``edgedb migrate``
+2. Create your migration with :gelcmd:`migration create`
+3. Apply your migration with :gelcmd:`migrate`
 
 Since you're not using ``watch``, the schema changes are not applied when you
 save your schema files. As a result, we need to tack an extra step on the end
-of the process of applying the migration. That's handled by ``edgedb migrate``.
+of the process of applying the migration. That's handled by :gelcmd:`migrate`.
 
 .. code-block:: bash
 
-  $ edgedb migrate
+  $ gel migrate
   Applied m1virjowa... (00002.edgeql)
 
 Once your migration is applied, you'll see the schema changes reflected in your
@@ -172,7 +172,7 @@ Data migrations
 ---------------
 
 Depending on how the schema was changed, data in your database may prevent
-EdgeDB from applying your schema changes. Imagine we added a required ``body``
+|Gel| from applying your schema changes. Imagine we added a required ``body``
 property to our ``Post`` type:
 
 .. code-block:: sdl-diff
@@ -207,18 +207,18 @@ We have a couple of options here. We could delete all the offending objects.
       default::Post {id: cc051bea-d9f5-11ed-a26d-2b64b6b273a4}
     }
 
-Now, if we save the schema again, ``edgedb watch`` will be able to apply it. If
+Now, if we save the schema again, :gelcmd:`watch` will be able to apply it. If
 we have data in here we don't want to lose though, that's not a good option. In
 that case, we might drop back to creating and applying the migration outside of
-``edgedb watch``.
+:gelcmd:`watch`.
 
-To start, run ``edgedb migration create``. The interactive plan generator will
+To start, run :gelcmd:`migration create`. The interactive plan generator will
 ask you for an EdgeQL expression to map the contents of your database to the
 new schema.
 
 .. code-block:: bash
 
-  $ edgedb migration create
+  $ gel migration create
   did you create property 'body' of object type
   'default::Post'? [y,n,l,c,b,s,q,?]
   > y
@@ -299,6 +299,6 @@ Further reading
 - :ref:`Migration tips <ref_migration_tips>`
 
 Further information can be found in the :ref:`CLI
-reference <ref_cli_edgedb_migration>` or the `Beta 1 blog post
-<https://www.edgedb.com/blog/edgedb-1-0-beta-1-sirius#built-in-database-migrations-in-use>`_,
+reference <ref_cli_gel_migration>` or the `Beta 1 blog post
+<https://www.geldata.com/blog/geldata-1-0-beta-1-sirius#built-in-database-migrations-in-use>`_,
 which describes the design of the migration system.

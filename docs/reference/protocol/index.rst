@@ -4,7 +4,7 @@
 Binary protocol
 ===============
 
-EdgeDB uses a message-based binary protocol for communication between
+|Gel| uses a message-based binary protocol for communication between
 clients and servers.  The protocol is supported over TCP/IP.
 
 
@@ -45,13 +45,12 @@ HTTP tunnelling differs in a few ways:
 
 *  Authentication is handled at ``/auth/token``.
 
-.. versionchanged:: _default
+*  Query execution is handled at ``/branch/{BRANCH}``.
 
-    *  Query execution is handled at ``/db/{DATABASE}``.
-
-.. versionchanged:: 5.0
-
-    *  Query execution is handled at ``/branch/{BRANCH}``.
+   .. note::
+      Prior to |Gel| and |EdgeDB| 5.0 *branches* were called *databases*.
+      If you're making a request against an older version of |EdgeDB|
+      you should change ``/branch/`` options to ``/db/``.
 
 *  Transactions are not supported.
 
@@ -74,21 +73,14 @@ The auth payload's format is described by the auth method, usually
 ``SCRAM-SHA-256``. If the auth method differs from the requested method,
 the client should abort the authentication attempt.
 
-.. versionchanged:: _default
 
-    Once the :ref:`authentication <ref_authentication>` phase is complete, the
-    final response's body will contain an authorization token used to authenticate
-    the HTTP connection. The client then sends any following message to
-    ``/db/{DATABASE}`` with the following headers:
+Once the :ref:`authentication <ref_authentication>` phase is complete, the
+final response's body will contain an authorization token used to authenticate
+the HTTP connection. The client then sends any following message to
+``/branch/{BRANCH}`` (or ``/db/{DATABASE}`` if you're using a version of
+|EdgeDB| < 5) with the following headers:
 
-.. versionchanged:: 5.0
-
-    Once the :ref:`authentication <ref_authentication>` phase is complete, the
-    final response's body will contain an authorization token used to authenticate
-    the HTTP connection. The client then sends any following message to
-    ``/branch/{BRANCH}`` with the following headers:
-
-* ``X-Gel-User``: The username specified in the
+* ``X-EdgeDB-User``: The username specified in the
   :ref:`connection parameters <ref_reference_connection>`.
 
 * ``Authorization``: The authorization token received from the
@@ -102,7 +94,7 @@ multiple message can be included in the response body, and should be parsed in
 order.
 
 .. _ALPN Protocol:
-    https://github.com/edgedb/rfcs/blob/master/text/
+    https://github.com/geldata/rfcs/blob/master/text/
     1008-tls-and-alpn.rst#alpn-and-protocol-changes
 
 .. _ref_protocol_conventions:
@@ -243,15 +235,8 @@ While it's not required by the protocol specification itself, Gel server
 currently requires setting the following params in
 :ref:`ref_protocol_msg_client_handshake`:
 
-.. versionchanged:: _default
-
-    * ``user`` -- username for authentication
-    * ``database`` -- database to connect to
-
-.. versionchanged:: 5.0
-
-    * ``user`` -- username for authentication
-    * ``branch`` -- branch to connect to
+* ``user`` -- username for authentication
+* ``branch`` -- branch to connect to
 
 
 .. _ref_authentication:
@@ -354,19 +339,10 @@ are always atomic, they will be executed in an implicit transaction block if no
 explicit transaction is currently active. Therefore, EdgeQL scripts have
 limitations on the kinds of EdgeQL commands they can contain:
 
-.. versionchanged:: _default
-
-    * Transaction control commands are not allowed, like ``start transaction``,
-      ``commit``, ``declare savepoint``, or ``rollback to savepoint``.
-    * Non-transactional commands, like ``create database`` or
-      ``configure instance`` are not allowed.
-
-.. versionchanged:: 5.0
-
-    * Transaction control commands are not allowed, like ``start transaction``,
-      ``commit``, ``declare savepoint``, or ``rollback to savepoint``.
-    * Non-transactional commands, like ``create branch`` or
-      ``configure instance`` are not allowed.
+* Transaction control commands are not allowed, like ``start transaction``,
+  ``commit``, ``declare savepoint``, or ``rollback to savepoint``.
+* Non-transactional commands, like ``create branch``,
+  ``configure instance``, or ``create database`` are not allowed.
 
 In the command phase, the server can be in one of the three main states:
 

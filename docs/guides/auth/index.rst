@@ -16,7 +16,7 @@ Auth
 
 :edb-alt-title: Using Gel Auth
 
-EdgeDB Auth is a batteries-included authentication solution for your app built
+|Gel| Auth is a batteries-included authentication solution for your app built
 into the Gel server. Here's how you can integrate it with your app.
 
 
@@ -35,7 +35,7 @@ Extension configuration
 =======================
 
 The best and easiest way to configure the extension for your database is
-to use the built-in UI. To access it, run ``edgedb ui``. If you have the
+to use the built-in UI. To access it, run  :gelcmd:`ui`. If you have the
 extension enabled in your schema as shown above and have migrated that
 schema change, you will see the "Auth Admin" icon in the left-hand toolbar.
 
@@ -316,7 +316,7 @@ To enable via query or script:
 
 If you use the Email and Password provider, in addition to the
 ``require_verification`` configuration, you'll need to configure SMTP to allow
-EdgeDB to send email verification and password reset emails on your behalf or
+|Gel| to send email verification and password reset emails on your behalf or
 set up webhooks for the relevant events:
 
 - ``ext::auth::WebhookEvent.EmailVerificationRequested``
@@ -392,12 +392,12 @@ provide those values and the ``additional_scope``:
 
 You'll also need to set a callback URL in each provider's interface. To build
 this callback URL, you will need the hostname, port, and branch name of your
-database. The branch name is ``main`` by default. The hostname and port can
+database. The branch name is |main| by default. The hostname and port can
 be found running this CLI command:
 
 .. code-block:: bash
 
-   $ edgedb instance credentials
+   $ gel instance credentials
 
 This will output a table that includes the hostnames and ports of all your
 instances. Grab those from the row corresponding to the correct instance for
@@ -405,7 +405,7 @@ use in your callback URL, which takes on this format:
 
 .. code-block::
 
-    http[s]://{edgedb_host}[:port]/db/{db_name}/ext/auth/callback
+    http[s]://{gel_host}[:port]/db/{db_name}/ext/auth/callback
 
 To enable the Azure OAuth provider via query or script:
 

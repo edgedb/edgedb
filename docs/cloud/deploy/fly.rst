@@ -11,15 +11,15 @@ Fly.io
 3. Run ``flyctl launch`` to create a new app on Fly.io and configure it.
    It will ask you to select a region and a name for your app. When done it will
    create a ``fly.toml`` file and a ``Dockerfile`` in your project directory.
-4. Set ``EDGEDB_INSTANCE`` and ``EDGEDB_SECRET_KEY`` as secrets in your Fly.io
+4. Set :gelenv:`INSTANCE` and :gelenv:`SECRET_KEY` as secrets in your Fly.io
    app.
 
    For **runtime secrets**, you can do this by running the following commands:
 
    .. code-block:: bash
 
-    $ flyctl secrets set EDGEDB_INSTANCE <EDGEDB_INSTANCE>
-    $ flyctl secrets set EDGEDB_SECRET_KEY <EDGEDB_SECRET_KEY>
+    $ flyctl secrets set GEL_INSTANCE <GEL_INSTANCE>
+    $ flyctl secrets set GEL_SECRET_KEY <GEL_SECRET_KEY>
 
    `Read more about Fly.io runtime secrets
    <https://fly.io/docs/reference/secrets/>`_.
@@ -32,10 +32,10 @@ Fly.io
 
       # Build application
     -  RUN pnpm run build
-    +  RUN --mount=type=secret,id=EDGEDB_INSTANCE \
-    +      --mount=type=secret,id=EDGEDB_SECRET_KEY \
-    +      EDGEDB_INSTANCE="$(cat /run/secrets/EDGEDB_INSTANCE)" \
-    +      EDGEDB_SECRET_KEY="$(cat /run/secrets/EDGEDB_SECRET_KEY)" \
+    +  RUN --mount=type=secret,id=GEL_INSTANCE \
+    +      --mount=type=secret,id=GEL_SECRET_KEY \
+    +      GEL_INSTANCE="$(cat /run/secrets/GEL_INSTANCE)" \
+    +      GEL_SECRET_KEY="$(cat /run/secrets/GEL_SECRET_KEY)" \
     +      pnpm run build
 
    `Read more about Fly.io build secrets
@@ -52,5 +52,5 @@ Fly.io
 
    .. code-block:: bash
 
-    $ flyctl deploy --build-secret EDGEDB_INSTANCE="<EDGEDB_INSTANCE>" \
-        --build-secret EDGEDB_SECRET_KEY="<EDGEDB_SECRET_KEY>"
+    $ flyctl deploy --build-secret GEL_INSTANCE="<GEL_INSTANCE>" \
+        --build-secret GEL_SECRET_KEY="<GEL_SECRET_KEY>"

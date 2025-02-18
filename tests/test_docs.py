@@ -425,6 +425,43 @@ class TestDocSnippets(unittest.TestCase):
                 )
             )
 
+    def test_cqa_doc_substitutions(self):
+        edgepath = find_edgedb_root()
+        docspath = os.path.join(edgepath, 'docs')
+
+        errors = []
+
+        for filename in self.find_rest_files(docspath):
+            if '/docs/changelog/' in filename:
+                # changelog files contain a bunch of historical
+                # text that sometimes can't use the new stuff.
+                continue
+
+            with open(filename, 'rt') as f:
+                source = f.readlines()
+
+            for lineno, line in enumerate(source):
+                if '``edgedb://' in line:
+                    errors.append(
+                        f'{filename}:{lineno}: do not use ``edgedb://``, '
+                        f'use |geluri| for "gel://" and '
+                        f':geluri:`blah` for "gel://blah"')
+                if '``gel://' in line:
+                    errors.append(
+                        f'{filename}:{lineno}: do not use ``gel://``, '
+                        f'use |geluri| for "gel://" and '
+                        f':geluri:`blah` for "gel://blah"')
+
+                if '.esdl``' in line or '.gel``' in line:
+                    errors.append(
+                        f'{filename}:{lineno}: do not use ``filename.esdl`` '
+                        f'or ``filename.gel``, use :dotgel:`filename` instead')
+
+        if errors:
+            raise AssertionError(
+                '\n'.join(errors)
+            )
+
     @unittest.skipIf(docutils is None, 'docutils is missing')
     def test_doc_test_broken_code_block_01(self):
         source = '''

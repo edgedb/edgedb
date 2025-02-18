@@ -7,14 +7,14 @@ HTTP & GraphQL APIs
 :edb-alt-title: Querying Gel Cloud over HTTP and GraphQL
 
 Using |Gel| Cloud via HTTP and GraphQL works the same as :ref:`using any other
-EdgeDB instance <ref_edgeql_http>`. The two differences are in **how to
+|Gel| instance <ref_edgeql_http>`. The two differences are in **how to
 discover your instance's URL** and **authentication**.
 
 
 Enabling
 ========
 
-EdgeDB Cloud can expose an HTTP endpoint for EdgeQL queries. Since HTTP is a
+|Gel| Cloud can expose an HTTP endpoint for EdgeQL queries. Since HTTP is a
 stateless protocol, no :ref:`DDL <ref_eql_ddl>` or :ref:`transaction commands
 <ref_eql_statements_start_tx>`, can be executed using this endpoint.  Only one
 query per request can be executed.
@@ -27,8 +27,8 @@ the schema:
     using extension edgeql_http;
 
 Then create a new migration and apply it using
-:ref:`ref_cli_edgedb_migration_create` and
-:ref:`ref_cli_edgedb_migrate`, respectively.
+:ref:`ref_cli_gel_migration_create` and
+:ref:`ref_cli_gel_migrate`, respectively.
 
 Your instance can now receive EdgeQL queries over HTTP at
 ``https://<host>:<port>/branch/<branch-name>/edgeql``.
@@ -37,8 +37,8 @@ Your instance can now receive EdgeQL queries over HTTP at
 Instance URL
 ============
 
-To determine the URL of an |Gel| Cloud instance, find the host by running
-``edgedb instance credentials -I <org-name>/<instance-name>``. Use the
+To determine the URL of a |Gel| Cloud instance, find the host by running
+:gelcmd:`instance credentials -I <org-name>/<instance-name>`. Use the
 ``host`` and ``port`` from that table in the URL format above this note.
 Change the protocol to ``https`` since Gel Cloud instances are secured
 with TLS.
@@ -52,7 +52,7 @@ Authentication
 
 
 To authenticate to your |Gel| Cloud instance, first create a secret key using
-the Gel Cloud UI or :ref:`ref_cli_edgedb_cloud_secretkey_create`. Use the
+the Gel Cloud UI or :ref:`ref_cli_gel_cloud_secretkey_create`. Use the
 secret key as your token with the bearer authentication method. Here is an
 example showing how you might send the query ``select Person {*};`` using cURL:
 
@@ -70,7 +70,7 @@ example showing how you might send the query ``select Person {*};`` using cURL:
 Usage
 =====
 
-Usage of the HTTP and GraphQL APIs is identical on an |Gel| Cloud instance.
+Usage of the HTTP and GraphQL APIs is identical on a |Gel| Cloud instance.
 Reference the HTTP and GraphQL documentation for more information.
 
 

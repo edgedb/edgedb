@@ -18,7 +18,7 @@ To get started with Gel, the first step is install the |gelcmd| CLI.
 
 .. code-block:: bash
 
-    $ curl --proto '=https' --tlsv1.2 -sSf https://sh.edgedb.com | sh
+    $ curl --proto '=https' --tlsv1.2 -sSf https://geldata.com/sh | sh
 
 **Windows Powershell**
 
@@ -28,7 +28,7 @@ To get started with Gel, the first step is install the |gelcmd| CLI.
 
 .. code-block:: powershell
 
-    PS> iwr https://ps1.edgedb.com -useb | iex
+    PS> iwr https://geldata.com/ps1 -useb | iex
 
 Follow the prompts on screen to complete the installation. The script will
 download the |gelcmd| command built for your OS and add a path to it to your
@@ -36,7 +36,7 @@ shell environment. Then test the installation:
 
 .. code-block:: bash
 
-    $ edgedb --version
+    $ gel --version
     Gel CLI x.x+abcdefg
 
 .. note::
@@ -44,23 +44,17 @@ shell environment. Then test the installation:
   If you encounter a ``command not found`` error, you may need to open a fresh
   shell window.
 
-.. note::
-
-    To install the CLI with a package manager, refer to the "Additional
-    methods" section of the `Install <https://www.edgedb.com/install>`_ page
-    for instructions.
-
 
 See ``help`` commands
 ---------------------
 
-The entire CLI is self-documenting. Once it's installed, run ``edgedb --help``
+The entire CLI is self-documenting. Once it's installed, run :gelcmd:`--help`
 to see a breakdown of all the commands and options.
 
 .. code-block:: bash
 
-  $ edgedb --help
-  Usage: edgedb [OPTIONS] [COMMAND]
+  $ gel --help
+  Usage: gel [OPTIONS] [COMMAND]
 
   Commands:
     <list of commands>
@@ -68,7 +62,7 @@ to see a breakdown of all the commands and options.
   Options:
     <list of options>
 
-  Connection Options (edgedb --help-connect to see full list):
+  Connection Options (gel --help-connect to see full list):
     <list of connection options>
 
   Cloud Connection Options:
@@ -81,11 +75,11 @@ information like TLS certificates. The following command documents these flags.
 
 .. code-block:: bash
 
-  $ edgedb --help-connect
+  $ gel --help-connect
   Connection Options (full list):
 
     -I, --instance <INSTANCE>
-            Instance name (use `edgedb instance list` to list local, remote and
+            Instance name (use `gel instance list` to list local, remote and
             Cloud instances available to you)
 
         --dsn <DSN>
@@ -108,16 +102,16 @@ information like TLS certificates. The following command documents these flags.
             computed using the `--port` and `--admin` parameters.
     ...
 
-If you ever want to see documentation for a particular command (``edgedb
-migration create``) or group of commands (``edgedb instance``), just append
-the ``--help`` flag.
+If you ever want to see documentation for a particular command (
+:gelcmd:`migration create`) or group of commands (:gelcmd:`instance`),
+just append the ``--help`` flag.
 
 .. code-block:: bash
 
-  $ edgedb instance --help
+  $ gel instance --help
   Manage local Gel instances
 
-  Usage: edgedb instance <COMMAND>
+  Usage: gel instance <COMMAND>
 
   Commands:
     create          Initialize a new Gel instance
@@ -134,4 +128,4 @@ To upgrade to the latest version:
 
 .. code-block:: bash
 
-  $ edgedb cli upgrade
+  $ gel cli upgrade

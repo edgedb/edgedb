@@ -19,8 +19,8 @@ Get Started
     edgeql
     clients
 
-EdgeDB is a next-generation `graph-relational database
-<https://www.edgedb.com/blog/the-graph-relational-database-defined>`_ designed
+|Gel| is a next-generation `graph-relational database
+<https://www.geldata.com/blog/the-graph-relational-database-defined>`_ designed
 as a spiritual successor to the relational database.
 
 It inherits the strengths of SQL databases: type safety, performance,
@@ -33,7 +33,7 @@ solves some of SQL's biggest usability problems.
 How to read the docs
 ^^^^^^^^^^^^^^^^^^^^
 
-EdgeDB is a complex system, but we've structured the documentation so you can
+|Gel| is a complex system, but we've structured the documentation so you can
 learn it in "phases". You only need to learn as much as you need to start
 building your application.
 
@@ -124,7 +124,7 @@ EdgeQL.
 
 .. eql:react-element:: DocsNavTable
 
-EdgeDB features:
+|Gel| features:
 
 .. class:: ticklist
 
@@ -133,13 +133,13 @@ EdgeDB features:
 - ability to easily work with complex hierarchical data;
 - built-in support for schema migrations.
 
-EdgeDB is not a graph database: the data is stored and queried using
+|Gel| is not a graph database: the data is stored and queried using
 relational database techniques.  Unlike most graph databases, Gel
 maintains a strict schema.
 
-EdgeDB is not a document database, but inserting and querying hierarchical
+|Gel| is not a document database, but inserting and querying hierarchical
 document-like data is trivial.
 
-EdgeDB is not a traditional object database, despite the classification,
+|Gel| is not a traditional object database, despite the classification,
 it is not an implementation of OOP persistence.
 

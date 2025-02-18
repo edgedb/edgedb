@@ -991,8 +991,6 @@ versionadded:: 2.0``.
 
     .. eql:type:: cal::date_duration
 
-        .. versionadded:: 2.0
-
         A type for representing a span of time in days.
 
 **Rendered**

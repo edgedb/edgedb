@@ -1,4 +1,4 @@
-.. _edgedb-js-for:
+.. _gel-js-for:
 
 
 For Loops
@@ -14,7 +14,7 @@ For Loops
   const result = query.run(client);
   // [2, 4, 8, 16]
 
-.. _edgedb-js-for-bulk-inserts:
+.. _gel-js-for-bulk-inserts:
 
 Bulk inserts
 ------------
@@ -47,7 +47,7 @@ Note that any optional properties values must be explicitly set to ``null``.
 They cannot be set to ``undefined`` or omitted; doing so will cause a runtime
 error.
 
-.. _edgedb-js-for-bulk-inserts-conflicts:
+.. _gel-js-for-bulk-inserts-conflicts:
 
 Handling conflicts in bulk inserts
 ----------------------------------
@@ -158,7 +158,7 @@ down.
     }
   );
 
-.. _edgedb-js-for-bulk-inserts-conflicts-params:
+.. _gel-js-for-bulk-inserts-conflicts-params:
 
 Structured params
 ~~~~~~~~~~~~~~~~~
@@ -187,7 +187,7 @@ objects as named tuples by passing an object to ``e.tuple`` — all the data in
 the array will be properly cast for us. It will also better type check the data
 you pass to the query's ``run`` method.
 
-.. _edgedb-js-for-bulk-inserts-conflicting-data:
+.. _gel-js-for-bulk-inserts-conflicting-data:
 
 Inserting the inner conflicting data
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -228,7 +228,7 @@ database *before* we run this query, but it won't handle conflicts that come
 about over the course of this query. The ``distinct`` operator we used earlier
 pro-actively eliminates any conflicts we might have had among this data.
 
-.. _edgedb-js-for-bulk-inserts-outer-data:
+.. _gel-js-for-bulk-inserts-outer-data:
 
 Inserting the outer data
 ~~~~~~~~~~~~~~~~~~~~~~~~
@@ -271,7 +271,7 @@ that match values in the ``character.movies`` array.
 All that's left is to run the query, passing the data to the query's ``run``
 method!
 
-.. _edgedb-js-for-bulk-updates:
+.. _gel-js-for-bulk-updates:
 
 Bulk updates
 ^^^^^^^^^^^^
@@ -334,7 +334,7 @@ In addition to the performance implications, a single query means that either
 everything succeeds or everything fails. You will never end up with only some
 of your data inserted. This ensures your data integrity is maintained. You
 could achieve this yourself by wrapping your batch queryies with :ref:`a
-transaction <edgedb-js-qb-transaction>`, but a single query is already atomic
+transaction <gel-js-qb-transaction>`, but a single query is already atomic
 without any additional work on your part.
 
 Using ``e.for`` to run a single query is generally the best approach. When

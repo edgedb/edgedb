@@ -65,14 +65,6 @@ names associated with the given user" in a database defined by the
 following schema:
 
 .. code-block:: sdl
-    :version-lt: 3.0
-
-    type User {
-        required property name -> str;
-        multi link friends -> User;
-    }
-
-.. code-block:: sdl
 
     type User {
         required name: str;
@@ -218,7 +210,7 @@ these flags out as part of the shape's computed properties:
 It looks like this refactoring came at the cost of putting extra
 things into the output. In this case we don't want our intermediate
 calculations to actually show up in the output, so what can we do? In
-EdgeDB the output structure is determined *only* by the expression
+|Gel| the output structure is determined *only* by the expression
 appearing in the top-level :eql:stmt:`select`. This means
 that we can move our intermediate calculations into the :eql:kw:`with` block:
 

@@ -14,18 +14,17 @@ or ``branch/<branch-name>/edgeql`` for Gel and |EdgeDB| >= 5.
 
 Here's how to determine your *local* Gel instance's HTTP server URL:
 
-- The ``<database-name>``, in most cases, will be ``edgedb`` for |EdgeDB| < 5,
-  or ``main`` for Gel and |EdgeDB| >= 5.
+- The ``<database-name>``, in most cases, will be |main|.
 
 - The ``hostname`` will be ``localhost``
 
-- Find the ``port`` by running ``gel instance list``. This will print a
+- Find the ``port`` by running :gelcmd:`instance list`. This will print a
   table of all Gel instances on your machine, including their associated
   port number.
 
 To determine the URL of a remote instance you have linked with the CLI, you
 can get both the hostname and port of the instance from the "Port" column
-of the ``gel instance list`` table (formatted as ``<hostname>:<port>``).
+of the :gelcmd:`instance list` table (formatted as ``<hostname>:<port>``).
 The same guidance on local :versionreplace:`database;5.0:branch` names
 applies to remote instances.
 
@@ -34,7 +33,7 @@ applies to remote instances.
 Health Checks
 -------------
 
-EdgeDB exposes endpoints to check for aliveness and readiness of your database
+|Gel| exposes endpoints to check for aliveness and readiness of your database
 instance.
 
 Aliveness
@@ -204,8 +203,8 @@ schema. Add this to your schema, outside any ``module``:
     using extension edgeql_http;
 
 Then create a new migration and apply it using
-:ref:`ref_cli_edgedb_migration_create` and
-:ref:`ref_cli_edgedb_migrate`, respectively.
+:ref:`ref_cli_gel_migration_create` and
+:ref:`ref_cli_gel_migrate`, respectively.
 
 Your instance is now able to receive EdgeQL queries over HTTP.
 
@@ -219,17 +218,9 @@ Making a query request
 
 Make a query to your Gel database using this URL:
 
-.. versionchanged:: _default
+.. code-block::
 
-    .. code-block::
-
-        http://<hostname>:<port>/db/<database-name>/edgeql
-
-.. versionchanged:: 5.0
-
-    .. code-block::
-
-        http://<hostname>:<port>/branch/<branch-name>/edgeql
+    http://<hostname>:<port>/branch/<branch-name>/edgeql
 
 You may make queries via either the POST or GET HTTP method. Query requests can
 take the following fields:
@@ -257,7 +248,7 @@ The query inserts a ``Person`` object. The object's ``name`` value is
 parameterized in the query as ``$name``.
 
 This GET request would run the same query (assuming the instance is local
-and you want to query the ``main`` branch):
+and you want to query the |main| branch):
 
 .. code-block::
 

@@ -137,7 +137,7 @@ of data; in Gel the absence of data is just an empty set.
   permeates all of SQL and is often handled inconsistently in different
   circumstances. A number of specific inconsistencies are documented in detail
   in the `We Can Do Better Than SQL
-  <https://www.edgedb.com/blog/we-can-do-better-than-sql#null-a-bag-of-surprises>`_
+  <https://www.geldata.com/blog/we-can-do-better-than-sql#null-a-bag-of-surprises>`_
   post on the Gel blog. For broader context, see Tony Hoare's talk
   `"The Billion Dollar Mistake" <https://bit.ly/3H238oG>`_.
 
@@ -265,8 +265,6 @@ Use the :eql:op:`union` operator to merge two sets.
 Finding common members
 ----------------------
 
-.. versionadded:: 3.0
-
 .. index:: intersect
 
 Use the :eql:op:`intersect` operator to find common members between two sets.
@@ -296,8 +294,6 @@ resulting set.
 
 Removing common members
 -----------------------
-
-.. versionadded:: 3.0
 
 .. index:: except
 
@@ -363,25 +359,10 @@ Inheritance
 
 .. index:: type intersection, backlinks, [is ]
 
-EdgeDB schemas support :ref:`inheritance <ref_datamodel_objects_inheritance>`;
+|Gel| schemas support :ref:`inheritance <ref_datamodel_objects_inheritance>`;
 types (usually object types) can extend one or more other types. For instance
 you may declare an abstract object type ``Media`` that is extended by ``Movie``
 and ``TVShow``.
-
-.. code-block:: sdl
-    :version-lt: 3.0
-
-    abstract type Media {
-      required property title -> str;
-    }
-
-    type Movie extending Media {
-      property release_year -> int64;
-    }
-
-    type TVShow extending Media {
-      property num_seasons -> int64;
-    }
 
 .. code-block:: sdl
 

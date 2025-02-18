@@ -37,15 +37,13 @@ UUIDs
     Every :eql:type:`Object` has a globally unique property ``id``
     represented by a UUID value.
 
-    .. versionadded:: 3.0
+    A UUID can be cast to an object type if an object of that type with a
+    matching ID exists.
 
-        A UUID can be cast to an object type if an object of that type with a
-        matching ID exists.
+    .. code-block:: edgeql-repl
 
-        .. code-block:: edgeql-repl
-
-            db> select <Hero><uuid>'01d9cc22-b776-11ed-8bef-73f84c7e91e7';
-            {default::Hero {id: 01d9cc22-b776-11ed-8bef-73f84c7e91e7}}
+        db> select <Hero><uuid>'01d9cc22-b776-11ed-8bef-73f84c7e91e7';
+        {default::Hero {id: 01d9cc22-b776-11ed-8bef-73f84c7e91e7}}
 
 
 ---------

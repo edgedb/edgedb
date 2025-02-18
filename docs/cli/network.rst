@@ -1,4 +1,4 @@
-.. _ref_cli_edgedb_network:
+.. _ref_cli_gel_network:
 
 =============
 Network usage
@@ -8,17 +8,17 @@ Generally command-line tools connect only to the database host with a few
 exceptions:
 
 1. When the command-line tool starts, it checks if its version is up to
-   date. :ref:`Details <ref_cli_edgedb_version_check>`
-2. The :ref:`ref_cli_edgedb_server` family of commands and
-   :ref:`ref_cli_edgedb_cli_upgrade` discover package versions and
+   date. :ref:`Details <ref_cli_gel_version_check>`
+2. The :ref:`ref_cli_gel_server` family of commands and
+   :ref:`ref_cli_gel_cli_upgrade` discover package versions and
    docker images and also invoke package managers and the docker
    engine to do :ref:`index updates and related data.
-   <ref_cli_edgedb_net_server>`
+   <ref_cli_gel_net_server>`
 3. The CLI communicates with the |Gel| Cloud API to provide easy access to
    your Gel Cloud instances.
 
 
-.. _ref_cli_edgedb_version_check:
+.. _ref_cli_gel_version_check:
 
 Version Check
 =============
@@ -51,27 +51,29 @@ To disable version check do one of two things:
 
 1. Use ``--no-cli-update-check`` command-line parameter to disable just
    for this invocation
-2. Export ``EDGEDB_RUN_VERSION_CHECK=never`` in the environment.
+2. Export :gelenv:`RUN_VERSION_CHECK=never` in the environment.
+
+.. XXX: edgedb::version_check=debug
 
 To verify that check is skipped and no network access is being done
 logging facility can be used::
 
    $ export RUST_LOG=edgedb::version_check=debug
-   $ edgedb --no-cli-update-check
+   $ gel --no-cli-update-check
    [..snip..] Skipping version check due to --no-cli-update-check
    gel>
-   $ EDGEDB_RUN_VERSION_CHECK=never edgedb
-   [..snip..] Skipping version check due to EDGEDB_RUN_VERSION_CHECK=never
+   $ GEL_RUN_VERSION_CHECK=never gel
+   [..snip..] Skipping version check due to GEL_RUN_VERSION_CHECK=never
    gel>
 
 
-.. _ref_cli_edgedb_net_server:
+.. _ref_cli_gel_net_server:
 
-``gel server`` and ``gel self upgrade``
-=============================================
+"gel server" and "gel self upgrade"
+===================================
 
 Generally these commands do requests with exactly the headers
-like :ref:`version check <ref_cli_edgedb_version_check>`.
+like :ref:`version check <ref_cli_gel_version_check>`.
 
 Data sources for the commands directly:
 
@@ -90,7 +92,7 @@ Data sources that can be used indirectly:
    data from any sources listed in repositories configured in the
    system.
 
-To avoid reaching these hosts, avoid using: ``gel server`` and
-``gel self upgrade`` subcommands. These commands only simplify
+To avoid reaching these hosts, avoid using: :gelcmd:`server` and
+:gelcmd:`self upgrade` subcommands. These commands only simplify
 installation and maintenance of the installations. All |Gel| features
 are available without using them.

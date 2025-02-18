@@ -4,17 +4,12 @@
 Instances
 =========
 
-test |gelcmd|
-
-test2 :gelcmd:`migrate --help`
-
-
 Let's get to the good stuff. You can spin up an Gel instance with a single
 command.
 
 .. code-block:: bash
 
-  $ edgedb instance create my_instance
+  $ gel instance create my_instance
 
 This creates a new instance named ``my_instance`` that runs the latest stable
 version of Gel. (Gel itself will be automatically installed if it isn't
@@ -23,15 +18,15 @@ already.) Alternatively you can specify a specific version with
 
 .. code-block:: bash
 
-  $ edgedb instance create my_instance --version 6.1
-  $ edgedb instance create my_instance --version nightly
+  $ gel instance create my_instance --version 6.1
+  $ gel instance create my_instance --version nightly
 
-We can execute a query against our new instance with ``edgedb query``. Specify
+We can execute a query against our new instance with :gelcmd:`query`. Specify
 which instance to connect to by passing an instance name into the ``-I`` flag.
 
 .. code-block:: bash
 
-  $ edgedb query "select 3.14" -I my_instance
+  $ gel query "select 3.14" -I my_instance
   3.14
 
 Managing instances
@@ -40,10 +35,10 @@ Instances can be stopped, started, restarted, and destroyed.
 
 .. code-block:: bash
 
-  $ edgedb instance stop -I my_instance
-  $ edgedb instance start -I my_instance
-  $ edgedb instance restart -I my_instance
-  $ edgedb instance destroy -I my_instance
+  $ gel instance stop -I my_instance
+  $ gel instance start -I my_instance
+  $ gel instance restart -I my_instance
+  $ gel instance destroy -I my_instance
 
 
 Listing instances
@@ -53,7 +48,7 @@ To list all instances on your machine:
 
 .. code-block:: bash
 
-  $ edgedb instance list
+  $ gel instance list
   ┌────────┬──────────────────┬──────────┬────────────────┬──────────┐
   │ Kind   │ Name             │ Port     │ Version        │ Status   │
   ├────────┼──────────────────┼──────────┼────────────────┼──────────┤
@@ -66,9 +61,9 @@ Further reference
 ^^^^^^^^^^^^^^^^^
 
 For complete documentation on managing instances with the CLI (upgrading,
-viewing logs, etc.), refer to the :ref:`edgedb instance
-<ref_cli_edgedb_instance>` reference or view the help text in your shell:
+viewing logs, etc.), refer to the :ref:`gel instance
+<ref_cli_gel_instance>` reference or view the help text in your shell:
 
 .. code-block:: bash
 
-  $ edgedb instance --help
+  $ gel instance --help

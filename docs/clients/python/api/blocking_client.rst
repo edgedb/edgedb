@@ -1,4 +1,4 @@
-.. _edgedb-python-blocking-api-reference:
+.. _gel-python-blocking-api-reference:
 
 ============
 Blocking API
@@ -7,7 +7,7 @@ Blocking API
 .. py:currentmodule:: gel
 
 
-.. _edgedb-python-blocking-api-client:
+.. _gel-python-blocking-api-client:
 
 Client
 ======
@@ -29,17 +29,17 @@ Client
 
     If no connection parameter is specified, the client will try to search in
     environment variables and then the current project, see :ref:`Client
-    Library Connection <edgedb_client_connection>` docs for more information.
+    Library Connection <gel_client_connection>` docs for more information.
 
     Returns a new :py:class:`Client` object.
 
     :param dsn:
-        If this parameter does not start with ``gel://`` then this is
+        If this parameter does not start with |geluri| then this is
         interpreted as the :ref:`name of a local instance
         <ref_reference_connection_instance_name>`.
 
         Otherwise it specifies a single string in the following format:
-        ``gel://user:password@host:port/database?option=value``.
+        :geluri:`user:password@host:port/database?option=value`.
         The following options are recognized: host, port,
         user, database, password. For a complete reference on DSN, see
         the :ref:`DSN Specification <ref_dsn>`.
@@ -50,7 +50,7 @@ Client
         If not specified, the following will be tried, in order:
 
         - host address(es) parsed from the *dsn* argument,
-        - the value of the ``EDGEDB_HOST`` environment variable,
+        - the value of the :gelenv:`HOST` environment variable,
         - ``"localhost"``.
 
     :param port:
@@ -61,27 +61,27 @@ Client
         addresses.
 
         If not specified, the value parsed from the *dsn* argument is used,
-        or the value of the ``EDGEDB_PORT`` environment variable, or ``5656``
+        or the value of the :gelenv:`PORT` environment variable, or ``5656``
         if neither is specified.
 
     :param user:
         The name of the database role used for authentication.
 
         If not specified, the value parsed from the *dsn* argument is used,
-        or the value of the ``EDGEDB_USER`` environment variable, or the
+        or the value of the :gelenv:`USER` environment variable, or the
         operating system name of the user running the application.
 
     :param database:
         The name of the database to connect to.
 
         If not specified, the value parsed from the *dsn* argument is used,
-        or the value of the ``EDGEDB_DATABASE`` environment variable, or the
+        or the value of the :gelenv:`DATABASE` environment variable, or the
         operating system name of the user running the application.
 
     :param password:
         Password to be used for authentication, if the server requires
         one.  If not specified, the value parsed from the *dsn* argument
-        is used, or the value of the ``EDGEDB_PASSWORD`` environment variable.
+        is used, or the value of the :gelenv:`PASSWORD` environment variable.
         Note that the use of the environment variable is discouraged as
         other users and applications may be able to read it without needing
         specific privileges.
@@ -89,7 +89,7 @@ Client
     :param secret_key:
         Secret key to be used for authentication, if the server requires one.
         If not specified, the value parsed from the *dsn* argument is used,
-        or the value of the ``EDGEDB_SECRET_KEY`` environment variable.
+        or the value of the :gelenv:`SECRET_KEY` environment variable.
         Note that the use of the environment variable is discouraged as
         other users and applications may be able to read it without needing
         specific privileges.
@@ -325,7 +325,7 @@ Client
 
         Returns an instance of :py:class:`Retry`.
 
-        See :ref:`edgedb-python-blocking-api-transaction` for more details.
+        See :ref:`gel-python-blocking-api-transaction` for more details.
 
         Example:
 
@@ -383,7 +383,7 @@ Client
         :param TransactionOptions options:
             Object that encapsulates transaction options.
 
-        See :ref:`edgedb-python-transaction-options` for details.
+        See :ref:`gel-python-transaction-options` for details.
 
     .. py:method:: with_retry_options(options=None)
 
@@ -391,7 +391,7 @@ Client
 
         :param RetryOptions options: Object that encapsulates retry options.
 
-        See :ref:`edgedb-python-retry-options` for details.
+        See :ref:`gel-python-retry-options` for details.
 
     .. py:method:: with_state(state)
 
@@ -399,7 +399,7 @@ Client
 
         :param State state: Object that encapsulates state.
 
-        See :ref:`edgedb-python-state` for details.
+        See :ref:`gel-python-state` for details.
 
     .. py:method:: with_default_module(module=None)
 
@@ -486,7 +486,7 @@ Client
         See :py:meth:`State.without_globals` for details.
 
 
-.. _edgedb-python-blocking-api-transaction:
+.. _gel-python-blocking-api-transaction:
 
 Transactions
 ============

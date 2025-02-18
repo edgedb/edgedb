@@ -1,5 +1,3 @@
-.. versionadded:: 3.0
-
 .. _ref_datamodel_triggers:
 
 ========
@@ -162,40 +160,39 @@ Now, whenever we run a query, we get a log entry as well:
     the same trigger to be run in two different stages. These triggers will
     generate an error.
 
-.. versionadded:: 4.0
 
-    Our audit logging works, but the update logs have a major shortcoming: they
-    log an update even when nothing changes. Any time an ``update`` query runs,
-    we get a log, even if the values are the same. We can prevent that by
-    using the trigger's ``when`` to run the trigger conditionally. Here's a
-    rework of our ``update`` logging query:
+Our audit logging works, but the update logs have a major shortcoming: they
+log an update even when nothing changes. Any time an ``update`` query runs,
+we get a log, even if the values are the same. We can prevent that by
+using the trigger's ``when`` to run the trigger conditionally. Here's a
+rework of our ``update`` logging query:
 
-    .. code-block:: sdl
+.. code-block:: sdl-invalid
 
-        trigger log_update after update for each
-        when (__old__.name != __new__.name)
-        do (
-          insert Log {
-            action := 'update',
-            target_name := __new__.name,
-            change := __old__.name ++ '->' ++ __new__.name
-          }
-        );
+    trigger log_update after update for each
+    when (__old__.name != __new__.name)
+    do (
+      insert Log {
+        action := 'update',
+        target_name := __new__.name,
+        change := __old__.name ++ '->' ++ __new__.name
+      }
+    );
 
-    If this object were more complicated and we had many properties to compare,
-    we could use a ``json`` cast to compare them all in one shot:
+If this object were more complicated and we had many properties to compare,
+we could use a ``json`` cast to compare them all in one shot:
 
-    .. code-block:: sdl
+.. code-block:: sdl-invalid
 
-        trigger log_update after update for each
-        when (<json>__old__ {**} != <json>__new__ {**})
-        do (
-          insert Log {
-            action := 'update',
-            target_name := __new__.name,
-            change := __old__.name ++ '->' ++ __new__.name
-          }
-        );
+    trigger log_update after update for each
+    when (<json>__old__ {**} != <json>__new__ {**})
+    do (
+      insert Log {
+        action := 'update',
+        target_name := __new__.name,
+        change := __old__.name ++ '->' ++ __new__.name
+      }
+    );
 
 You might find that one log entry per row is too granular or too noisy for your
 use case. In that case, a ``for all`` trigger may be a better fit. Here's a
@@ -347,7 +344,7 @@ both a friend and an enemy of any other person.
     ...     select detached Person filter .name = 'Dracula'
     ...   )
     ... };
-    edgedb error: GelError: Invalid frenemies
+    gel error: GelError: Invalid frenemies
 
 
 .. list-table::

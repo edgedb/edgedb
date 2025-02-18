@@ -18,7 +18,7 @@ To check if the instance is alive, make a request to this endpoint:
 
     http://<hostname>:<port>/server/status/alive
 
-To find your ``<port>``, you can run ``edgedb instance list`` to see a table of
+To find your ``<port>``, you can run :gelcmd:`instance list` to see a table of
 all your instances along with their port numbers.
 
 The endpoint will respond with a ``200`` status code and ``"OK"`` as the
@@ -35,7 +35,7 @@ To check if the instance is ready, make a request to this endpoint:
     http://<hostname>:<port>/server/status/ready
 
 As with the ``alive`` endpoint, you can find your ``<port>`` by running
-``edgedb instance list`` to see a table of all your instances along with their
+:gelcmd:`instance list` to see a table of all your instances along with their
 port numbers.
 
 The endpoint will respond with a ``200`` status code and ``"OK"`` as the

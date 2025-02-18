@@ -5,7 +5,7 @@ Config
 ======
 
 The ``cfg`` module contains a set of types and scalars used for configuring
-EdgeDB.
+|Gel|.
 
 
 .. list-table::
@@ -166,7 +166,7 @@ Query behavior
 
       This setting can also be conveniently accessed via the "Config" dropdown
       menu at the top of the Gel UI (accessible by running the CLI command
-      ``edgedb ui`` from within a project). The setting will apply only to your
+      :gelcmd:`ui` from within a project). The setting will apply only to your
       UI session, so you won't have to remember to re-enable it when you're
       done.
 

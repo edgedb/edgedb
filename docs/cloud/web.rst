@@ -7,7 +7,7 @@ Web GUI
 :edb-alt-title: Using Gel Cloud via the web GUI
 
 If you'd prefer, you can also manage your account via `the |Gel| Cloud
-web-based GUI <https://cloud.edgedb.com/>`_.
+web-based GUI <https://cloud.geldata.com/>`_.
 
 The first time you access the web UI, you will be prompted to log in. Once you
 log in with your account, you'll be on the "Instances" tab of the front page
@@ -27,8 +27,8 @@ allows you to monitor your instance, navigate to the management page for its
 branches, and create secret keys.
 
 You'll also see instructions in the bottom-right for linking your |Gel| CLI to
-your Gel Cloud account. You do this by running the CLI command ``edgedb
-cloud login``. This will make all of your Gel Cloud instances accessible via
+your Gel Cloud account. You do this by running the CLI command
+:gelcmd:`cloud login`. This will make all of your Gel Cloud instances accessible via
 the CLI. You can manage them just as you would other remote Gel instances.
 
 If you want to manage a branch of your database, click through on the

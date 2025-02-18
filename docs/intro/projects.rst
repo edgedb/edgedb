@@ -9,7 +9,7 @@ CLI command.
 
 .. code-block:: bash
 
-  $ edgedb migration create -I my_instance
+  $ gel migration create -I my_instance
 
 That's one of the reasons we introduced the concept of an *Gel
 project*. A project is a directory on your file system that is associated
@@ -27,7 +27,7 @@ When you're inside a project, all CLI commands will be applied against the
 
 .. code-block:: bash
 
-  $ edgedb migration create
+  $ gel migration create
 
 The same is true for all Gel client libraries (discussed in more depth in
 the :ref:`Clients <ref_intro_clients>` section). If the following file lives
@@ -37,7 +37,7 @@ and connect to its linked instance with no additional configuration.
 .. code-block:: typescript
 
     // clientTest.js
-    import {createClient} from 'edgedb';
+    import {createClient} from 'gel';
 
     const client = createClient();
     await client.query("select 5");
@@ -45,13 +45,13 @@ and connect to its linked instance with no additional configuration.
 Initializing
 ^^^^^^^^^^^^
 
-To initialize a project, create a new directory and run ``edgedb
-project init`` inside it. You'll see something like this:
+To initialize a project, create a new directory and run :gelcmd:`project init`
+inside it. You'll see something like this:
 
 .. code-block:: bash
 
-  $ edgedb project init
-  No `edgedb.toml` found in this repo or above.
+  $ gel project init
+  No `gel.toml` found in this repo or above.
   Do you want to initialize a new project? [Y/n]
   > Y
   Specify the name of Gel instance to use with this project
@@ -66,33 +66,32 @@ project init`` inside it. You'll see something like this:
   Applying migrations...
   Everything is up to date. Revision initial
   Project initialized.
-  To connect to my_instance, run `edgedb`
+  To connect to my_instance, run `gel`
 
 This command does a couple important things.
 
 1. It spins up a new Gel instance called ``my_instance``.
 2. If no |gel.toml| file exists, it will create one. This is a
    configuration file that marks a given directory as an Gel project. Learn
-   more about it in :ref:`our edgedb.toml reference
-   <ref_reference_edgedb_toml>`.
+   more about it in the :ref:`gel.toml reference <ref_reference_gel_toml>`.
 
    .. code-block:: toml
 
-     [edgedb]
-     server-version = "4.1"
+     [instance]
+     server-version = "6.0"
 
 3. If no ``dbschema`` directory exists, it will be created, along with an
-   empty ``default.esdl`` file which will contain your schema. If a
+   empty :dotgel:`default` file which will contain your schema. If a
    ``dbschema`` directory exists and contains a subdirectory called
    ``migrations``, those migrations will be applied against the new instance.
 
 Every project maps one-to-one to a particular Gel instance. From
-inside a project directory, you can run ``edgedb project info`` to see
+inside a project directory, you can run :gelcmd:`project info` to see
 information about the current project.
 
 .. code-block:: bash
 
-  $ edgedb project info
+  $ gel project info
   ┌───────────────┬──────────────────────────────────────────┐
   │ Instance name │ my_instance                              │
   │ Project root  │ /path/to/project                         │
@@ -108,10 +107,10 @@ executed against the project-linked instance. For instance, you can simply run
 
 .. code-block:: bash
 
-  $ edgedb
+  $ gel
   Gel x.x+cc4f3b5 (repl x.x+da2788e)
   Type \help for help, \quit to quit.
-  my_instance:edgedb> select "Hello world!";
+  my_instance:main> select "Hello world!";
 
 By contrast, if you leave the project directory, the CLI will no longer know
 which instance to connect to. You can solve this by specifing an instance name
@@ -120,14 +119,14 @@ with the ``-I`` flag.
 .. code-block:: bash
 
   $ cd ~
-  $ edgedb
-  edgedb error: no `edgedb.toml` found and no connection options are specified
-    Hint: Run `edgedb project init` or use any of `-H`, `-P`, `-I` arguments to
+  $ gel
+  gel error: no `gel.toml` found and no connection options are specified
+    Hint: Run `gel project init` or use any of `-H`, `-P`, `-I` arguments to
     specify connection parameters. See `--help` for details
-  $ edgedb -I my_instance
+  $ gel -I my_instance
   Gel x.x+cc4f3b5 (repl x.x+da2788e)
   Type \help for help, \quit to quit.
-  my_instance:edgedb>
+  my_instance:main>
 
 Similarly, client libraries will auto-connect to the project's
 linked instance without additional configuration.
@@ -137,30 +136,30 @@ Using remote instances
 
 You may want to initialize a project that points to a remote Gel instance.
 This is totally a valid case and Gel fully supports it! Before running
-``edgedb project init``, you just need to create an alias for the remote
-instance using ``edgedb instance link``, like so:
+:gelcmd:`project init`, you just need to create an alias for the remote
+instance using :gelcmd:`instance link`, like so:
 
 .. lint-off
 
 .. code-block:: bash
 
-  $ edgedb instance link
+  $ gel instance link
   Specify server host [default: localhost]:
   > 192.168.4.2
   Specify server port [default: 5656]:
   > 10818
-  Specify database user [default: edgedb]:
-  > edgedb
+  Specify database user [default: admin]:
+  > admin
   Specify branch [default: main]:
-  > edgedb
+  > main
   Unknown server certificate: SHA1:c38a7a90429b033dfaf7a81e08112a9d58d97286.
   Trust? [y/N]
   > y
-  Password for 'edgedb':
+  Password for 'admin':
   Specify a new instance name for the remote server [default: abcd]:
   > staging_db
   Successfully linked to remote instance. To connect run:
-    edgedb -I staging_db
+    gel -I staging_db
 
 .. lint-on
 
@@ -170,11 +169,11 @@ instance name in CLI commands.
 
 .. code-block::
 
-  $ edgedb -I staging_db
-  edgedb>
+  $ gel -I staging_db
+  gel>
 
 To initialize a project that uses the remote instance, provide this alias when
-prompted for an instance name during the ``edgedb project init`` workflow.
+prompted for an instance name during the :gelcmd:`project init` workflow.
 
 
 Unlinking
@@ -186,25 +185,25 @@ but effectively "uninitializes" the project. The |gel.toml| and
 
 .. code-block:: bash
 
-    $ edgedb project unlink
+    $ gel project unlink
 
 If you wish to delete the instance as well, use the ``-D`` flag.
 
 .. code-block:: bash
 
-    $ edgedb project unlink -D
+    $ gel project unlink -D
 
 Upgrading
 ^^^^^^^^^
 
 A standalone instance (not linked to a project) can be upgraded with the
-``edgedb instance upgrade`` command.
+:gelcmd:`instance upgrade` command.
 
 .. code-block:: bash
 
-  $ edgedb project upgrade --to-latest
-  $ edgedb project upgrade --to-nightly
-  $ edgedb project upgrade --to-version x.x
+  $ gel project upgrade --to-latest
+  $ gel project upgrade --to-nightly
+  $ gel project upgrade --to-version x.x
 
 
 See info
@@ -214,7 +213,7 @@ You can see the location of a project and the name of its linked instance.
 
 .. code-block:: bash
 
-  $ edgedb project info
+  $ gel project info
   ┌───────────────┬──────────────────────────────────────────┐
   │ Instance name │ my_app                                   │
   │ Project root  │ /path/to/my_app                          │

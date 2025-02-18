@@ -22,7 +22,7 @@ AI, Anthropic, and any other provider with a compatible API.
 Enable extension in your schema
 ===============================
 
-AI is an |Gel| extension. To enable it, you will need to add the extension
+AI is a |Gel| extension. To enable it, you will need to add the extension
 to your app's schema:
 
 .. code-block:: sdl
@@ -34,7 +34,7 @@ Extension configuration
 =======================
 
 The AI extension may be configured via our UI or via EdgeQL. To use the
-built-in UI, access it by running ``gel ui``. If you have the extension
+built-in UI, access it by running :gelcmd:`ui`. If you have the extension
 enabled in your schema as shown above and have migrated that schema change, you
 will see the "AI Admin" icon in the left-hand toolbar.
 
@@ -85,7 +85,7 @@ You may alternatively configure a provider via EdgeQL:
 
 .. code-block:: edgeql
 
-    configure current database
+    configure current branch
     insert ext::ai::OpenAIProviderConfig {
       secret := 'sk-....',
     };
@@ -124,8 +124,8 @@ To start using |Gel| AI on a type, create an index:
 
 In this example, we have added an AI index on the ``Astronomy`` type's
 ``content`` property using the ``text-embedding-3-small`` model. Once you have
-the index in your schema, :ref:`create <ref_cli_edgedb_migration_create>` and
-:ref:`apply <ref_cli_edgedb_migration_apply>` your migration, and you're ready
+the index in your schema, :ref:`create <ref_cli_gel_migration_create>` and
+:ref:`apply <ref_cli_gel_migration_apply>` your migration, and you're ready
 to start running queries!
 
 .. note::
@@ -154,10 +154,10 @@ can define an AI index on an expression:
 .. note:: When AI indexes aren't working…
 
     If you find your queries are not returning the expected results, try
-    inspecting your instance logs. On an |Gel| Cloud instance, use the "Logs"
+    inspecting your instance logs. On a |Gel| Cloud instance, use the "Logs"
     tab in your instance dashboard. On local or :ref:`CLI-linked remote
-    instances <ref_cli_edgedb_instance_link>`, use ``gel instance logs -I
-    <instance-name>``. You may find the problem there.
+    instances <ref_cli_gel_instance_link>`, use :gelcmd:`instance logs -I
+    <instance-name>`. You may find the problem there.
 
     Providers impose rate limits on their APIs which can often be the source of
     AI index problems. If index creation hits a rate limit, |Gel| will wait

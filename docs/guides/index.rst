@@ -23,4 +23,3 @@ guide!
     auth/index
     migrations/index
     contributing/index
-    Cheatsheets <https://docs.edgedb.com/database/cheatsheets>

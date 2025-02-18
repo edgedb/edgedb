@@ -16,16 +16,6 @@ events.
 We'll start with this schema:
 
 .. code-block:: sdl
-    :version-lt: 3.0
-
-    type Event {
-      required property name -> str;
-      link prev -> Event;
-
-      # ... more properties and links
-    }
-
-.. code-block:: sdl
 
     type Event {
       required name: str;
@@ -42,12 +32,12 @@ file we proceed with our first migration:
 
 .. code-block:: bash
 
-    $ edgedb migration create
+    $ gel migration create
     did you create object type 'default::Event'? [y,n,l,c,b,s,q,?]
     > y
     Created ./dbschema/migrations/00001.edgeql, id:
     m1v3ahcx5f43y6mlsdmlz2agnf6msbc7rt3zstiqmezaqx4ev2qovq
-    $ edgedb migrate
+    $ gel migrate
     Applied m1v3ahcx5f43y6mlsdmlz2agnf6msbc7rt3zstiqmezaqx4ev2qovq
     (00001.edgeql)
 
@@ -71,26 +61,6 @@ define it as a computed link by using :ref:`backlink
 <ref_datamodel_links>` notation:
 
 .. code-block:: sdl
-    :version-lt: 3.0
-
-    type Event {
-      required property name -> str;
-
-      link prev -> Event;
-      link next := .<prev[is Event];
-    }
-
-.. code-block:: sdl
-    :version-lt: 4.0
-
-    type Event {
-      required name: str;
-
-      prev: Event;
-      link next := .<prev[is Event];
-    }
-
-.. code-block:: sdl
 
     type Event {
       required name: str;
@@ -103,13 +73,13 @@ The migration is straightforward enough:
 
 .. code-block:: bash
 
-    $ edgedb migration create
+    $ gel migration create
     did you create link 'next' of object type 'default::Event'?
     [y,n,l,c,b,s,q,?]
     > y
     Created ./dbschema/migrations/00002.edgeql, id:
     m1qpukyvw2m4lmomoseni7vdmevk4wzgsbviojacyrqgiyqjp5sdsa
-    $ edgedb migrate
+    $ gel migrate
     Applied m1qpukyvw2m4lmomoseni7vdmevk4wzgsbviojacyrqgiyqjp5sdsa
     (00002.edgeql)
 
@@ -147,30 +117,6 @@ Let's fix that by making the link ``prev`` a one-to-one, after all
 we're interested in building event chains, not trees.
 
 .. code-block:: sdl
-    :version-lt: 3.0
-
-    type Event {
-      required property name -> str;
-
-      link prev -> Event {
-        constraint exclusive;
-      };
-      link next := .<prev[is Event];
-    }
-
-.. code-block:: sdl
-    :version-lt: 4.0
-
-    type Event {
-      required name: str;
-
-      prev: Event {
-        constraint exclusive;
-      };
-      link next := .<prev[is Event];
-    }
-
-.. code-block:: sdl
 
     type Event {
       required name: str;
@@ -187,13 +133,13 @@ cardinality:
 
 .. code-block:: bash
 
-    $ edgedb migration create
+    $ gel migration create
     did you create constraint 'std::exclusive' of link 'prev'?
     [y,n,l,c,b,s,q,?]
     > y
     Created ./dbschema/migrations/00003.edgeql, id:
     m17or2bfywuckdqeornjmjh7c2voxgatspcewyefcd4p2vbdepimoa
-    $ edgedb migrate
+    $ gel migrate
     Applied m17or2bfywuckdqeornjmjh7c2voxgatspcewyefcd4p2vbdepimoa
     (00003.edgeql)
 
@@ -226,13 +172,6 @@ as the needs of the project evolve.
 We'll start with a fairly simple schema:
 
 .. code-block:: sdl
-    :version-lt: 3.0
-
-    type User {
-      property name -> str;
-    }
-
-.. code-block:: sdl
 
     type User {
       name: str;
@@ -244,12 +183,12 @@ way of identifying users.
 
 .. code-block:: bash
 
-    $ edgedb migration create
+    $ gel migration create
     did you create object type 'default::User'? [y,n,l,c,b,s,q,?]
     > y
     Created ./dbschema/migrations/00001.edgeql, id:
     m14gwyorqqipfg7riexvbdq5dhgv7x6buqw2jaaulilcmywinmakzq
-    $ edgedb migrate
+    $ gel migrate
     Applied m14gwyorqqipfg7riexvbdq5dhgv7x6buqw2jaaulilcmywinmakzq
     (00001.edgeql)
 
@@ -257,13 +196,6 @@ We've got our first migration to set up the schema. Now after using
 that for a little while we realize that we want to make ``name`` a
 *required property*. So we make the following change in the schema
 file:
-
-.. code-block:: sdl
-    :version-lt: 3.0
-
-    type User {
-      required property name -> str;
-    }
 
 .. code-block:: sdl
 
@@ -275,7 +207,7 @@ Next we try to migrate:
 
 .. code-block:: bash
 
-    $ edgedb migration create
+    $ gel migration create
     did you make property 'name' of object type 'default::User' required?
     [y,n,l,c,b,s,q,?]
     > y
@@ -303,20 +235,11 @@ schema change happen.
       };
   };
 
-We then run :ref:`ref_cli_edgedb_migrate` to apply the changes.
+We then run :ref:`ref_cli_gel_migrate` to apply the changes.
 
 Next we realize that we actually want to make names unique, perhaps to
 avoid confusion or to use them as reliable human-readable identifiers
 (unlike ``id``). We update the schema again:
-
-.. code-block:: sdl
-    :version-lt: 3.0
-
-    type User {
-      required property name -> str {
-        constraint exclusive;
-      }
-    }
 
 .. code-block:: sdl
 
@@ -330,14 +253,14 @@ Now we proceed with the migration:
 
 .. code-block:: bash
 
-    $ edgedb migration create
+    $ gel migration create
     did you create constraint 'std::exclusive' of property 'name'?
     [y,n,l,c,b,s,q,?]
     > y
     Created ./dbschema/migrations/00003.edgeql, id:
     m1dxs3xbk4f3vhmqh6mjzetojafddtwlphp5a3kfbfuyvupjafevya
-    $ edgedb migrate
-    edgedb error: ConstraintViolationError: name violates exclusivity
+    $ gel migrate
+    gel error: ConstraintViolationError: name violates exclusivity
     constraint
 
 Some objects must have the same ``name``, so the migration can't be
@@ -384,8 +307,8 @@ And then we apply the migration:
 
 .. code-block:: bash
 
-    $ edgedb migrate
-    edgedb error: could not read migrations in ./dbschema/migrations: could not
+    $ gel migrate
+    gel error: could not read migrations in ./dbschema/migrations: could not
     read migration file ./dbschema/migrations/00003.edgeql: migration name
     should be `m1t6slgcfne35vir2lcgnqkmaxsxylzvn2hanr6mijbj5esefsp7za` but `
     m1dxs3xbk4f3vhmqh6mjzetojafddtwlphp5a3kfbfuyvupjafevya` is used instead.
@@ -400,12 +323,12 @@ The migration tool detected that we've altered the file and asks us to
 update the migration name (acting as a checksum) if this was
 deliberate. This is done as a precaution against accidental changes.
 Since we've done this on purpose, we can update the file and run
-:ref:`ref_cli_edgedb_migrate` again.
+:ref:`ref_cli_gel_migrate` again.
 
 Finally, we evolved our schema all the way from having an optional
 property ``name`` all the way to making it both *required* and
 *exclusive*. We've worked with the Gel :ref:`migration tools
-<ref_cli_edgedb_migration>` to iron out the kinks throughout the
+<ref_cli_gel_migration>` to iron out the kinks throughout the
 migration process. At this point we take a quick look at the way
 duplicate ``User`` objects were resolved to decide whether we need to
 do anything more. We can use :eql:func:`re_test` to find names that
@@ -436,16 +359,6 @@ character in an adventure game as the type of data we will evolve.
 Let's start with this schema:
 
 .. code-block:: sdl
-    :version-lt: 3.0
-
-    scalar type CharacterClass extending enum<warrior, scholar, rogue>;
-
-    type Character {
-      required property name -> str;
-      required property class -> CharacterClass;
-    }
-
-.. code-block:: sdl
 
     scalar type CharacterClass extending enum<warrior, scholar, rogue>;
 
@@ -458,14 +371,14 @@ We edit the schema file and perform our first migration:
 
 .. code-block:: bash
 
-    $ edgedb migration create
+    $ gel migration create
     did you create scalar type 'default::CharacterClass'? [y,n,l,c,b,s,q,?]
     > y
     did you create object type 'default::Character'? [y,n,l,c,b,s,q,?]
     > y
     Created ./dbschema/migrations/00001.edgeql, id:
     m1fg76t7fbvguwhkmzrx7jwki6jxr6dvkswzeepd5v66oxg27ymkcq
-    $ edgedb migrate
+    $ gel migrate
     Applied m1fg76t7fbvguwhkmzrx7jwki6jxr6dvkswzeepd5v66oxg27ymkcq
     (00001.edgeql)
 
@@ -489,22 +402,6 @@ between the two explicitly. This means that we will need to have both
 the old and the new "class" information to begin with:
 
 .. code-block:: sdl
-    :version-lt: 3.0
-
-    scalar type CharacterClass extending enum<warrior, scholar, rogue>;
-
-    type NewClass {
-      required property name -> str;
-      multi property skills -> str;
-    }
-
-    type Character {
-      required property name -> str;
-      required property class -> CharacterClass;
-      link new_class -> NewClass;
-    }
-
-.. code-block:: sdl
 
     scalar type CharacterClass extending enum<warrior, scholar, rogue>;
 
@@ -523,7 +420,7 @@ We update the schema file and migrate to the new state:
 
 .. code-block:: bash
 
-    $ edgedb migration create
+    $ gel migration create
     did you create object type 'default::NewClass'? [y,n,l,c,b,s,q,?]
     > y
     did you create link 'new_class' of object type 'default::Character'?
@@ -531,7 +428,7 @@ We update the schema file and migrate to the new state:
     > y
     Created ./dbschema/migrations/00002.edgeql, id:
     m1uttd6f7fpiwiwikhdh6qyijb6pcji747ccg2cyt5357i3wsj3l3q
-    $ edgedb migrate
+    $ gel migrate
     Applied m1uttd6f7fpiwiwikhdh6qyijb6pcji747ccg2cyt5357i3wsj3l3q
     (00002.edgeql)
 
@@ -542,7 +439,7 @@ empty migration:
 
 .. code-block:: bash
 
-    $ edgedb migration create --allow-empty
+    $ gel migration create --allow-empty
     Created ./dbschema/migrations/00003.edgeql, id:
     m1iztxroh3ifoeqmvxncy77whnaei6tp5j3sewyxtrfysronjkxgga
 
@@ -580,8 +477,8 @@ reminder:
 
 .. code-block:: bash
 
-    $ edgedb migrate
-    edgedb error: could not read migrations in ./dbschema/migrations:
+    $ gel migrate
+    gel error: could not read migrations in ./dbschema/migrations:
     could not read migration file ./dbschema/migrations/00003.edgeql:
     migration name should be
     `m1e3d3eg3j2pr7acie4n5rrhaddyhkiy5kgckd5l7h5ysrpmgwxl5a` but
@@ -598,7 +495,7 @@ The migration tool detected that we've altered the file and asks us to
 update the migration name (acting as a checksum) if this was
 deliberate. This is done as a precaution against accidental changes.
 Since we've done this on purpose, we can update the file and run
-:ref:`ref_cli_edgedb_migrate` again.
+:ref:`ref_cli_gel_migrate` again.
 
 We can see the changes after the data migration is complete:
 
@@ -633,19 +530,6 @@ Everything seems to be in order. It is time to clean up the old
 property and ``CharacterClass`` :eql:type:`enum`:
 
 .. code-block:: sdl
-    :version-lt: 3.0
-
-    type NewClass {
-      required property name -> str;
-      multi property skills -> str;
-    }
-
-    type Character {
-      required property name -> str;
-      link new_class -> NewClass;
-    }
-
-.. code-block:: sdl
 
     type NewClass {
       required name: str;
@@ -662,7 +546,7 @@ just removed:
 
 .. code-block:: bash
 
-    $ edgedb migration create
+    $ gel migration create
     did you drop property 'class' of object type 'default::Character'?
     [y,n,l,c,b,s,q,?]
     > y
@@ -670,26 +554,13 @@ just removed:
     > y
     Created ./dbschema/migrations/00004.edgeql, id:
     m1jdnz5bxjj6kjz2pylvudli5rvw4jyr2ilpb4hit3yutwi3bq34ha
-    $ edgedb migrate
+    $ gel migrate
     Applied m1jdnz5bxjj6kjz2pylvudli5rvw4jyr2ilpb4hit3yutwi3bq34ha
     (00004.edgeql)
 
 Now that the original property and scalar type are gone, we can rename
 the "new" components, so that they become ``class`` link and
 ``CharacterClass`` type, respectively:
-
-.. code-block:: sdl
-    :version-lt: 3.0
-
-    type CharacterClass {
-      required property name -> str;
-      multi property skills -> str;
-    }
-
-    type Character {
-      required property name -> str;
-      link class -> CharacterClass;
-    }
 
 .. code-block:: sdl
 
@@ -711,7 +582,7 @@ and deleting of closely interacting entities in the same migration.
 
 .. code-block:: bash
 
-    $ edgedb migration create
+    $ gel migration create
     did you rename object type 'default::NewClass' to
     'default::CharacterClass'? [y,n,l,c,b,s,q,?]
     > y
@@ -720,7 +591,7 @@ and deleting of closely interacting entities in the same migration.
     > y
     Created ./dbschema/migrations/00005.edgeql, id:
     m1ra4fhx2erkygbhi7qjxt27yup5aw5hkr5bekn5y5jeam5yn57vsa
-    $ edgedb migrate
+    $ gel migrate
     Applied m1ra4fhx2erkygbhi7qjxt27yup5aw5hkr5bekn5y5jeam5yn57vsa
     (00005.edgeql)
 
@@ -768,14 +639,6 @@ character in an adventure game as the type of data we will evolve.
 Let's start with this schema:
 
 .. code-block:: sdl
-    :version-lt: 3.0
-
-    type Character {
-      required property name -> str;
-      required property description -> str;
-    }
-
-.. code-block:: sdl
 
     type Character {
       required name: str;
@@ -786,12 +649,12 @@ We edit the schema file and perform our first migration:
 
 .. code-block:: bash
 
-    $ edgedb migration create
+    $ gel migration create
     did you create object type 'default::Character'? [y,n,l,c,b,s,q,?]
     > y
     Created ./dbschema/migrations/00001.edgeql, id:
     m1paw3ogpsdtxaoywd6pl6beg2g64zj4ykhd43zby4eqh64yjad47a
-    $ edgedb migrate
+    $ gel migrate
     Applied m1paw3ogpsdtxaoywd6pl6beg2g64zj4ykhd43zby4eqh64yjad47a
     (00001.edgeql)
 
@@ -813,14 +676,6 @@ is less of a "description" and more of a "character class", so at
 first we just rename the property to reflect that:
 
 .. code-block:: sdl
-    :version-lt: 3.0
-
-    type Character {
-      required property name -> str;
-      required property class -> str;
-    }
-
-.. code-block:: sdl
 
     type Character {
       required name: str;
@@ -831,17 +686,17 @@ The migration gives us this:
 
 .. code-block:: bash
 
-    $ edgedb migration create
+    $ gel migration create
     did you rename property 'description' of object type 'default::Character'
     to 'class'? [y,n,l,c,b,s,q,?]
     > y
     Created ./dbschema/migrations/00002.edgeql, id:
     m1ljrgrofsqkvo5hsxc62mnztdhlerxp6ucdto262se6dinhuj4mqq
-    $ edgedb migrate
+    $ gel migrate
     Applied m1ljrgrofsqkvo5hsxc62mnztdhlerxp6ucdto262se6dinhuj4mqq
     (00002.edgeql)
 
-EdgeDB detected that the change looked like a property was being
+|Gel| detected that the change looked like a property was being
 renamed, which we confirmed. Since this was an existing property being
 renamed, the data is all preserved:
 
@@ -861,7 +716,7 @@ applied across several developers, we will make it in the form of a
 
 .. code-block:: bash
 
-    $ edgedb migration create --allow-empty
+    $ gel migration create --allow-empty
     Created ./dbschema/migrations/00003.edgeql, id:
     m1qv2pdksjxxzlnujfed4b6to2ppuodj3xqax4p3r75yfef7kd7jna
 
@@ -885,8 +740,8 @@ We're ready to apply the migration:
 
 .. code-block:: bash
 
-    $ edgedb migrate
-    edgedb error: could not read migrations in ./dbschema/migrations:
+    $ gel migrate
+    gel error: could not read migrations in ./dbschema/migrations:
     could not read migration file ./dbschema/migrations/00003.edgeql:
     migration name should be
     `m1ryafvp24g5eqjeu65zr4bqf6m3qath3lckfdhoecfncmr7zshehq`
@@ -903,21 +758,11 @@ The migration tool detected that we've altered the file and asks us to
 update the migration name (acting as a checksum) if this was
 deliberate. This is done as a precaution against accidental changes.
 Since we've done this on purpose, we can update the file and run
-:ref:`ref_cli_edgedb_migrate` again.
+:ref:`ref_cli_gel_migrate` again.
 
 As the game becomes more stable there's no reason for the ``class`` to
 be a :eql:type:`str` anymore, instead we can use an :eql:type:`enum`
 to make sure that we don't accidentally use some invalid value for it.
-
-.. code-block:: sdl
-    :version-lt: 3.0
-
-    scalar type CharacterClass extending enum<warrior, scholar, rogue>;
-
-    type Character {
-      required property name -> str;
-      required property class -> CharacterClass;
-    }
 
 .. code-block:: sdl
 
@@ -935,7 +780,7 @@ order for the type change to work.
 
 .. code-block:: bash
 
-    $ edgedb migration create
+    $ gel migration create
     did you create scalar type 'default::CharacterClass'? [y,n,l,c,b,s,q,?]
     > y
     did you alter the type of property 'class' of object type
@@ -943,7 +788,7 @@ order for the type change to work.
     > y
     Created ./dbschema/migrations/00004.edgeql, id:
     m1hc4yynkejef2hh7fvymvg3f26nmynpffksg7yvfksqufif6lulgq
-    $ edgedb migrate
+    $ gel migrate
     Applied m1hc4yynkejef2hh7fvymvg3f26nmynpffksg7yvfksqufif6lulgq
     (00004.edgeql)
 
@@ -967,13 +812,6 @@ character in an adventure game as the type of data we will evolve.
 Let's start with this schema:
 
 .. code-block:: sdl
-    :version-lt: 3.0
-
-    type Character {
-      required property name -> str;
-    }
-
-.. code-block:: sdl
 
     type Character {
       required name: str;
@@ -983,12 +821,12 @@ We edit the schema file and perform our first migration:
 
 .. code-block:: bash
 
-    $ edgedb migration create
+    $ gel migration create
     did you create object type 'default::Character'? [y,n,l,c,b,s,q,?]
     > y
     Created ./dbschema/migrations/00001.edgeql, id:
     m1xvu7o4z5f5xfwuun2vee2cryvvzh5lfilwgkulmqpifo5m3dnd6a
-    $ edgedb migrate
+    $ gel migrate
     Applied m1xvu7o4z5f5xfwuun2vee2cryvvzh5lfilwgkulmqpifo5m3dnd6a
     (00001.edgeql)
 
@@ -998,7 +836,7 @@ and fill it out as we like:
 
 .. code-block:: bash
 
-    $ edgedb migration create --allow-empty
+    $ gel migration create --allow-empty
     Created ./dbschema/migrations/00002.edgeql, id:
     m1lclvwdpwitjj4xqm45wp74y4wjyadljct5o6bsctlnh5xbto74iq
 
@@ -1024,8 +862,8 @@ reminder:
 
 .. code-block:: bash
 
-    $ edgedb migrate
-    edgedb error: could not read migrations in ./dbschema/migrations:
+    $ gel migrate
+    gel error: could not read migrations in ./dbschema/migrations:
     could not read migration file ./dbschema/migrations/00002.edgeql:
     migration name should be
     `m1juin65wriqmb4vwg23fiyajjxlzj2jyjv5qp36uxenit5y63g2iq` but
@@ -1041,7 +879,7 @@ The migration tool detected that we've altered the file and asks us to
 update the migration name (acting as a checksum) if this was
 deliberate. This is done as a precaution against accidental changes.
 Since we've done this on purpose, we can update the file and run
-:ref:`ref_cli_edgedb_migrate` again.
+:ref:`ref_cli_gel_migrate` again.
 
 .. code-block:: edgeql-diff
 
@@ -1072,19 +910,6 @@ without any intermediate properties. So we end up with a schema
 like this:
 
 .. code-block:: sdl
-    :version-lt: 3.0
-
-    type CharacterClass {
-      required property name -> str;
-      multi property skills -> str;
-    }
-
-    type Character {
-      required property name -> str;
-      required link class -> CharacterClass;
-    }
-
-.. code-block:: sdl
 
     type CharacterClass {
       required name: str;
@@ -1100,7 +925,7 @@ We go ahead and try to apply this new schema:
 
 .. code-block:: bash
 
-    $ edgedb migration create
+    $ gel migration create
     did you create object type 'default::CharacterClass'? [y,n,l,c,b,s,q,?]
     > y
     did you create link 'class' of object type 'default::Character'?
@@ -1116,19 +941,6 @@ every character. So we should abort this migration attempt and rethink
 our strategy. We need a separate step where the ``class`` link is
 not *required* so that we can write some custom queries to handle
 the character classes:
-
-.. code-block:: sdl
-    :version-lt: 3.0
-
-    type CharacterClass {
-      required property name -> str;
-      multi property skills -> str;
-    }
-
-    type Character {
-      required property name -> str;
-      link class -> CharacterClass;
-    }
 
 .. code-block:: sdl
 
@@ -1147,7 +959,7 @@ it right away:
 
 .. code-block:: bash
 
-    $ edgedb migration create
+    $ gel migration create
     did you create object type 'default::CharacterClass'? [y,n,l,c,b,s,q,?]
     > y
     did you create link 'class' of object type 'default::Character'?
@@ -1257,19 +1069,6 @@ We're finally ready to make the ``class`` link *required*. We update
 the schema:
 
 .. code-block:: sdl
-    :version-lt: 3.0
-
-    type CharacterClass {
-      required property name -> str;
-      multi property skills -> str;
-    }
-
-    type Character {
-      required property name -> str;
-      required link class -> CharacterClass;
-    }
-
-.. code-block:: sdl
 
     type CharacterClass {
       required name: str;
@@ -1285,7 +1084,7 @@ And we perform our final migration:
 
 .. code-block:: bash
 
-    $ edgedb migration create
+    $ gel migration create
     did you make link 'class' of object type 'default::Character' required?
     [y,n,l,c,b,s,q,?]
     > y
@@ -1319,8 +1118,8 @@ Our attempt at migrating fails as we expected:
 
 .. code-block:: bash
 
-    $ edgedb migrate
-    edgedb error: MissingRequiredError: missing value for required link
+    $ gel migrate
+    gel error: MissingRequiredError: missing value for required link
     'class' of object type 'default::Character'
       Detail: Failing object id is 'ee604992-c1b1-11ec-ad59-4f878963769f'.
 
@@ -1328,7 +1127,7 @@ After removing the bugged ``Character``, we can migrate without any problems:
 
 .. code-block:: bash
 
-    $ edgedb migrate
+    $ gel migrate
     Applied m14yblybdo77c7bjtm6nugiy5cs6pl6rnuzo5b27gamy4zhuwjifia
     (00004.edgeql)
 
@@ -1337,7 +1136,7 @@ Recovering lost migrations
 
 You can recover lost migration files, writing the database's current
 migration history to ``/dbschema/migrations`` by using the
-:ref:`ref_cli_edgedb_migration_extract`.
+:ref:`ref_cli_gel_migration_extract`.
 
 Getting the current migration
 -----------------------------

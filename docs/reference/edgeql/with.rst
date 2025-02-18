@@ -141,6 +141,8 @@ An example of incorrect refactoring would be:
     select (Issue, U);
 
 
+.. _ref_edgeql_with_detached:
+
 Detached
 ++++++++
 

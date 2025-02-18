@@ -25,14 +25,14 @@ Provision a Fly.io app for Gel
 
 Every Fly.io app must have a globally unique name, including service VMs like
 Postgres and Gel. Pick a name and assign it to a local environment variable
-called ``EDB_APP``. In the command below, replace ``myorg-edgedb`` with a name
+called ``EDB_APP``. In the command below, replace ``myorg-gel`` with a name
 of your choosing.
 
 .. code-block:: bash
 
-    $ EDB_APP=myorg-edgedb
+    $ EDB_APP=myorg-gel
     $ flyctl apps create --name $EDB_APP
-    New app created: myorg-edgedb
+    New app created: myorg-gel
 
 
 Now let's use the ``read`` command to securely assign a value to the
@@ -50,25 +50,25 @@ we'll need. There are a couple more environment variables we need to set:
 .. code-block:: bash
 
     $ flyctl secrets set \
-        EDGEDB_SERVER_PASSWORD="$PASSWORD" \
-        EDGEDB_SERVER_BACKEND_DSN_ENV=DATABASE_URL \
-        EDGEDB_SERVER_TLS_CERT_MODE=generate_self_signed \
-        EDGEDB_SERVER_PORT=8080 \
+        GEL_SERVER_PASSWORD="$PASSWORD" \
+        GEL_SERVER_BACKEND_DSN_ENV=DATABASE_URL \
+        GEL_SERVER_TLS_CERT_MODE=generate_self_signed \
+        GEL_SERVER_PORT=8080 \
         --app $EDB_APP
     Secrets are staged for the first deployment
 
 Let's discuss what's going on with all these secrets.
 
-- The ``EDGEDB_SERVER_BACKEND_DSN_ENV`` tells the Gel container where to
+- The :gelenv:`SERVER_BACKEND_DSN_ENV` tells the Gel container where to
   look for the PostgreSQL connection string (more on that below)
-- The ``EDGEDB_SERVER_TLS_CERT_MODE`` tells Gel to auto-generate a
+- The :gelenv:`SERVER_TLS_CERT_MODE` tells Gel to auto-generate a
   self-signed TLS certificate.
 
   You may instead choose to provision a custom TLS certificate. In this
   case, you should instead create two other secrets: assign your certificate
-  to ``EDGEDB_SERVER_TLS_CERT`` and your private key to
-  ``EDGEDB_SERVER_TLS_KEY``.
-- Lastly, ``EDGEDB_SERVER_PORT`` tells Gel to listen on port 8080 instead
+  to :gelenv:`SERVER_TLS_CERT` and your private key to
+  :gelenv:`SERVER_TLS_KEY`.
+- Lastly, :gelenv:`SERVER_PORT` tells Gel to listen on port 8080 instead
   of the default 5656, because Fly.io prefers ``8080`` for its default health
   checks.
 
@@ -79,7 +79,7 @@ your current directory.:
 .. code-block:: yaml
 
     [build]
-      image = "edgedb/edgedb"
+      image = "geldata/gel"
 
     [[vm]]
       memory = "512mb"
@@ -145,12 +145,12 @@ the Gel app:
 
 .. code-block:: bash
 
-    $ PG_ROLE=myorg_edgedb
+    $ PG_ROLE=myorg_gel
     $ flyctl pg attach "$PG_APP" \
         --database-user "$PG_ROLE" \
         --app $EDB_APP
-    Postgres cluster myorg-postgres is now attached to myorg-edgedb
-    The following secret was added to myorg-edgedb:
+    Postgres cluster myorg-postgres is now attached to myorg-gel
+    The following secret was added to myorg-gel:
       DATABASE_URL=postgres://...
 
 Lastly, Gel needs the ability to create Postgres databases and roles,
@@ -164,7 +164,7 @@ to Postgres:
     ...
     ALTER ROLE
 
-.. _ref_guide_deployment_fly_io_start_edgedb:
+.. _ref_guide_deployment_fly_io_start_gel:
 
 Start Gel
 =========
@@ -181,7 +181,7 @@ Everything is set! Time to start Gel.
     -------
 
 That's it!  You can now start using the Gel instance located at
-``edgedb://myorg-edgedb.internal`` in your Fly.io apps.
+:geluri:`myorg-gel.internal` in your Fly.io apps.
 
 
 If deploy did not succeed:
@@ -199,9 +199,9 @@ skip this step).
 
 .. code-block:: bash
 
-    $ EDB_SECRETS="EDGEDB_SERVER_TLS_KEY EDGEDB_SERVER_TLS_CERT"
+    $ EDB_SECRETS="GEL_SERVER_TLS_KEY GEL_SERVER_TLS_CERT"
     $ flyctl ssh console --app $EDB_APP -C \
-        "edgedb-show-secrets.sh --format=toml $EDB_SECRETS" \
+        "gel-show-secrets.sh --format=toml $EDB_SECRETS" \
       | tr -d '\r' | flyctl secrets import --app $EDB_APP
 
 
@@ -209,15 +209,15 @@ Connecting to the instance
 ==========================
 
 Let's construct the DSN (AKA "connection string") for our instance. DSNs have
-the following format: ``edgedb://<username>:<password>@<hostname>:<port>``. We
+the following format: :geluri:`<username>:<password>@<hostname>:<port>`. We
 can construct the DSN with the following components:
 
-- ``<username>``: the default value — ``edgedb``
+- ``<username>``: the default value — |admin|
 - ``<password>``: the value we assigned to ``$PASSWORD``
 - ``<hostname>``: the name of your Gel app (stored in the
   ``$EDB_APP`` environment variable) suffixed with ``.internal``. Fly uses this
   synthetic TLD to simplify inter-app communication. Ex:
-  ``myorg-edgedb.internal``.
+  ``myorg-gel.internal``.
 - ``<port>``: ``8080``, which we configured earlier
 
 We can construct this value and assign it to a new environment variable called
@@ -225,7 +225,7 @@ We can construct this value and assign it to a new environment variable called
 
 .. code-block:: bash
 
-    $ DSN=edgedb://edgedb:$PASSWORD@$EDB_APP.internal:8080
+    $ DSN=gel://admin:$PASSWORD@$EDB_APP.internal:8080
 
 Consider writing it to a file to ensure the DSN looks correct. Remember to
 delete the file after you're done. (Printing this value to the terminal with
@@ -241,12 +241,12 @@ From a Fly.io app
 -----------------
 
 To connect to this instance from another Fly app (say, an app that runs your
-API server) set the value of the ``EDGEDB_DSN`` secret inside that app.
+API server) set the value of the :gelenv:`DSN` secret inside that app.
 
 .. code-block:: bash
 
     $ flyctl secrets set \
-        EDGEDB_DSN=$DSN \
+        GEL_DSN=$DSN \
         --app my-other-fly-app
 
 We'll also set another variable that will disable Gel's TLS checks.
@@ -255,7 +255,7 @@ this case; configuring TLS certificates is also beyond the scope of this guide.
 
 .. code-block:: bash
 
-    $ flyctl secrets set EDGEDB_CLIENT_TLS_SECURITY=insecure \
+    $ flyctl secrets set GEL_CLIENT_TLS_SECURITY=insecure \
         --app my-other-fly-app
 
 
@@ -295,18 +295,18 @@ something like this:
             timeout = "2s"
 
 In the same directory, :ref:`redeploy the Gel app
-<ref_guide_deployment_fly_io_start_edgedb>`. This makes the Gel port
+<ref_guide_deployment_fly_io_start_gel>`. This makes the Gel port
 available to the outside world. You can now access the instance from any host
-via the following public DSN: ``edgedb://edgedb:$PASSWORD@$EDB_APP.fly.dev``.
+via the following public DSN: :geluri:`admin:$PASSWORD@$EDB_APP.fly.dev`.
 
 To secure communication between the server and the client, you will also
-need to set the ``EDGEDB_TLS_CA`` environment secret in your application.
+need to set the :gelenv:`TLS_CA` environment secret in your application.
 You can securely obtain the certificate content by running:
 
 .. code-block:: bash
 
     $ flyctl ssh console -a $EDB_APP \
-        -C "edgedb-show-secrets.sh --format=raw EDGEDB_SERVER_TLS_CERT"
+        -C "gel-show-secrets.sh --format=raw GEL_SERVER_TLS_CERT"
 
 From your local machine
 -----------------------
@@ -317,31 +317,31 @@ the Wireguard `VPN <vpn_>`_ and create a tunnel, as described on Fly's
 <https://fly.io/docs/reference/private-networking/#private-network-vpn>`_
 docs.
 
-Once it's up and running, use ``edgedb instance link`` to create a local
+Once it's up and running, use :gelcmd:`instance link` to create a local
 alias to the remote instance.
 
 .. code-block:: bash
 
-    $ edgedb instance link \
+    $ gel instance link \
         --trust-tls-cert \
         --dsn $DSN \
         --non-interactive \
         fly
-    Authenticating to edgedb://edgedb@myorg-edgedb.internal:5656/edgedb
+    Authenticating to gel://admin@myorg-gel.internal:5656/main
     Successfully linked to remote instance. To connect run:
-      edgedb -I fly
+      gel -I fly
 
 You can now run CLI commands against this instance by specifying it by name
 with ``-I fly``; for example, to apply migrations:
 
 .. note::
 
-   The command groups ``edgedb instance`` and ``edgedb project`` are not
+   The command groups :gelcmd:`instance` and :gelcmd:`project` are not
    intended to manage production instances.
 
 .. code-block:: bash
 
-   $ edgedb -I fly migrate
+   $ gel -I fly migrate
 
 .. _vpn: https://fly.io/docs/reference/private-networking/#private-network-vpn
 

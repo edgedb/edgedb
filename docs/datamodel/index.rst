@@ -39,7 +39,7 @@ SDL
 ---
 
 Your schema is defined inside |.gel| files. It's common to define your
-entire schema in a single file called ``default.esdl``, but you can split it
+entire schema in a single file called :dotgel:`default`, but you can split it
 across multiple files if you wish.
 
 By convention, your schema files should live in a directory called ``dbschema``
@@ -47,7 +47,7 @@ in the root of your project.
 
 .. code-block:: sdl
 
-    # dbschema/default.esdl
+    # dbschema/default.gel
 
     type Movie {
       required title: str;
@@ -76,10 +76,10 @@ to *create* and *apply* migrations.
 
 .. code-block:: bash
 
-  $ edgedb migration create
-  Created dbschema/migrations/00001.esdl
-  $ edgedb migrate
-  Applied dbschema/migrations/00001.esdl.
+  $ gel migration create
+  Created dbschema/migrations/00001.edgeql
+  $ gel migrate
+  Applied dbschema/migrations/00001.edgeql
 
 For a full guide on migrations, refer to the :ref:`Creating and applying
 migrations <ref_intro_migrations>` guide.
@@ -102,7 +102,7 @@ Terminology
 Instance
 ^^^^^^^^
 
-An |Gel| **instance** is a running Gel process. Instances can be created,
+A |Gel| **instance** is a running Gel process. Instances can be created,
 started, stopped, and destroyed locally with the :ref:`Gel CLI
 <ref_cli_overview>`.
 
@@ -114,8 +114,8 @@ Branch
 
 .. versionadded:: 5.0
 
-   Prior to |EdgeDB| 5 and Gel, *branches* were called "databases"
-   (and "databases" is what Gel branches map to in PostgreSQL).
+Prior to |EdgeDB| 5 and Gel, *branches* were called "databases"
+(and "databases" is what Gel branches map to in PostgreSQL).
 
 Instances can be branched when working on new features, similar to branches in
 your VCS. Each branch has its own schema and data.
@@ -126,7 +126,7 @@ your VCS. Each branch has its own schema and data.
 Module
 ^^^^^^
 
-Each branch (or database pre-v5) has a schema consisting of several
+Each |branch| has a schema consisting of several
 **modules**, each with a unique name. Modules can be used to organize large
 schemas into logical units. In practice, though, most users put their entire
 schema inside a single module called ``default``.

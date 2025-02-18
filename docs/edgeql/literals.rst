@@ -64,8 +64,8 @@ string can be declared with either single or double quotes.
 
 .. code-block:: edgeql-repl
 
-  db> select 'i ❤️ edgedb';
-  {'i ❤️ edgedb'}
+  db> select 'I ❤️ EdgeQL';
+  {'I ❤️ EdgeQL'}
   db> select "hello there!";
   {'hello there!'}
   db> select 'hello\nthere!';
@@ -161,7 +161,7 @@ The :eql:type:`bool` type represents a true/false value.
   db> select false;
   {false}
 
-EdgeDB provides a set of operators that operate on boolean values.
+|Gel| provides a set of operators that operate on boolean values.
 
 .. list-table::
 
@@ -328,7 +328,7 @@ Dates and times
 
 .. index:: temporal
 
-EdgeDB's typesystem contains several temporal types.
+|Gel's| typesystem contains several temporal types.
 
 .. list-table::
 
@@ -388,7 +388,7 @@ EdgeQL supports a set of functions and operators on datetime types.
 Durations
 ---------
 
-EdgeDB's type system contains three duration types.
+|Gel's| type system contains three duration types.
 
 
 .. list-table::
@@ -451,8 +451,6 @@ To declare relative duration literals:
 Date durations
 ^^^^^^^^^^^^^^
 
-.. versionadded:: 2.0
-
 The :eql:type:`cal::date_duration` represents spans consisting of some number
 of *months* and *days*. This type is primarily intended to simplify logic
 involving :eql:type:`cal::local_date` values.
@@ -490,8 +488,6 @@ EdgeQL supports a set of functions and operators on duration types.
 
 Ranges
 ------
-
-.. versionadded:: 2.0
 
 .. index:: ranges, lower bound, upper bound, inclusive, inc_lower, inc_upper,
            empty
@@ -539,7 +535,7 @@ ranges cannot be unpacked.
     db> select range_unpack(range(1, 1));
     {}
     db> select range_unpack(range(0, <int64>{}));
-    edgedb error: InvalidValueError: cannot unpack an unbounded range
+    gel error: InvalidValueError: cannot unpack an unbounded range
 
 .. _ref_eql_literal_bytes:
 

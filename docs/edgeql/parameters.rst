@@ -19,16 +19,14 @@ parameters are supplied externally.
 Note that we provided an explicit type cast before the parameter. This is
 required, as it enables Gel to enforce the provided types at runtime.
 
-.. versionadded:: 3.0
+Parameters can be named or unnamed tuples.
 
-    Parameters can be named or unnamed tuples.
+.. code-block:: edgeql
 
-    .. code-block:: edgeql
-
-        select <tuple<str, bool>>$var;
-        select <optional tuple<str, bool>>$var;
-        select <tuple<name: str, flag: bool>>$var;
-        select <optional tuple<name: str, flag: bool>>$var;
+    select <tuple<str, bool>>$var;
+    select <optional tuple<str, bool>>$var;
+    select <tuple<name: str, flag: bool>>$var;
+    select <optional tuple<name: str, flag: bool>>$var;
 
 Usage with clients
 ------------------

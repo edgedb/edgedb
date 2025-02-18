@@ -96,18 +96,6 @@ assignments using ``:=``:
 For usage of ``+=`` and ``-=`` consider the following ``Post`` type:
 
 .. code-block:: sdl
-    :version-lt: 3.0
-
-    # ... Assume some User type is already defined
-    type Post {
-        required property title -> str;
-        required property body -> str;
-        # A "tags" property containing a set of strings
-        multi property tags -> str;
-        link author -> User;
-    }
-
-.. code-block:: sdl
 
     # ... Assume some User type is already defined
     type Post {

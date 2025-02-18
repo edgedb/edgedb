@@ -9,7 +9,7 @@ Flask
 The Gel Python client makes it easy to integrate Gel into your preferred
 web development stack. In this tutorial, we'll see how you can quickly start
 building RESTful APIs with `Flask <https://flask.palletsprojects.com>`_ and
-EdgeDB.
+|Gel|.
 
 We'll build a simple movie organization system where you'll be able to fetch,
 create, update, and delete *movies* and *movie actors* via RESTful API
@@ -22,7 +22,7 @@ Before we start, make sure you've :ref:`installed <ref_admin_install>` the
 |gelcmd| command-line tool. Here, we'll use Python 3.10 and a few of its
 latest features while building the APIs. A working version of this tutorial can
 be found `on Github
-<https://github.com/edgedb/edgedb-examples/tree/main/flask-crud>`_.
+<https://github.com/geldata/gel-examples/tree/main/flask-crud>`_.
 
 
 Install the dependencies
@@ -34,8 +34,8 @@ directory.
 
 .. code-block:: bash
 
-    $ git clone git@github.com:edgedb/edgedb-examples.git
-    $ cd edgedb-examples/flask-crud
+    $ git clone git@github.com:geldata/gel-examples.git
+    $ cd gel-examples/flask-crud
 
 Create a Python 3.10 virtual environment, activate it, and install the
 dependencies with this command:
@@ -44,7 +44,7 @@ dependencies with this command:
 
     $ python -m venv myvenv
     $ source myvenv/bin/activate
-    $ pip install edgedb flask 'httpx[cli]'
+    $ pip install gel flask 'httpx[cli]'
 
 
 Initialize the database
@@ -54,7 +54,7 @@ Now, let's initialize an Gel project. From the project's root directory:
 
 .. code-block:: bash
 
-    $ edgedb project init
+    $ gel project init
     Initializing project...
 
     Specify the name of Gel instance to use with this project
@@ -76,7 +76,7 @@ Let's test that we can connect to the newly started instance. To do so, run:
 
 .. code-block:: bash
 
-    $ edgedb
+    $ gel
 
 You should be connected to the database instance and able to see a prompt
 similar to this:
@@ -85,7 +85,7 @@ similar to this:
 
     Gel x.x (repl x.x)
     Type \help for help, \quit to quit.
-    edgedb>
+    gel>
 
 You can start writing queries here. However, the database is currently
 empty. Let's start designing the data model.
@@ -98,14 +98,14 @@ The movie organization system will have two object types—**movies** and
 create API endpoints that'll allow us to fetch, create, update, and delete the
 objects while maintaining their relationships.
 
-EdgeDB allows us to declaratively define the structure of the objects. The
+|Gel| allows us to declaratively define the structure of the objects. The
 schema lives inside |.gel| file in the ``dbschema`` directory. It's
-common to declare the entire schema in a single file ``dbschema/default.esdl``.
+common to declare the entire schema in a single file :dotgel:`dbschema/default`.
 This is how our datatypes look:
 
 .. code-block:: sdl
 
-    # dbschema/default.esdl
+    # dbschema/default.gel
 
     module default {
       abstract type Auditable {
@@ -192,11 +192,11 @@ objects saved in the database. You can create the API in Flask like this:
     import json
     from http import HTTPStatus
 
-    import edgedb
+    import gel
     from flask import Blueprint, request
 
     actor = Blueprint("actor", __name__)
-    client = edgedb.create_client()
+    client = gel.create_client()
 
 
     @actor.route("/actors", methods=["GET"])
@@ -591,7 +591,7 @@ looks similar to the ones you've already seen:
                 """,
                 filter_name=filter_name,
             )
-        except edgedb.errors.ConstraintViolationError:
+        except gel.errors.ConstraintViolationError:
             return (
                 {
                     "error": f"Cannot delete '{filter_name}. "
@@ -645,11 +645,11 @@ Here's how we'll implement the ``POST /movie`` endpoint:
     import json
     from http import HTTPStatus
 
-    import edgedb
+    import gel
     from flask import Blueprint, request
 
     movie = Blueprint("movie", __name__)
-    client = edgedb.create_client()
+    client = gel.create_client()
 
     @movie.route("/movies", methods=["POST"])
     def post_movie() -> tuple[dict, int]:

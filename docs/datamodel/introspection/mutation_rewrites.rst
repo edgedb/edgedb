@@ -1,5 +1,3 @@
-.. versionadded:: 3.0
-
 .. _ref_datamodel_introspection_mutation_rewrites:
 
 =================

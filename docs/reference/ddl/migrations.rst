@@ -10,7 +10,7 @@ This section describes the DDL commands pertaining to migrations.
 
     Like all DDL commands, ``start migration`` and other migration
     commands are considered low-level. Users are encouraged to use the
-    built-in :ref:`migration tools <ref_cli_edgedb_migration>`
+    built-in :ref:`migration tools <ref_cli_gel_migration>`
     instead.
 
 Start migration
@@ -102,17 +102,9 @@ Create a new migration using an explicit EdgeQL script.
 Parameters
 ----------
 
-.. versionchanged:: _default
-
-    :eql:synopsis:`<edgeql-statement>`
-        Any valid EdgeQL statement, except ``database``, ``role``, ``configure``,
-        ``migration``, or ``transaction`` statements.
-
-.. versionchanged:: 5.0
-
-    :eql:synopsis:`<edgeql-statement>`
-        Any valid EdgeQL statement, except ``database``, ``branch``, ``role``,
-        ``configure``, ``migration``, or ``transaction`` statements.
+:eql:synopsis:`<edgeql-statement>`
+    Any valid EdgeQL statement, except ``database``, ``branch``, ``role``,
+    ``configure``, ``migration``, or ``transaction`` statements.
 
 
 Description
@@ -342,8 +334,6 @@ Create and execute the current migration:
 Reset schema to initial
 =======================
 
-.. versionadded:: 3.0
-
 :eql-statement:
 
 Reset the database schema to its initial state.
@@ -361,8 +351,6 @@ Reset the database schema to its initial state.
 
 Migration Rewrites
 ==================
-
-.. versionadded:: 3.0
 
 Migration rewrites allow you to change the migration history as long as your
 final schema matches the current database schema.

@@ -286,4 +286,4 @@ Bytes
         db> select enc::base64_decode('aGVsbG8=');
         {b'hello'}
         db> select enc::base64_decode('aGVsbG8');
-        edgedb error: InvalidValueError: invalid base64 end sequence
+        gel error: InvalidValueError: invalid base64 end sequence

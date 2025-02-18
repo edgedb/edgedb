@@ -83,7 +83,7 @@ dump-and-restore process.
 
    .. code-block:: bash
 
-       $ edgedb dump --dsn <old dsn> --all --format dir my_database.dump/
+       $ gel dump --dsn <old dsn> --all --format dir my_database.dump/
 
    This will dump the schema and contents of your current database to a
    directory on your local disk called ``my_database.dump``. The directory name
@@ -93,7 +93,7 @@ dump-and-restore process.
 
    .. code-block:: bash
 
-       $ edgedb restore --all my_database.dump/ --dsn <new dsn>
+       $ gel restore --all my_database.dump/ --dsn <new dsn>
 
    Once the restore is complete, update your application to connect to the new
    instance.

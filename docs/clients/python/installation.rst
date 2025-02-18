@@ -1,4 +1,4 @@
-.. _edgedb-python-installation:
+.. _gel-python-installation:
 
 
 Installation
@@ -35,14 +35,6 @@ in the root of the source checkout:
 .. code-block:: bash
 
     $ pip install -e .
-
-A debug build containing more runtime checks at the expense of performance
-can be created by setting the ``EDGEDB_DEBUG`` environment variable when
-building:
-
-.. code-block:: bash
-
-    $ env EDGEDB_DEBUG=1 pip install -e .
 
 
 Running tests

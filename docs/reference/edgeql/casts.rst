@@ -34,22 +34,21 @@ information on type casting rules.
 
 .. lint-off
 
-.. versionadded:: 3.0
 
-    You can cast a UUID into an object:
+You can cast a UUID into an object:
 
-    .. code-block:: edgeql-repl
+.. code-block:: edgeql-repl
 
-        db> select <Hero><uuid>'01d9cc22-b776-11ed-8bef-73f84c7e91e7';
-        {default::Hero {id: 01d9cc22-b776-11ed-8bef-73f84c7e91e7}}
+    db> select <Hero><uuid>'01d9cc22-b776-11ed-8bef-73f84c7e91e7';
+    {default::Hero {id: 01d9cc22-b776-11ed-8bef-73f84c7e91e7}}
 
-    If you try to cast a UUID that no object of the type has as its ``id``
-    property, you'll get an error:
+If you try to cast a UUID that no object of the type has as its ``id``
+property, you'll get an error:
 
-    .. code-block:: edgeql-repl
+.. code-block:: edgeql-repl
 
-        db> select <Hero><uuid>'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
-        edgedb error: CardinalityViolationError: 'default::Hero' with id 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa' does not exist
+    db> select <Hero><uuid>'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+    gel error: CardinalityViolationError: 'default::Hero' with id 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa' does not exist
 
 .. lint-on
 

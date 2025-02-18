@@ -8,7 +8,7 @@ Built-in UI
 
 To use the built-in UI for Gel Auth, enable the built-in Auth UI by clicking
 the "Enable UI" button under "Login UI" in the configuration section of the
-EdgeDB UI. Set these configuration values:
+|Gel| UI. Set these configuration values:
 
 -  ``redirect_to``: Once the authentication flow is complete, Gel will
    redirect the user's browser back to this URL in your application's
@@ -83,11 +83,11 @@ base64url encode the resulting string. This new string is called the
    import crypto from "node:crypto";
 
    /**
-    * You can get this value by running `edgedb instance credentials`.
+    * You can get this value by running `gel instance credentials`.
     * Value should be:
     * `${protocol}://${host}:${port}/branch/${branch}/ext/auth/
     */
-   const EDGEDB_AUTH_BASE_URL = process.env.EDGEDB_AUTH_BASE_URL;
+   const GEL_AUTH_BASE_URL = process.env.GEL_AUTH_BASE_URL;
    const SERVER_PORT = 3000;
 
    /**
@@ -111,7 +111,7 @@ base64url encode the resulting string. This new string is called the
 
 .. note::
 
-    For |EdgeDB| versions before 5.0, the value for ``EDGEDB_AUTH_BASE_URL``
+    For |EdgeDB| versions before 5.0, the value for :gelenv:`AUTH_BASE_URL`
     in the above snippet should have the form:
 
     ``${protocol}://${host}:${port}/db/${database}/ext/auth/``
@@ -183,11 +183,11 @@ to the built-in UI with the ``challenge`` in the search parameters.
    const handleUiSignIn = async (req, res) => {
       const { verifier, challenge } = generatePKCE();
 
-      const redirectUrl = new URL("ui/signin", EDGEDB_AUTH_BASE_URL);
+      const redirectUrl = new URL("ui/signin", GEL_AUTH_BASE_URL);
       redirectUrl.searchParams.set("challenge", challenge);
 
       res.writeHead(301, {
-         "Set-Cookie": `edgedb-pkce-verifier=${verifier}; HttpOnly; Path=/; Secure; SameSite=Strict`,
+         "Set-Cookie": `gel-pkce-verifier=${verifier}; HttpOnly; Path=/; Secure; SameSite=Strict`,
          Location: redirectUrl.href,
       });
       res.end();
@@ -203,11 +203,11 @@ to the built-in UI with the ``challenge`` in the search parameters.
    const handleUiSignUp = async (req, res) => {
       const { verifier, challenge } = generatePKCE();
 
-      const redirectUrl = new URL("ui/signup", EDGEDB_AUTH_BASE_URL);
+      const redirectUrl = new URL("ui/signup", GEL_AUTH_BASE_URL);
       redirectUrl.searchParams.set("challenge", challenge);
 
       res.writeHead(301, {
-         "Set-Cookie": `edgedb-pkce-verifier=${verifier}; HttpOnly; Path=/; Secure; SameSite=Strict`,
+         "Set-Cookie": `gel-pkce-verifier=${verifier}; HttpOnly; Path=/; Secure; SameSite=Strict`,
          Location: redirectUrl.href,
       });
       res.end();
@@ -227,9 +227,10 @@ Retrieve ``auth_token``
 At the very end of the flow, the Gel server will redirect the user's browser
 to the ``redirect_to`` address with a single query parameter: ``code``. This
 route should be a server route that has access to the ``verifier``. You then
-take that ``code`` and look up the ``verifier`` in the ``edgedb-pkce-verifier``
-cookie, and make a request to the Gel Auth extension to exchange these two
-pieces of data for an ``auth_token``.
+take that ``code`` and look up the ``verifier`` in the ``gel-pkce-verifier``
+cookie (``gel-pkce-verifier`` with |EdgeDB| <= 5), and make a request
+to the Gel Auth extension to exchange these two pieces of data for an
+``auth_token``.
 
 .. lint-off
 
@@ -258,7 +259,7 @@ pieces of data for an ``auth_token``.
 
       const cookies = req.headers.cookie?.split("; ");
       const verifier = cookies
-         ?.find((cookie) => cookie.startsWith("edgedb-pkce-verifier="))
+         ?.find((cookie) => cookie.startsWith("gel-pkce-verifier="))
          ?.split("=")[1];
       if (!verifier) {
          res.status = 400;
@@ -269,7 +270,7 @@ pieces of data for an ``auth_token``.
          return;
       }
 
-      const codeExchangeUrl = new URL("token", EDGEDB_AUTH_BASE_URL);
+      const codeExchangeUrl = new URL("token", GEL_AUTH_BASE_URL);
       codeExchangeUrl.searchParams.set("code", code);
       codeExchangeUrl.searchParams.set("verifier", verifier);
       const codeExchangeResponse = await fetch(codeExchangeUrl.href, {
@@ -285,7 +286,7 @@ pieces of data for an ``auth_token``.
 
       const { auth_token } = await codeExchangeResponse.json();
       res.writeHead(204, {
-         "Set-Cookie": `edgedb-auth-token=${auth_token}; HttpOnly; Path=/; Secure; SameSite=Strict`,
+         "Set-Cookie": `gel-auth-token=${auth_token}; HttpOnly; Path=/; Secure; SameSite=Strict`,
       });
       res.end();
    };

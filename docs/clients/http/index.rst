@@ -25,8 +25,8 @@ the schema:
     using extension edgeql_http;
 
 Then create a new migration and apply it using
-:ref:`ref_cli_edgedb_migration_create` and
-:ref:`ref_cli_edgedb_migrate`, respectively.
+:ref:`ref_cli_gel_migration_create` and
+:ref:`ref_cli_gel_migrate`, respectively.
 
 Your instance can now receive EdgeQL queries over HTTP at
 ``https://<hostname>:<port>/branch/<branch-name>/edgeql``.
@@ -36,23 +36,23 @@ Your instance can now receive EdgeQL queries over HTTP at
     Here's how to determine your local |Gel| instance's HTTP server URL:
 
     - The ``hostname`` will be ``localhost``
-    - Find the ``port`` by running ``gel instance list``. This will print a
+    - Find the ``port`` by running :gelcmd:`instance list`. This will print a
       table of all |Gel| instances on your machine, including their associated
       port number.
-    - The default ``branch-name`` will be ``main``, and after initializing
+    - The default ``branch-name`` will be |main|, and after initializing
       your database, all queries are executed against it by default. If you
       want to query another branch instead, simply use that branch name
       in the URL.
 
-    To determine the URL of an |Gel| Cloud instance, find the host by running
-    ``gel instance credentials -I <org-name>/<instance-name>``. Use the
+    To determine the URL of a |Gel| Cloud instance, find the host by running
+    :gelcmd:`instance credentials -I <org-name>/<instance-name>`. Use the
     ``host`` and ``port`` from that table in the URL format above this note.
     Change the protocol to ``https`` since Gel Cloud instances are secured
     with TLS.
 
     To determine the URL of a self-hosted remote instance you have linked with
     the CLI, you can get both the hostname and port of the instance from the
-    "Port" column of the ``gel instance list`` table (formatted as
+    "Port" column of the :gelcmd:`instance list` table (formatted as
     ``<hostname>:<port>``). The same guidance on local branch names applies
     here.
 
@@ -70,7 +70,7 @@ By default, the HTTP endpoint uses :eql:type:`cfg::Password` based
 authentication, in which
 `HTTP Basic Authentication
 <https://developer.mozilla.org/en-US/docs/Web/HTTP/Authentication#basic_authentication_scheme>`_
-is used to provide an |Gel| username and password.
+is used to provide a |Gel| username and password.
 
 .. lint-on
 
@@ -81,7 +81,7 @@ mechanism can be configured by adjusting which
 
 If :eql:type:`cfg::JWT` is used, the requests should contain these headers:
 
-* ``X-Gel-User``: The |Gel| username.
+* ``X-EdgeDB-User``: The |Gel| username.
 
 * ``Authorization``: The JWT authorization token prefixed by ``Bearer``.
 
@@ -97,7 +97,7 @@ behavior::
     OK: CONFIGURE INSTANCE
 
 To authenticate to your |Gel| Cloud instance, first create a secret key using
-the Gel Cloud UI or :ref:`ref_cli_edgedb_cloud_secretkey_create`. Use the
+the Gel Cloud UI or :ref:`ref_cli_gel_cloud_secretkey_create`. Use the
 secret key as your token with the bearer authentication method. Here is an
 example showing how you might send the query ``select Person {*};`` using cURL:
 

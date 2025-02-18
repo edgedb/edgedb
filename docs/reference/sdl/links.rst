@@ -23,18 +23,6 @@ Declare an *abstract* link "friends_base" with a helpful title:
 Declare a *concrete* link "friends" within a "User" type:
 
 .. code-block:: sdl
-    :version-lt: 3.0
-
-    type User {
-        required property name -> str;
-        property address -> str;
-        # define a concrete link "friends"
-        multi link friends extending friends_base -> User;
-
-        index on (__subject__.name);
-    }
-
-.. code-block:: sdl
 
     type User {
         required name: str;
@@ -58,20 +46,6 @@ type, for example), the ``overloaded`` keyword must be used. This is
 to prevent unintentional overloading due to name clashes:
 
 .. code-block:: sdl
-    :version-lt: 3.0
-
-    abstract type Friendly {
-        # this type can have "friends"
-        multi link friends -> Friendly;
-    }
-
-    type User extending Friendly {
-        # overload the link target to be User, specifically
-        overloaded multi link friends -> User;
-        # ... other links and properties
-    }
-
-.. code-block:: sdl
 
     abstract type Friendly {
         # this type can have "friends"
@@ -91,96 +65,6 @@ Syntax
 
 Define a new link corresponding to the :ref:`more explicit DDL
 commands <ref_eql_ddl_links>`.
-
-.. sdl:synopsis::
-    :version-lt: 3.0
-
-    # Concrete link form used inside type declaration:
-    [ overloaded ] [{required | optional}] [{single | multi}]
-      link <name>
-      [ extending <base> [, ...] ] -> <type>
-      [ "{"
-          [ default := <expression> ; ]
-          [ readonly := {true | false} ; ]
-          [ on target delete <action> ; ]
-          [ on source delete <action> ; ]
-          [ <annotation-declarations> ]
-          [ <property-declarations> ]
-          [ <constraint-declarations> ]
-          ...
-        "}" ]
-
-
-    # Computed link form used inside type declaration:
-    [{required | optional}] [{single | multi}]
-      link <name> := <expression>;
-
-    # Computed link form used inside type declaration (extended):
-    [ overloaded ] [{required | optional}] [{single | multi}]
-      link <name>
-      [ extending <base> [, ...] ] [-> <type>]
-      [ "{"
-          using (<expression>) ;
-          [ <annotation-declarations> ]
-          [ <constraint-declarations> ]
-          ...
-        "}" ]
-
-    # Abstract link form:
-    abstract link <name> [extending <base> [, ...]]
-    [ "{"
-        [ readonly := {true | false} ; ]
-        [ <annotation-declarations> ]
-        [ <property-declarations> ]
-        [ <constraint-declarations> ]
-        [ <index-declarations> ]
-        ...
-      "}" ]
-
-.. sdl:synopsis::
-    :version-lt: 4.0
-
-    # Concrete link form used inside type declaration:
-    [ overloaded ] [{required | optional}] [{single | multi}]
-      link <name>
-      [ extending <base> [, ...] ] -> <type>
-      [ "{"
-          [ default := <expression> ; ]
-          [ readonly := {true | false} ; ]
-          [ on target delete <action> ; ]
-          [ on source delete <action> ; ]
-          [ <annotation-declarations> ]
-          [ <property-declarations> ]
-          [ <constraint-declarations> ]
-          ...
-        "}" ]
-
-
-    # Computed link form used inside type declaration:
-    [{required | optional}] [{single | multi}]
-      link <name> := <expression>;
-
-    # Computed link form used inside type declaration (extended):
-    [ overloaded ] [{required | optional}] [{single | multi}]
-      link <name>
-      [ extending <base> [, ...] ] [-> <type>]
-      [ "{"
-          using (<expression>) ;
-          [ <annotation-declarations> ]
-          [ <constraint-declarations> ]
-          ...
-        "}" ]
-
-    # Abstract link form:
-    abstract link <name> [extending <base> [, ...]]
-    [ "{"
-        [ readonly := {true | false} ; ]
-        [ <annotation-declarations> ]
-        [ <property-declarations> ]
-        [ <constraint-declarations> ]
-        [ <index-declarations> ]
-        ...
-      "}" ]
 
 .. sdl:synopsis::
 
@@ -282,12 +166,6 @@ The following options are available:
     then the data types of the property targets must be *compatible*.
     If there is no conflict, the link properties are merged to form a
     single property in the new link item.
-
-    .. versionadded:: 3.0
-
-        As of |EdgeDB| 3.0, the ``extending`` clause is now a sub-declaration of
-        the link and included inside the curly braces rather than an option as
-        in earlier versions.
 
 :eql:synopsis:`<type>`
     The type must be a valid :ref:`type expression <ref_eql_types>`

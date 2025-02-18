@@ -1,4 +1,4 @@
-.. _edgedb-js-group:
+.. _gel-js-group:
 
 Group
 =====
