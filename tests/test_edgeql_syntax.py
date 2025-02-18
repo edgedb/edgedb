@@ -4168,6 +4168,14 @@ aa';
         CREATE DATA BRANCH foo FROM bar;
         """
 
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  "Missing one of keywords 'EMPTY', 'SCHEMA' or 'DATA'",
+                  line=2, col=15)
+    def test_edgeql_syntax_ddl_branch_07(self):
+        """
+        CREATE BRANCH hello;
+        """
+
     def test_edgeql_syntax_ddl_role_01(self):
         """
         CREATE ROLE username;
