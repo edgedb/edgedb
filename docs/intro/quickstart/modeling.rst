@@ -6,9 +6,9 @@ Modeling the data
 
 .. edb:split-section::
 
-  The flashcards application has a simple data model, but it's interesting enough to get a taste of many of the features of the |Gel| schema language. You have a ``Card`` type that describes a single flashcard, which for now contains two required string properties: ``front`` and ``back``. Each ``Card`` belongs to a ``Deck``, and there is an explicit ordering to the cards in a given deck.
+  The flashcards application has a simple data model, but it's interesting enough to utilize many unique features of the |Gel| schema language.
 
-  Looking at the mock data, you can see this structure in the JSON.
+  Looking at the mock data in our example JSON file ``./deck-edgeql.json``, you can see this structure in the JSON. There is a ``Card`` type that describes a single flashcard, which contains two required string properties: ``front`` and ``back``. Each ``Deck`` object has a link to zero or more ``Card`` objects in an array.
 
   .. code-block:: typescript
 
@@ -57,13 +57,13 @@ Modeling the data
 
   To make |Gel| do that, you need to do two quick steps:
 
-  1. **Create a migration**: a file with a list of low-level instructions.
+  1. **Create a migration**: a "migration" is a file containing a set of low level instructions that define how the database schema should change. It records any additions, modifications, or deletions to your schema in a way that the database can understand.
 
      .. note::
 
        When you are changing existing schema, the CLI migration tool might ask questions to ensure that it understands your changes exactly. Since the existing schema was empty, the CLI will skip asking any questions and simply create the migration file.
 
-  2. **Apply the migration**: basically, tell |Gel| "I want you to use these instructions and get my types ready for action."
+  2. **Apply the migration**: This executes the migration file on the database, instructing |Gel| to implement the recorded changes in the database. Essentially, this step updates the database structure to match your defined schema, ensuring that the ``Deck`` and ``Card`` types are created and ready for use.
 
      .. note::
 

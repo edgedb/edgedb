@@ -10,9 +10,7 @@ Connecting to the database
 
   .. note::
 
-    Notice that the ``createClient`` function isn't being passed any connection details. How does |Gel| know how to connect to the database you set up earlier? When we ran ``npx gel project init`` earlier, the CLI created credentials for the local database and stored them in a well-known location. When you initialize your client with ``createClient()``, |Gel| will check the places it knows about for connection details.
-
-    With |Gel|, you do not need to come up with your own scheme for how to build the correct database connection credentials and worry about leaking them into your code. You simply use |Gel| "projects" for local development, and set the appropriate environment variables when you're ready to deploy, and the client knows what to do!
+    Notice that the ``createClient`` function isn't being passed any connection details. With |Gel|, you do not need to come up with your own scheme for how to build the correct database connection credentials and worry about leaking them into your code. You simply use |Gel| "projects" for local development, and set the appropriate environment variables in your deployment environments, and the ``createClient`` function knows what to do!
 
   .. edb:split-point::
 
@@ -46,7 +44,7 @@ Connecting to the database
 
   With TypeScript, there are three ways to run a query: use a string EdgeQL query, use the ``queries`` generator to turn a string of EdgeQL into a TypeScript function, or use the query builder API to build queries dynamically in a type-safe manner. In this tutorial, you will use the TypeScript query builder API.
 
-  This query builder must be generated any time the schema changes, so a hook has been added to the ``gel.toml`` file to generate the query builder any time the schema is updated. Moving beyond this simple query, use the query builder API to insert a few ``Deck`` objects into the database, and then select them back.
+  This query builder must be regenerated any time the schema changes, so a hook has been added to the ``gel.toml`` file to generate the query builder any time the schema is updated. Moving beyond this simple query, use the query builder API to insert a few ``Deck`` objects into the database, and then select them back.
 
   .. edb:split-point::
 

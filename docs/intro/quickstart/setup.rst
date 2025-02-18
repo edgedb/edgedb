@@ -6,7 +6,7 @@ Setting up your environment
 
 .. edb:split-section::
 
-  Use git to clone the Next.js starter template into a new directory called ``flashcards``. This will create a fully configured Next.js project and a local |Gel| instance with an empty schema. You will see the database instance being installed and the project being initialized. You are now ready to start building the application.
+  Use git to clone `the Next.js starter template <https://github.com/geldata/quickstart-nextjs>`_ into a new directory called ``flashcards``. This will create a fully configured Next.js project and a local |Gel| instance with an empty schema. You will see the database instance being created and the project being initialized. You are now ready to start building the application.
 
   .. code-block:: sh
 
@@ -56,7 +56,7 @@ Setting up your environment
 
 .. edb:split-section::
 
-  Fun! You will create a proper data model for the application in the next step, but for now, take a look around the project you've just created. Most of the project files will be familiar if you've worked with Next.js before. Here are the new files that integrate |Gel|:
+  Fun! You will create a proper data model for the application in the next step, but for now, take a look around the project you've just created. Most of the project files will be familiar if you've worked with Next.js before. Here are the files that integrate |Gel|:
 
   - ``gel.toml``: The configuration file for the Gel project instance. Notice that we have a ``hooks.migration.apply.after`` hook that will run ``npx @gel/generate edgeql-js`` after migrations are applied. This will generate the query builder code that you'll use to interact with the database. More details on that to come!
   - ``dbschema/``: This directory contains the schema for the database, and later supporting files like migrations, and generated code.
