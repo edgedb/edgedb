@@ -10,6 +10,7 @@ Get Started
     :hidden:
 
     quickstart
+    quickstart/fastapi/index
     cli
     instances
     projects
