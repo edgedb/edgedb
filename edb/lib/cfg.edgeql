@@ -200,6 +200,7 @@ ALTER TYPE cfg::AbstractConfig {
             Note that changing this to a lower isolation level implies \
             that the transactions are also read-only by default regardless \
             of the value of the `default_transaction_access_mode` setting.';
+        SET default := sys::TransactionIsolation.Serializable;
     };
 
     CREATE REQUIRED PROPERTY default_transaction_access_mode
