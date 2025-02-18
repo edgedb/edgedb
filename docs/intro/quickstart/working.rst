@@ -6,6 +6,9 @@ Working with the data
 
 In this section, you will update the existing application to use |Gel| to store and query data, instead of a static JSON file. Having a working application with mock data allows you to focus on learning how |Gel| works, without getting bogged down by the details of the application.
 
+Bulk importing of data
+======================
+
 .. edb:split-section::
 
   Begin by updating the server action to import a deck with cards. Loop through each card in the deck and insert it, building an array of IDs as you go. This array of IDs will be used to set the ``cards`` link on the ``Deck`` object after all cards have been inserted.
@@ -76,7 +79,7 @@ In this section, you will update the existing application to use |Gel| to store 
 
 .. edb:split-section::
 
-  This works, but you might notice that it is not atomic. If one of the ``Card`` objects fails to insert, the entire operation will fail and the ``Deck`` will not be inserted. To make this operation atomic, update the ``importDeck`` action to use a transaction.
+  This works, but you might notice that it is not atomic. For instance, if one of the ``Card`` objects fails to insert, the entire operation will fail and the ``Deck`` will not be inserted, but some data will still linger. To make this operation atomic, update the ``importDeck`` action to use a transaction.
 
   .. code-block:: typescript-diff
     :caption: app/actions.ts
@@ -205,6 +208,9 @@ In this section, you will update the existing application to use |Gel| to store 
         revalidatePath("/");
       }
 
+Updating data
+=============
+
 .. edb:split-section::
 
   Next, you will update the Server Actions for each ``Deck`` object: ``updateDeck``, ``addCard``, and ``deleteCard``. Start with ``updateDeck``, which is the most complex because it is dynamic. You can set either the ``title`` or ``description`` fields in an update. Use the dynamic nature of the query builder to generate separate queries based on which fields are present in the form data.
@@ -217,7 +223,7 @@ In this section, you will update the existing application to use |Gel| to store 
       "use server";
 
       import { revalidatePath } from "next/cache";
-    - import { readFile, writeFile } from "node:fs/promises";
+      import { readFile, writeFile } from "node:fs/promises";
     + import { client } from "@/lib/gel";
     + import e from "@/dbschema/edgeql-js";
       import { Deck } from "@/lib/models";
@@ -253,6 +259,99 @@ In this section, you will update the existing application to use |Gel| to store 
     +       },
     +     })).run(client);
     -   await writeFile("./decks.json", JSON.stringify(decks, null, 2));
+        revalidatePath(`/deck/${id}`);
+      }
+
+      export async function addCard(formData: FormData) {
+        const deckId = formData.get("deckId");
+        const front = formData.get("front");
+        const back = formData.get("back");
+
+        if (
+          typeof deckId !== "string" ||
+          typeof front !== "string" ||
+          typeof back !== "string"
+        ) {
+          return;
+        }
+
+        const decks = JSON.parse(await readFile("./decks.json", "utf-8")) as Deck[];
+
+        const deck = decks.find((deck) => deck.id === deckId);
+        if (!deck) {
+          return;
+        }
+
+        deck.cards.push({ front, back, id: crypto.randomUUID() });
+        await writeFile("./decks.json", JSON.stringify(decks, null, 2));
+
+        revalidatePath(`/deck/${deckId}`);
+      }
+
+      export async function deleteCard(formData: FormData) {
+        const cardId = formData.get("cardId");
+
+        if (typeof cardId !== "string") {
+          return;
+        }
+
+        const decks = JSON.parse(await readFile("./decks.json", "utf-8")) as Deck[];
+        const deck = decks.find((deck) => deck.cards.some((card) => card.id === cardId));
+        if (!deck) {
+          return;
+        }
+
+        deck.cards = deck.cards.filter((card) => card.id !== cardId);
+        await writeFile("./decks.json", JSON.stringify(decks, null, 2));
+
+        revalidatePath(`/`);
+      }
+
+Adding linked data
+==================
+
+.. edb:split-section::
+
+  For the ``addCard`` action, you need to insert a new ``Card`` object and update the ``Deck.cards`` set to include the new ``Card`` object. Notice that the ``order`` property is set by selecting the maximum ``order`` property of this ``Deck.cards`` set and incrementing it by 1.
+
+  The syntax for adding an object to a set of links is ``{ "+=": object }``. You can think of this as a shortcut for setting the link set to the current set plus the new object.
+
+  .. code-block:: typescript-diff
+    :caption: app/deck/[id]/actions.ts
+
+      "use server";
+
+      import { revalidatePath } from "next/cache";
+      import { readFile, writeFile } from "node:fs/promises";
+      import { client } from "@/lib/gel";
+      import e from "@/dbschema/edgeql-js";
+      import { Deck } from "@/lib/models";
+
+      export async function updateDeck(formData: FormData) {
+        const id = formData.get("id");
+        const name = formData.get("name");
+        const description = formData.get("description");
+
+        if (
+          typeof id !== "string" ||
+          (typeof name !== "string" &&
+          typeof description !== "string")
+        ) {
+          return;
+        }
+
+        const nameSet = typeof name === "string" ? { name } : {};
+        const descriptionSet =
+          typeof description === "string" ? { description: description || null } : {};
+
+        await e
+          .update(e.Deck, (d) => ({
+            filter_single: e.op(d.id, "=", id),
+            set: {
+              ...nameSet,
+              ...descriptionSet,
+            },
+          })).run(client);
         revalidatePath(`/deck/${id}`);
       }
 
@@ -323,6 +422,122 @@ In this section, you will update the existing application to use |Gel| to store 
           return;
         }
 
+        const decks = JSON.parse(await readFile("./decks.json", "utf-8")) as Deck[];
+        const deck = decks.find((deck) => deck.cards.some((card) => card.id === cardId));
+        if (!deck) {
+          return;
+        }
+
+        deck.cards = deck.cards.filter((card) => card.id !== cardId);
+        await writeFile("./decks.json", JSON.stringify(decks, null, 2));
+
+        revalidatePath(`/`);
+      }
+
+Deleting linked data
+====================
+
+.. edb:split-section::
+
+  For the ``deleteCard`` action, delete the ``Card`` object and based on the deletion policy we set up earlier in the schema, the object will be deleted from the database and removed from the ``Deck.cards`` set.
+
+  .. code-block:: typescript-diff
+    :caption: app/deck/[id]/actions.ts
+
+      "use server";
+
+      import { revalidatePath } from "next/cache";
+    - import { readFile, writeFile } from "node:fs/promises";
+      import { client } from "@/lib/gel";
+      import e from "@/dbschema/edgeql-js";
+      import { Deck } from "@/lib/models";
+
+      export async function updateDeck(formData: FormData) {
+        const id = formData.get("id");
+        const name = formData.get("name");
+        const description = formData.get("description");
+
+        if (
+          typeof id !== "string" ||
+          (typeof name !== "string" &&
+          typeof description !== "string")
+        ) {
+          return;
+        }
+
+        const nameSet = typeof name === "string" ? { name } : {};
+        const descriptionSet =
+          typeof description === "string" ? { description: description || null } : {};
+
+        await e
+          .update(e.Deck, (d) => ({
+            filter_single: e.op(d.id, "=", id),
+            set: {
+              ...nameSet,
+              ...descriptionSet,
+            },
+          })).run(client);
+        revalidatePath(`/deck/${id}`);
+      }
+
+      export async function addCard(formData: FormData) {
+        const deckId = formData.get("deckId");
+        const front = formData.get("front");
+        const back = formData.get("back");
+
+        if (
+          typeof deckId !== "string" ||
+          typeof front !== "string" ||
+          typeof back !== "string"
+        ) {
+          return;
+        }
+
+        await e
+          .params(
+            {
+              front: e.str,
+              back: e.str,
+              deckId: e.uuid,
+            },
+            (params) => {
+              const deck = e.assert_exists(
+                e.select(e.Deck, (d) => ({
+                  filter_single: e.op(d.id, "=", params.deckId),
+                }))
+              );
+
+              const order = e.cast(e.int64, e.max(deck.cards.order));
+              const card = e.insert(e.Card, {
+                front: params.front,
+                back: params.back,
+                order: e.op(order, "+", 1),
+              });
+              return e.update(deck, (d) => ({
+                set: {
+                  cards: {
+                    "+=": card
+                  },
+                },
+              }))
+            }
+          )
+          .run(client, {
+            front,
+            back,
+            deckId,
+          });
+
+        revalidatePath(`/deck/${deckId}`);
+      }
+
+      export async function deleteCard(formData: FormData) {
+        const cardId = formData.get("cardId");
+
+        if (typeof cardId !== "string") {
+          return;
+        }
+
     -   const decks = JSON.parse(await readFile("./decks.json", "utf-8")) as Deck[];
     -   const deck = decks.find((deck) => deck.cards.some((card) => card.id === cardId));
     -   if (!deck) {
@@ -342,6 +557,9 @@ In this section, you will update the existing application to use |Gel| to store 
 
         revalidatePath(`/`);
       }
+
+Querying data
+=============
 
 .. edb:split-section::
 
