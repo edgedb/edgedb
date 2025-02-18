@@ -1,39 +1,30 @@
-.. _ref_ai_python:
+.. _ref_ai_python_reference:
 
-======
-Python
-======
+=============
+AI Python API
+=============
 
-:edb-alt-title: Gel AI's Python package
+:edb-alt-title: AI Extension Python API
 
 The ``gel.ai`` package is an optional binding of the AI extension in |Gel|.
-To use the AI binding, you need to install ``gel`` Python package with the
-``ai`` extra dependencies:
 
 .. code-block:: bash
 
   $ pip install 'gel[ai]'
 
 
-Usage
-=====
+Blocking and async API
+======================
 
-Start by importing ``gel`` and ``gel.ai``:
+The AI binding is built on top of the regular |Gel| client objects, providing
+both blocking and asynchronous versions of its API.
+
+**Blocking client example**:
 
 .. code-block:: python
 
     import gel
     import gel.ai
-
-
-Blocking
---------
-
-The AI binding is built on top of the regular |Gel| client objects, providing
-both blocking and asynchronous versions of its API. For example, a blocking AI
-client is initialized like this:
-
-.. code-block:: python
 
     client = gel.create_client()
     gpt4ai = gel.ai.create_ai(
@@ -41,42 +32,25 @@ client is initialized like this:
         model="gpt-4-turbo-preview"
     )
 
-Add your query as context:
-
-.. code-block:: python
-
     astronomy_ai = gpt4ai.with_context(
         query="Astronomy"
     )
-
-The default text generation prompt will ask your selected provider to limit
-answer to information provided in the context and will pass the queried
-objects' AI index as context along with that prompt.
-
-Call your AI client's ``query_rag`` method, passing in a text query.
-
-.. code-block:: python
 
     print(
         astronomy_ai.query_rag("What color is the sky on Mars?")
     );
 
-or stream back the results by using ``stream_rag`` instead:
-
-.. code-block:: python
-
     for data in astronomy_ai.stream_rag("What color is the sky on Mars?"):
         print(data)
 
 
-Async
------
-
-To use an async client instead, do this:
+**Async client example**:
 
 .. code-block:: python
 
-    import asyncio  # alongside the Gel imports
+    import gel
+    import gel.ai
+    import asyncio
 
     client = gel.create_async_client()
 
@@ -100,8 +74,8 @@ To use an async client instead, do this:
     asyncio.run(main())
 
 
-API reference
-=============
+Factory functions
+=================
 
 .. py:function:: create_ai(client, **kwargs) -> GelAI
 
@@ -140,9 +114,8 @@ API reference
        * ``prompt``: An optional prompt to guide the model's behavior. (default: None)
 
 
-AI client classes
------------------
-
+Core classes
+============
 
 BaseGelAI
 ^^^^^^^^^
@@ -253,6 +226,14 @@ GelAI
        the query. If not provided, uses the default context of this AI client
        instance.
 
+.. py:method:: generate_embeddings(*inputs: str, model: str) -> list[float]
+
+    Generates embeddings for input texts.
+
+    :param *inputs:
+        Input texts.
+    :param model:
+        The embedding model to use
 
 AsyncGelAI
 ^^^^^^^^^^
@@ -301,9 +282,18 @@ AsyncGelAI
        the query. If not provided, uses the default context of this AI client
        instance.
 
+.. py:method:: generate_embeddings(*inputs: str, model: str) -> list[float]
 
-Other classes
--------------
+    Generates embeddings for input texts.
+
+    :param *inputs:
+        Input texts.
+    :param model:
+        The embedding model to use
+
+
+Configuration classes
+=====================
 
 .. py:class:: ChatParticipantRole
 
@@ -414,3 +404,4 @@ Other classes
    :method to_httpx_request():
        Converts the RAGRequest into a dictionary suitable for making an HTTP
        request using the httpx library.
+
