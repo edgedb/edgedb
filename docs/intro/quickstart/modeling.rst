@@ -29,6 +29,8 @@ Modeling the data
 
   Also of note, the link between ``Card`` and ``Deck`` objects creates a "1-to-n" relationship, where each ``Deck`` object has a link to zero or more ``Card`` objects. When you query the ``Deck.cards`` link, the cards will be unordered, so the ``Card`` type needs an explicit ``order`` property to allow sorting them at query time.
 
+  By default, when you try to delete an object that is linked to another object, the database will prevent you from doing so. We want to support removing a ``Card``, so we define a deletion policy on the ``cards`` link that allows deleting the target of this link.
+
   .. code-block:: sdl-diff
     :caption: dbschema/default.gel
 
@@ -44,6 +46,7 @@ Modeling the data
     +     description: str;
     +     multi cards: Card {
     +       constraint exclusive;
+    +       on target delete allow;
     +     };
     +   };
       };

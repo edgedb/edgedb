@@ -26,10 +26,10 @@ Adding shared properties
           required name: str;
           description: str;
 
-          cards := (
-            select .<deck[is Card]
-            order by .order
-          );
+          multi cards: Card {
+            constraint exclusive;
+            on target delete allow;
+          };
         };
 
     -   type Card {
@@ -37,8 +37,6 @@ Adding shared properties
           required order: int64;
           required front: str;
           required back: str;
-
-          required deck: Deck;
         }
       }
 
