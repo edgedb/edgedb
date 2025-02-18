@@ -345,7 +345,7 @@ In this section, you will update the existing application to use |Gel| to store 
 
 .. edb:split-section::
 
-  Next, update the ``queries.ts`` module to get decks from the database. Notice that the cards are ordered by the ``order`` property.
+  Next, update the two ``queries.ts`` methods: ``getDecks`` and ``getDeck``.
 
   .. tabs::
 
@@ -373,6 +373,33 @@ In this section, you will update the existing application to use |Gel| to store 
       +   })).run(client);
 
           return decks;
+        }
+
+    .. code-tab:: typescript-diff
+      :caption: app/deck/[id]/queries.ts
+
+      - import { readFile } from "node:fs/promises";
+      - import { Deck } from "@/lib/models";
+      + import { client } from "@/lib/gel";
+      + import e from "@/dbschema/edgeql-js";
+
+        export async function getDeck({ id }: { id: string }) {
+      -   const decks = JSON.parse(await readFile("./decks.json", "utf-8")) as Deck[];
+      -   return decks.find((deck) => deck.id === id) ?? null;
+      +   return await e
+      +     .select(e.Deck, (deck) => ({
+      +       filter_single: e.op(deck.id, "=", id),
+      +       id: true,
+      +       name: true,
+      +       description: true,
+      +       cards: e.select(deck.cards, (card) => ({
+      +         id: true,
+      +         front: true,
+      +         back: true,
+      +         order_by: card.order,
+      +       })),
+      +     }))
+      +     .run(client);
         }
 
 .. edb:split-section::
