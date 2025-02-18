@@ -170,17 +170,15 @@ In this section, you will update the existing application to use |Gel| to store 
     -       cardIds.push(createdCard.id);
     -     }
     -
-    -     await e
-    -       .params({ cardIds: e.array(e.uuid) }, (params) =>
-    -         e.insert(e.Deck, {
-    -           name: deck.name,
-    -           description: deck.description,
-    -           cards: e.select(e.Card, (c) => ({
-    -             filter: e.contains(params.cardIds, c.id),
-    -           })),
-    -         })
-    -       )
-    -       .run(tx, { cardIds });
+    -     const cardIdsLiteral = e.literal(e.array(e.uuid), cardIds);
+    -
+    -     await e.insert(e.Deck, {
+    -       name: deck.name,
+    -       description: deck.description,
+    -       cards: e.select(e.Card, (c) => ({
+    -         filter: e.contains(cardIdsLiteral, c.id),
+    -       })),
+    -     }).run(tx);
     -   });
     +   await e
     +     .params(
