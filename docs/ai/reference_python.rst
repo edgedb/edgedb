@@ -230,7 +230,7 @@ GelAI
 
     Generates embeddings for input texts.
 
-    :param *inputs:
+    :param inputs:
         Input texts.
     :param model:
         The embedding model to use
@@ -283,10 +283,11 @@ AsyncGelAI
        instance.
 
 .. py:method:: generate_embeddings(*inputs: str, model: str) -> list[float]
+    :noindex:
 
     Generates embeddings for input texts.
 
-    :param *inputs:
+    :param inputs:
         Input texts.
     :param model:
         The embedding model to use

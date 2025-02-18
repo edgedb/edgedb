@@ -21,7 +21,7 @@ There are a few built-in extensions available:
 - ``edgeql_http``: enables :ref:`EdgeQL over HTTP <ref_edgeql_http>`,
 - ``graphql``: enables :ref:`GraphQL <ref_graphql_index>`,
 - ``auth``: enables :ref:`Gel Auth <ref_guide_auth>`,
-- ``ai``: enables :ref:`ext::ai module <ref_ai_reference>`,
+- ``ai``: enables :ref:`ext::ai module <ref_ai_extai_reference>`,
 
 - ``pg_trgm``: enables ``ext::pg_trgm``, which re-exports
   `pgtrgm <https://www.postgresql.org/docs/current/pgtrgm.html>`__,

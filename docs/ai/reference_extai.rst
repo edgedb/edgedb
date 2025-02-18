@@ -67,6 +67,8 @@ Providers tab
 -------------
 
 
+.. _ref_ai_extai_reference_index:
+
 Index
 =====
 
@@ -104,6 +106,59 @@ Parameters:
 
 * ``dimensions``: int64 (Optional) - Embedding dimensions
 * ``truncate_to_max``: bool (Default: False)
+
+
+Built-in resources
+==================
+
+.. _ref_ai_extai_reference_embedding_models:
+
+Embedding models
+----------------
+
+**OpenAI**
+
+* ``text-embedding-3-small``
+* ``text-embedding-3-large``
+* ``text-embedding-ada-002``
+
+`Learn more about the OpenAI embedding models <https://platform.openai.com/docs/guides/embeddings/embedding-models>`__
+
+**Mistral**
+
+* ``mistral-embed``
+
+`Learn more about the Mistral embedding model <https://docs.mistral.ai/capabilities/embeddings/#mistral-embeddings-api>`__
+
+
+.. _ref_ai_extai_reference_text_generation_models:
+
+Text generation models
+----------------------
+
+**OpenAI**
+
+* ``gpt-3.5-turbo``
+* ``gpt-4-turbo-preview``
+
+`Learn more about the OpenAI text generation models <https://platform.openai.com/docs/guides/text-generation>`__
+
+**Mistral**
+
+* ``mistral-small-latest``
+* ``mistral-medium-latest``
+* ``mistral-large-latest``
+
+`Learn more about the Mistral text generation models <https://docs.mistral.ai/getting-started/models/>`__
+
+**Anthropic**
+
+* ``claude-3-haiku-20240307``
+* ``claude-3-sonnet-20240229``
+* ``claude-3-opus-20240229``
+
+`Learn more about the Athropic text generation models <https://docs.anthropic.com/claude/docs/models-overview>`__
+
 
 Functions
 =========
@@ -170,7 +225,8 @@ Functions
                     query: array<float32> \
                   ) -> optional tuple<object: anyobject, distance: float64>
 
-    Searches objects using their :ref:`ai::index <ref_guide_ai_reference_index>`.
+    Searches objects using their :ref:`ai::index
+    <ref_ai_extai_reference_index>`.
 
     Returns tuples of (object, distance).
 
@@ -257,10 +313,10 @@ Provider-Specific Types
 Each inherits from ``ProviderConfig`` with provider-specific defaults.
 
 Model Types
-----------
+-----------
 
 ext::ai::Model
-^^^^^^^^^^^^^
+^^^^^^^^^^^^^^
 Abstract base type for AI models.
 
 Annotations:
@@ -268,7 +324,7 @@ Annotations:
 * ``model_provider`` - Provider identifier
 
 ext::ai::EmbeddingModel
-^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^
 Abstract type for embedding models.
 
 Annotations:
@@ -278,17 +334,17 @@ Annotations:
 * ``embedding_model_supports_shortening`` - Input shortening support flag
 
 ext::ai::TextGenerationModel
-^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 Abstract type for text generation models.
 
 Annotations:
 * ``text_gen_model_context_window`` - Model's context window size
 
 Indexing Types
--------------
+--------------
 
 ext::ai::DistanceFunction
-^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^
 Enum for similarity metrics:
 
 * ``Cosine``
@@ -296,7 +352,7 @@ Enum for similarity metrics:
 * ``L2``
 
 ext::ai::IndexType
-^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^
 Enum for index implementations:
 
 * ``HNSW``
@@ -320,7 +376,7 @@ Example custom prompt configuration:
     };
 
 ext::ai::ChatParticipantRole
-^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 Enum for chat participants:
 
 * ``System``
@@ -329,7 +385,7 @@ Enum for chat participants:
 * ``Tool``
 
 ext::ai::ChatPromptMessage
-^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^
 Type for chat prompt messages.
 
 Properties:
@@ -338,7 +394,7 @@ Properties:
 * ``content``: str (Required)
 
 ext::ai::ChatPrompt
-^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^
 Type for chat prompt configuration.
 
 Properties:

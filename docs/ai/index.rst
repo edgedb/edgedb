@@ -4,6 +4,18 @@
 Gel AI
 ======
 
+.. toctree::
+    :hidden:
+    :maxdepth: 3
+
+    javascript
+    guide_edgeql
+    guide_python
+    quickstart_fastapi_ai
+    reference_extai
+    reference_http
+    reference_python
+
 :edb-alt-title: Using Gel AI
 
 |Gel| AI is a set of tools designed to enable you to ship AI-enabled apps with
