@@ -15,6 +15,7 @@ Gel AI
     javascript
     guide_edgeql
     guide_python
+    fastapi_gelai_searchbot
 
 :edb-alt-title: Using Gel AI
 
