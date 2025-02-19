@@ -220,6 +220,10 @@ class EdgeDBError(Exception, metaclass=EdgeDBErrorMeta):
     def pgext_code(self):
         return self._pgext_code
 
+    @property
+    def filename(self):
+        return self._attrs.get(FIELD_FILENAME, None)
+
 
 @contextlib.contextmanager
 def ensure_span(span: Optional[edb_span.Span]) -> Iterator[None]:
