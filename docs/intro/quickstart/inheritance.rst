@@ -110,4 +110,4 @@ Adding shared properties
 
   Now when you look at the data in the UI, you will see the new properties on each of your object types.
 
-  .. image:: https://placehold.co/600x400?text=Show+timestamped+properties
+  .. image:: images/timestamped.png

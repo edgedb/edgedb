@@ -630,6 +630,6 @@ Querying data
 
 .. edb:split-section::
 
-  A static JSON file to seed your database with a deck of trivia cards is included in the project. Open your browser and navigate to the app at <http://localhost:3000>_. Use the "Import JSON" button to import this JSON file into your database.
+  A static JSON file to seed your database with a deck of trivia cards is included in the project. Open your browser and navigate to the app at `<http://localhost:3000>`_. Use the "Import JSON" button to import this JSON file into your database.
 
-  .. image:: https://placehold.co/600x400?text=Show+import+deck+ui
+  .. image:: images/flashcards-import.png

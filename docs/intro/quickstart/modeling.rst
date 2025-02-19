@@ -99,6 +99,10 @@ Modeling the data
 
   Take a look at the schema you've generated in the built-in database UI. Use this tool to visualize your data model and see the object types and links you've defined.
 
+  .. edb:split-point::
+
   .. code-block:: sh
 
     $ npx gel ui
+
+  .. image:: images/schema-ui.png
