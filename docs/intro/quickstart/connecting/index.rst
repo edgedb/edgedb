@@ -1,7 +1,7 @@
 .. edb:env-switcher::
 
 ==========
-Quickstart
+Connecting
 ==========
 
 .. toctree::

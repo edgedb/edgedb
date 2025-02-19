@@ -1,11 +1,12 @@
 .. edb:env-switcher::
 
-==========
-Quickstart
-==========
+===========
+Inheritance
+===========
 
 .. toctree::
   :maxdepth: 3
   :hidden:
 
   nextjs
+
