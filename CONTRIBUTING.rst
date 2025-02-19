@@ -1,7 +1,7 @@
-How to contribute to EdgeDB
-===========================
+How to contribute to Gel
+========================
 
-Thank you for contributing to EdgeDB! We love our open source community and
+Thank you for contributing to Gel! We love our open source community and
 want to foster a healthy contributor ecosystem.
 
 To make sure the project can continue to improve quickly, we have a few
@@ -55,8 +55,8 @@ Contributing documentation
   possible without being bogged down by other changes that require more
   intensive review.
 
-Please see EdgeDB's guide for `building documentation
-<https://www.edgedb.com/docs/guides/contributing#writing-documentation>`_ from
+Please see Gel's guide for `building documentation
+<https://www.geldata.com/docs/guides/contributing#writing-documentation>`_ from
 source.
 
 Documentation style
@@ -69,8 +69,8 @@ Documentation style
   that in favor of ``*param*``, in order to distinguish between parameter
   references and inline code (which *should* be surrounded by double
   backticks).
-- **EdgeDB is singular.** Choose "EdgeDB is" over "EdgeDB are" and "EdgeDB
-  does" over "EdgeDB do."
+- **Gel is singular.** Choose "Gel is" over "Gel are" and "Gel
+  does" over "Gel do."
 - **Use American English spellings.** Choose "color" over "colour" and
   "organize" over "organise."
 - **Use the Oxford comma.** When delineating a series, place a comma between
@@ -81,7 +81,7 @@ Documentation style
   like a computer science textbook. Sometimes that's necessary, but in most
   cases, it isn't. Prioritize accuracy first and accessibility a close second.
 - **Be careful using words that have a special meaning in the context of
-  EdgeDB.** In casual speech or writing, you might talk about a "set" of
-  something in a generic sense. Using the word this way in EdgeDB documentation
-  might easily be interpreted as a reference to EdgeDB's `sets <ref_eql_sets>`.
+  Gel.** In casual speech or writing, you might talk about a "set" of
+  something in a generic sense. Using the word this way in Gel documentation
+  might easily be interpreted as a reference to Gel's `sets <ref_eql_sets>`.
   Avoid this kind of casual usage of key terms.
