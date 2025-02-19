@@ -317,35 +317,15 @@ Client connections
 ----------
 
 
-.. eql:type:: cfg::DatabaseConfig
-
-  The :versionreplace:`database;5.0:branch`-level configuration object type.
-
-  This type will have only one object instance. The ``cfg::DatabaseConfig``
-  object represents the state of :versionreplace:`database;5.0:branch` and
-  instance-level Gel configuration.
-
-  For overall configuration state please refer to the :eql:type:`cfg::Config`
-  instead.
-
-  .. versionadded:: 5.0
-
-      As of |EdgeDB| 5.0, this config object represents database *branch*
-      and instance-level configuration.
-
-
-----------
-
-
 .. eql:type:: cfg::BranchConfig
 
   .. versionadded:: 5.0
 
-  The :versionreplace:`database;5.0:branch`-level configuration object type.
+  The branch-level configuration object type.
 
   This type will have only one object instance. The ``cfg::BranchConfig``
-  object represents the state of :versionreplace:`database;5.0:branch` and
-  instance-level Gel configuration.
+  object represents the state of the branch and instance-level Gel
+  configuration.
 
   For overall configuration state please refer to the :eql:type:`cfg::Config`
   instead.

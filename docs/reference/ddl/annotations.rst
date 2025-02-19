@@ -29,7 +29,7 @@ Description
 -----------
 
 The command ``create abstract annotation`` defines a new annotation
-for use in the current :versionreplace:`database;5.0:branch`.
+for use in the current |branch|.
 
 If *name* is qualified with a module name, then the annotation is created
 in that module, otherwise it is created in the current module.

@@ -20,9 +20,8 @@ managed in |.gel| files using Gel Schema Definition Language and migration
 commands.
 
 Any Postgres-compatible client can connect to an Gel database by using the
-same port that is used for the Gel protocol and the
-:versionreplace:`database;5.0:branch` name, username, and password already used
-for the database.
+same port that is used for the Gel protocol and the |branch| name, username,
+and password already used for the database.
 
 .. versionchanged:: 5.0
 
