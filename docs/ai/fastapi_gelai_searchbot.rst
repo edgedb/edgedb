@@ -553,9 +553,8 @@ Defining the schema
 -------------------
 
 The database :ref:`schema <ref_datamodel_index>` in Gel is defined
-declaratively. The :ref:`gel project init <ref_cli_edgedb_project_init>`
-command has created a file called ``dbchema/default.esdl``, which we're going to
-use to define our types.
+declaratively. The :gelcmd:`project init` command has created a file called
+:dotgel:`dbschema/default`, which we're going to use to define our types.
 
 .. edb:split-section::
 
@@ -649,9 +648,8 @@ use to define our types.
 
 .. edb:split-section::
 
-  Let's use the :ref:`gel migration create <ref_cli_edgedb_migration_create>` CLI
-  command, followed by :ref:`gel migrate <ref_cli_edgedb_migrate>` in order to
-  migrate to our new schema and proceed to writing some queries.
+  Let's use the :gelcmd:`migration create` CLI command, followed by :gelcmd:`migrate` in
+  order to migrate to our new schema and proceed to writing some queries.
 
   .. code-block:: bash
 
@@ -765,8 +763,9 @@ use to define our types.
 
 .. edb:split-section::
 
-  The :ref:`gel query <ref_cli_edgedb_query>` command is one of many ways we can
-  execute a query in Gel. Now that we've done it, there's stuff in the database.
+  The :gelcmd:`query` command is one of many ways we can execute a query in Gel. Now
+  that we've done it, there's stuff in the database.
+
   Let's verify it by running:
 
   .. code-block:: bash
@@ -784,7 +783,7 @@ With schema in place, it's time to focus on getting the data in and out of the
 database.
 
 In this tutorial we're going to write queries using :ref:`EdgeQL
-<ref_intro_edgeql>` and then use :ref:`codegen <edgedb-python-codegen>` to
+<ref_intro_edgeql>` and then use :ref:`codegen <gel-python-codegen>` to
 generate typesafe function that we can plug directly into out Python code. If
 you are completely unfamiliar with EdgeQL, now is a good time to check out the
 basics before proceeding.
@@ -1432,7 +1431,7 @@ schema.
 .. edb:split-section::
 
   We begin by enabling the ``ai`` extension by adding the following like on top of
-  the ``dbschema/default.esdl``:
+  the :dotgel:`dbschema/default`:
 
   .. code-block:: sdl-diff
       :caption: dbschema/default.esdl
