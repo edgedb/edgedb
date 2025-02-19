@@ -25,7 +25,7 @@ The AI extension can be configured using ``configure session`` or ``configure cu
 .. code-block:: edgeql
 
     configure current branch
-    set ext::ai::Config::indexer_naptime := <duration>'0:00:30';
+    set ext::ai::Config::indexer_naptime := <duration>'PT30S';
 
 Configuration Properties
 ------------------------
