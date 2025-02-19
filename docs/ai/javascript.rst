@@ -41,7 +41,7 @@ model):
     });
 
 You may use any of the supported :ref:`text generation models
-<ref_ai_reference_text_generation_models>`. Add your query as context:
+<ref_ai_extai_reference_text_generation_models>`. Add your query as context:
 
 .. code-block:: typescript
 
