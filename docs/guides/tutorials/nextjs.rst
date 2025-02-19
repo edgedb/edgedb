@@ -98,14 +98,14 @@ You can then execute the following ``insert`` statements:
 .. code-block:: edgeql-repl
 
   gel> insert BlogPost {
-  .......   title := "This one weird trick makes using databases fun",
-  .......   content := "Use Gel"
-  ....... };
+  ....   title := "This one weird trick makes using databases fun",
+  ....   content := "Use Gel"
+  .... };
   {default::BlogPost {id: 7f301d02-c780-11ec-8a1a-a34776e884a0}}
   gel> insert BlogPost {
-  .......   title := "How to build a blog with |Gel| and Next.js",
-  .......   content := "Let's start by scaffolding our app..."
-  ....... };
+  ....   title := "How to build a blog with |Gel| and Next.js",
+  ....   content := "Let's start by scaffolding our app..."
+  .... };
   {default::BlogPost {id: 88c800e6-c780-11ec-8a1a-b3a3020189dd}}
 
 
@@ -197,7 +197,7 @@ Then, in your client component, you can use the ``createPost`` function:
   :caption: app/CreatePost.tsx
 
   'use client';
-  
+
   import { createPost } from './actions';
 
   export default function CreatePost() {
