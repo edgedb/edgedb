@@ -108,5 +108,4 @@ to the previous migration:
     scalars
     properties
     globals
-    mutation_rewrites
     future

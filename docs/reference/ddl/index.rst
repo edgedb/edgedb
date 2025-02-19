@@ -11,7 +11,6 @@ DDL
     scalars
     properties
     globals
-    mutation_rewrites
     future
     migrations
 
