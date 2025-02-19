@@ -33,7 +33,7 @@ practically no effort. This is what comes in the box:
 3. Python library: ``gel.ai``. Access all Gel AI features straight from your
    Python application.
 
-4. JavaScript library: ``gel.ai``.
+4. JavaScript library: ``@gel/ai``.
 
 
 
