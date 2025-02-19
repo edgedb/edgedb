@@ -214,8 +214,8 @@ Add vectors and perform similarity search
     .. note::
 
         Note that we're passing our login and password in order to autheticate the
-        request. We can find those using the CLI: ``gel instance credentials
-        --json``. Learn about all the other ways you can authenticate a request
+        request. We can find those using the CLI: :gelcmd:`instance credentials
+        --json`. Learn about all the other ways you can authenticate a request
         :ref:`here <ref_http_auth>`.
 
     .. code-block:: bash
