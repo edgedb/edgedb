@@ -124,7 +124,7 @@ Using the built-in RAG
     .. code-block:: edgeql
         :class: collapsible
 
-        $ cat << 'EOF' | edgedb query --file -
+        $ cat << 'EOF' | gel query --file -
         with deck := (
             insert Deck {
                 name := 'Smelly Cheeses',
@@ -238,20 +238,20 @@ Using the built-in RAG
     .. code-block:: python-diff
         :caption: main.py
 
-          import edgedb
-        + import edgedb.ai
+          import gel
+        + import gel.ai
 
           from fastapi import FastAPI
 
 
-          client = edgedb.create_async_client()
+          client = gel.create_async_client()
 
           app = FastAPI()
 
 
         + @app.get("/fetch_similar")
         + async def fetch_similar_cards(query: str):
-        +     rag = await edgedb.ai.create_async_ai(client, model="gpt-4-turbo-preview")
+        +     rag = await gel.ai.create_async_rag_client(client, model="gpt-4-turbo-preview")
         +     embedding_vector = await rag.generate_embeddings(
         +         query, model="text-embedding-3-small"
         +     )
@@ -290,20 +290,20 @@ Using the built-in RAG
     .. code-block:: python-diff
         :caption: main.py
 
-          import edgedb
-          import edgedb.ai
+          import gel
+          import gel.ai
 
           from fastapi import FastAPI
 
 
-          client = edgedb.create_async_client()
+          client = gel.create_async_client()
 
           app = FastAPI()
 
 
           @app.get("/fetch_similar")
           async def fetch_similar_cards(query: str):
-              rag = await edgedb.ai.create_async_ai(client, model="gpt-4-turbo-preview")
+              rag = await gel.ai.create_async_rag_client(client, model="gpt-4-turbo-preview")
               embedding_vector = await rag.generate_embeddings(
                   query, model="text-embedding-3-small"
               )
@@ -318,10 +318,10 @@ Using the built-in RAG
 
         + @app.get("/fetch_rag")
         + async def fetch_rag_response(query: str):
-        +     rag = await edgedb.ai.create_async_ai(client, model="gpt-4-turbo-preview")
+        +     rag = await gel.ai.create_async_rag_client(client, model="gpt-4-turbo-preview")
         +     response = await rag.query_rag(
         +         message=query,
-        +         context=edgedb.ai.QueryContext(query="select Card"),
+        +         context=gel.ai.QueryContext(query="select Card"),
         +     )
         +     return response
 

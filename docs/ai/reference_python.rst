@@ -27,7 +27,7 @@ both blocking and asynchronous versions of its API.
     import gel.ai
 
     client = gel.create_client()
-    gpt4ai = gel.ai.create_ai(
+    gpt4ai = gel.ai.create_rag_client(
         client,
         model="gpt-4-turbo-preview"
     )
@@ -55,7 +55,7 @@ both blocking and asynchronous versions of its API.
     client = gel.create_async_client()
 
     async def main():
-        gpt4ai = await gel.ai.create_async_ai(
+        gpt4ai = await gel.ai.create_async_rag_client(
             client,
             model="gpt-4-turbo-preview"
         )
@@ -77,9 +77,9 @@ both blocking and asynchronous versions of its API.
 Factory functions
 =================
 
-.. py:function:: create_ai(client, **kwargs) -> GelAI
+.. py:function:: create_rag_client(client, **kwargs) -> RAGClient
 
-   Creates an instance of ``GelAI`` with the specified client and options.
+   Creates an instance of ``RAGClient`` with the specified client and options.
 
    This function ensures that the client is connected before initializing the
    AI with the specified options.
@@ -88,7 +88,7 @@ Factory functions
        A |Gel| client instance.
 
    :param kwargs:
-       Keyword arguments that are passed to the ``AIOptions`` data class to
+       Keyword arguments that are passed to the ``RAGOptions`` data class to
        configure AI-specific options. These options are:
 
        * ``model``: The name of the model to be used. (required)
@@ -96,9 +96,9 @@ Factory functions
          ``None`` will result in the client using the default prompt.
          (default: ``None``)
 
-.. py:function:: create_async_ai(client, **kwargs) -> AsyncGelAI
+.. py:function:: create_async_rag_client(client, **kwargs) -> AsyncRAGClient
 
-   Creates an instance of ``AsyncGelAI`` w/ the specified client & options.
+   Creates an instance of ``AsyncRAGClient`` w/ the specified client & options.
 
    This function ensures that the client is connected asynchronously before
    initializing the AI with the specified options.
@@ -107,7 +107,7 @@ Factory functions
        An asynchronous |Gel| client instance.
 
    :param kwargs:
-       Keyword arguments that are passed to the ``AIOptions`` data class to
+       Keyword arguments that are passed to the ``RAGOptions`` data class to
        configure AI-specific options. These options are:
 
        * ``model``: The name of the model to be used. (required)
@@ -117,10 +117,7 @@ Factory functions
 Core classes
 ============
 
-BaseGelAI
-^^^^^^^^^
-
-.. py:class:: BaseGelAI
+.. py:class:: BaseRAGClient
 
    The base class for |Gel| AI clients.
 
@@ -131,7 +128,7 @@ BaseGelAI
    these methods are available on an AI client of either type.
 
    :ivar options:
-       An instance of :py:class:`AIOptions`, storing the AI options.
+       An instance of :py:class:`RAGOptions`, storing the RAG options.
 
    :ivar context:
        An instance of :py:class:`QueryContext`, storing the context for AI
@@ -183,10 +180,7 @@ BaseGelAI
          objects returned by the query.
 
 
-GelAI
-^^^^^
-
-.. py:class:: GelAI
+.. py:class:: RAGClient
 
    A synchronous class for creating |Gel| AI clients.
 
@@ -235,10 +229,8 @@ GelAI
     :param model:
         The embedding model to use
 
-AsyncGelAI
-^^^^^^^^^^
 
-.. py:class:: AsyncGelAI
+.. py:class:: AsyncRAGClient
 
    An asynchronous class for creating |Gel| AI clients.
 
@@ -334,9 +326,9 @@ Configuration classes
        role-specific content within the prompt.
 
 
-.. py:class:: AIOptions
+.. py:class:: RAGOptions
 
-   A data class for AI options, specifying model and prompt settings.
+   A data class for RAG options, specifying model and prompt settings.
 
    :ivar model:
        The name of the AI model.
@@ -345,8 +337,8 @@ Configuration classes
        the model.
 
    :method derive(kwargs):
-       Creates a new instance of :py:class:`AIOptions` by merging existing options
-       with provided keyword arguments. Returns a new :py:class:`AIOptions`
+       Creates a new instance of :py:class:`RAGOptions` by merging existing options
+       with provided keyword arguments. Returns a new :py:class:`RAGOptions`
        instance with updated attributes.
 
        :param kwargs:

@@ -216,7 +216,7 @@ Perform similarity search in Python
         import gel.ai
 
         gel_client = gel.create_client()
-        gel_ai = edgedb.ai.create_ai(client)
+        gel_ai = gel.ai.create_rag_client(client)
 
         text = "Who helps Komi make friends?"
         vector = gel_ai.generate_embeddings(
@@ -246,7 +246,7 @@ Perform similarity search in Python
           import gel.ai
 
           gel_client = gel.create_client()
-          gel_ai = edgedb.ai.create_ai(client)
+          gel_ai = gel.ai.create_rag_client(client)
 
         + text = "Who helps Komi make friends?"
         + vector = gel_ai.generate_embeddings(
@@ -267,7 +267,7 @@ Perform similarity search in Python
           import gel.ai
 
           gel_client = gel.create_client()
-          gel_ai = edgedb.ai.create_ai(client)
+          gel_ai = gel.ai.create_rag_client(client)
 
           text = "Who helps Komi make friends?"
           vector = gel_ai.generate_embeddings(
@@ -302,7 +302,7 @@ also known as RAG.
           import gel.ai
 
           gel_client = gel.create_client()
-          gel_ai = edgedb.ai.create_ai(
+          gel_ai = gel.ai.create_rag_client(
               client,
         +     model="gpt-4-turbo-preview"
           )
@@ -319,7 +319,7 @@ also known as RAG.
           import gel.ai
 
           gel_client = gel.create_client()
-          gel_ai = edgedb.ai.create_ai(
+          gel_ai = gel.ai.create_rag_client(
               client,
               model="gpt-4-turbo-preview"
           )
@@ -341,7 +341,7 @@ also known as RAG.
           import gel.ai
 
           gel_client = gel.create_client()
-          gel_ai = edgedb.ai.create_ai(
+          gel_ai = gel.ai.create_rag_client(
               client,
               model="gpt-4-turbo-preview"
           )
