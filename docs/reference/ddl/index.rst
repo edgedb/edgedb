@@ -7,22 +7,7 @@ DDL
     :maxdepth: 3
     :hidden:
 
-    modules
-    objects
-    scalars
-    links
     properties
-    aliases
-    indexes
-    constraints
-    annotations
-    globals
-    access_policies
-    functions
-    triggers
-    mutation_rewrites
-    extensions
-    future
     migrations
 
 :edb-alt-title: Data Definition Language

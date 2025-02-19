@@ -9,8 +9,8 @@ Get Started
     :maxdepth: 3
     :hidden:
 
-    quickstart
     quickstart/fastapi/index
+    quickstart/index
     cli
     instances
     projects

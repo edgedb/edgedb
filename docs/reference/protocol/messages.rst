@@ -292,8 +292,7 @@ Restore
 
 Sent by: client.
 
-Initiate restore to the current :versionreplace:`database;5.0:branch`.
-See :ref:`ref_protocol_restore_flow`.
+Initiate restore to the current |branch|. See :ref:`ref_protocol_restore_flow`.
 
 Format:
 
