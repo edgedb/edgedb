@@ -7,7 +7,6 @@ DDL
     :maxdepth: 3
     :hidden:
 
-    objects
     properties
     migrations
 
