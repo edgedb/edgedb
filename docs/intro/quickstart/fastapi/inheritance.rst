@@ -72,19 +72,19 @@ Adding shared properties
       @app.get("/decks", response_model=List[Deck])
       async def get_decks():
           decks = await client.query("""
-              SELECT Deck {
+              select Deck {
                   id,
                   name,
                   description,
                   cards := (
-                      SELECT .cards {
+                      select .cards {
                           id,
                           front,
                           back
                       }
-                      ORDER BY .order
+                      order by .order
                   )
               }
-    +         ORDER BY .updated_at DESC
+    +         order by .updated_at DESC
           """)
           return decks

@@ -6,6 +6,9 @@ Working with the data
 
 In this section, you will update the existing FastAPI application to use |Gel| to store and query data, instead of a JSON file. Having a working application with mock data allows you to focus on learning how |Gel| works, without getting bogged down by the details of the application.
 
+Bulk importing of data
+======================
+
 .. edb:split-section::
 
   First, you need to update the imports and Pydantic models to use UUID instead of string for ID fields, since this is what |Gel| returns. You also need to initialize the |Gel| client and import the asyncio module to work with async functions.
@@ -53,6 +56,10 @@ In this section, you will update the existing FastAPI application to use |Gel| t
 .. edb:split-section::
 
    Next, update the deck import operation to use |Gel| to create the deck and cards. The operation creates cards first, then creates a deck with links to the cards. Finally, it fetches the newly created deck with all required fields.
+
+   .. note::
+
+      Notice the ``{ ** }`` in the query. This is a shorthand for selecting all fields of the object. It's useful when you want to return the entire object without specifying each field. In our case, we want to return the entire deck object with all the nested fields.
 
    .. code-block:: python-diff
     :caption: main.py
@@ -114,10 +121,9 @@ In this section, you will update the existing FastAPI application to use |Gel| t
     -     write_decks(decks)
     -     return new_deck
     +     card_ids = []
-    +     # Create cards first
     +     for i, card in enumerate(deck.cards):
-    +         created_card = await client.query("""
-    +             INSERT Card {
+    +         created_card = await client.query_single("""
+    +             insert Card {
     +                 front := <str>$front,
     +                 back := <str>$back,
     +                 order := <int64>$order
@@ -125,37 +131,19 @@ In this section, you will update the existing FastAPI application to use |Gel| t
     +         """, front=card.front, back=card.back, order=i)
     +         card_ids.append(created_card.id)
     +
-    +     # Create deck with links to cards
-    +     new_deck = await client.query("""
-    +         INSERT Deck {
-    +             name := <str>$name,
-    +             description := <optional str>$description,
-    +             cards := (
-    +                 SELECT Card
-    +                 FILTER .id IN array_unpack(<array<uuid>>$card_ids)
-    +             )
-    +         }
+    +     new_deck = await client.query_single("""
+    +         select(
+    +             insert Deck {
+    +                 name := <str>$name,
+    +                 description := <optional str>$description,
+    +                 cards := (
+    +                     select Card
+    +                     filter .id IN array_unpack(<array<uuid>>$card_ids)
+    +                 )
+    +             }
+    +         ) { ** }
     +     """, name=deck.name, description=deck.description,
     +          card_ids=card_ids)
-    +
-    +     # Fetch the newly created deck with all required fields
-    +     new_deck = await client.query_single(
-    +         """
-    +         SELECT Deck {
-    +             id,
-    +             name,
-    +             description,
-    +             cards: {
-    +                 id,
-    +                 front,
-    +                 back
-    +             }
-    +         }
-    +         FILTER .name = <str>$name
-    +         LIMIT 1
-    +     """,
-    +         name=deck.name,
-    +     )
     +
     +     return new_deck
 
@@ -169,10 +157,9 @@ In this section, you will update the existing FastAPI application to use |Gel| t
       @app.post("/decks/import", response_model=Deck)
       async def import_deck(deck: DeckCreate):
     -     card_ids = []
-    -     # Create cards first
     -     for i, card in enumerate(deck.cards):
-    -         created_card = await client.query("""
-    -             INSERT Card {
+    -         created_card = await client.query_single("""
+    -             insert Card {
     -                 front := <str>$front,
     -                 back := <str>$back,
     -                 order := <int64>$order
@@ -180,30 +167,30 @@ In this section, you will update the existing FastAPI application to use |Gel| t
     -         """, front=card.front, back=card.back, order=i)
     -         card_ids.append(created_card.id)
     -
-    -     # Create deck with links to cards
-    -     new_deck = await client.query("""
-    -         INSERT Deck {
-    -             name := <str>$name,
-    -             description := <optional str>$description,
-    -             cards := (
-    -                 SELECT Card
-    -                 FILTER .id IN array_unpack(<array<uuid>>$card_ids)
-    -             )
-    -         }
+    -     new_deck = await client.query_single("""
+    -         select(
+    -             insert Deck {
+    -                 name := <str>$name,
+    -                 description := <optional str>$description,
+    -                 cards := (
+    -                     select Card
+    -                     filter .id IN array_unpack(<array<uuid>>$card_ids)
+    -                 )
+    -             }
+    -         ) { ** }
     -     """, name=deck.name, description=deck.description,
     -          card_ids=card_ids)
     +     async for tx in client.transaction():
     +         async with tx:
     +         card_ids = []
-    +         # Create cards first
     +         for i, card in enumerate(deck.cards):
     +              created_card = await tx.query_single(
     +                  """
-    +                    INSERT Card {
-    +                        front := <str>$front,
-    +                        back := <str>$back,
-    +                        order := <int64>$order
-    +                    }
+    +                  insert Card {
+    +                      front := <str>$front,
+    +                      back := <str>$back,
+    +                      order := <int64>$order
+    +                  }
     +                  """,
     +                  front=card.front,
     +                  back=card.back,
@@ -211,41 +198,22 @@ In this section, you will update the existing FastAPI application to use |Gel| t
     +              )
     +              card_ids.append(created_card.id)
     +
-    +         # Create deck with links to cards
-    +         new_deck = await tx.query_single(
-    +             """
-    +             INSERT Deck {
-    +                 name := <str>$name,
-    +                 description := <optional str>$description,
-    +                 cards := (
-    +                     SELECT Card
-    +                     FILTER .id IN array_unpack(<array<uuid>>$card_ids)
-    +                 )
-    +             }
+    +         new_deck = await client.query_single("""
+    +             select(
+    +                 insert Deck {
+    +                     name := <str>$name,
+    +                     description := <optional str>$description,
+    +                     cards := (
+    +                         select Card
+    +                         filter .id IN array_unpack(<array<uuid>>$card_ids)
+    +                     )
+    +                 }
+    +             ) { ** }
     +             """,
     +             name=deck.name,
     +             description=deck.description,
     +             card_ids=card_ids,
     +         )
-
-          # Fetch the newly created deck with all required fields
-          new_deck = await client.query_single(
-              """
-              SELECT Deck {
-                  id,
-                  name,
-                  description,
-                  cards: {
-                      id,
-                      front,
-                      back
-                  }
-              }
-              FILTER .name = <str>$name
-              LIMIT 1
-          """,
-              name=deck.name,
-          )
 
           return new_deck
 
@@ -258,77 +226,67 @@ In this section, you will update the existing FastAPI application to use |Gel| t
 
       @app.post("/decks/import", response_model=Deck)
       async def import_deck(deck: DeckCreate):
-    -     async with client.transaction() as tx:
+    -     async for tx in client.transaction():
+    -         async with tx:
     -         card_ids = []
-    -         # Create cards first
     -         for i, card in enumerate(deck.cards):
-    -             created_card = await tx.query("""
-    -                 INSERT Card {
-    -                     front := <str>$front,
-    -                     back := <str>$back,
-    -                     order := <int64>$order
+    -              created_card = await tx.query_single(
+    -                  """
+    -                  insert Card {
+    -                      front := <str>$front,
+    -                      back := <str>$back,
+    -                      order := <int64>$order
+    -                  }
+    -                  """,
+    -                  front=card.front,
+    -                  back=card.back,
+    -                  order=i,
+    -              )
+    -              card_ids.append(created_card.id)
+    -
+    -         new_deck = await client.query_single("""
+    -             select(
+    -                 insert Deck {
+    -                     name := <str>$name,
+    -                     description := <optional str>$description,
+    -                     cards := (
+    -                         select Card
+    -                         filter .id IN array_unpack(<array<uuid>>$card_ids)
+    -                     )
     -                 }
-    -             """, front=card.front, back=card.back, order=i)
-    -             card_ids.append(created_card.id)
-    -
-    -         # Create deck with links to cards
-    -         new_deck = await tx.query("""
-    -             INSERT Deck {
-    -                 name := <str>$name,
-    -                 description := <optional str>$description,
-    -                 cards := (
-    -                     SELECT Card
-    -                     FILTER .id IN array_unpack(<array<uuid>>$card_ids)
-    -                 )
-    -             }
-    -         """, name=deck.name, description=deck.description,
-    -              card_ids=card_ids)
-    -
-    -         return new_deck
-    +     # Convert cards to list of tuples
+    -             ) { ** }
+    -             """,
+    -             name=deck.name,
+    -             description=deck.description,
+    -             card_ids=card_ids,
+    -         )
     +     cards_data = [(c.front, c.back, i) for i, c in enumerate(deck.cards)]
     +
-    +     new_deck = await client.query("""
-    +         WITH
-    +             cards := <array<tuple<str, str, int64>>>$cards_data
-    +         INSERT Deck {
-    +             name := <str>$name,
-    +             description := <optional str>$description,
-    +             cards := (
-    +                 FOR card IN array_unpack(cards)
-    +                 UNION (
-    +                     INSERT Card {
-    +                         front := card.0,
-    +                         back := card.1,
-    +                         order := card.2
-    +                     }
+    +     new_deck = await client.query_single("""
+    +         select(
+    +             with cards := <array<tuple<str, str, int64>>>$cards_data
+    +             insert Deck {
+    +                 name := <str>$name,
+    +                 description := <optional str>$description,
+    +                 cards := (
+    +                     for card in array_unpack(cards)
+    +                     union (
+    +                         insert Card {
+    +                             front := card.0,
+    +                             back := card.1,
+    +                             order := card.2
+    +                         }
+    +                     )
     +                 )
-    +             )
-    +         }
+    +             }
+    +         ) { ** }
     +     """, name=deck.name, description=deck.description,
     +          cards_data=cards_data)
 
-          # Fetch the newly created deck with all required fields
-          new_deck = await client.query_single(
-              """
-              SELECT Deck {
-                  id,
-                  name,
-                  description,
-                  cards: {
-                      id,
-                      front,
-                      back
-                  }
-              }
-              FILTER .name = <str>$name
-              LIMIT 1
-          """,
-              name=deck.name,
-          )
-
           return new_deck
 
+Updating data
+=============
 
 .. edb:split-section::
 
@@ -372,25 +330,23 @@ In this section, you will update the existing FastAPI application to use |Gel| t
     +     if not updated_deck:
     +         raise HTTPException(status_code=404, detail="Deck not found")
     +
-    +     updated_deck = await client.query_single(
-    +        """
-    +        SELECT Deck {
-    +            id,
-    +            name,
-    +            description,
-    +            cards: {
-    +                id,
-    +                front,
-    +                back
-    +            }
-    +        }
-    +        FILTER .id = <uuid>$id
-    +        LIMIT 1
-    +        """,
-    +        id=deck_id,
-    +     )
+    +     query = """
+    +         select(
+    +             update Deck
+    +             filter .id = <uuid>$id
+    +             set { %s }
+    +         ) { ** }
+    +     """ % ", ".join(sets)
     +
     +     return updated_deck
+
+
+Adding linked data
+==================
+
+Now, update the card operations to use |Gel| to add cards to a deck:
+
+.. edb:split-section::
 
       @app.post("/decks/{deck_id}/cards", response_model=Card)
       async def add_card(deck_id: UUID, card: CardBase):
@@ -404,16 +360,16 @@ In this section, you will update the existing FastAPI application to use |Gel| t
     -     write_decks(decks)
     -     return new_card
     +     # Get max order and increment
-    +     max_order = await client.query("""
-    +         SELECT max(.cards.order)
-    +         FROM Deck
-    +         FILTER .id = <uuid>$id
+    +     deck = await client.query_single("""
+    +         select max(.cards.order)
+    +         from Deck
+    +         filter .id = <uuid>$id
     +     """, id=deck_id)
     +
-    +     new_order = (max_order or -1) + 1
+    +     new_order = (deck.max_order or -1) + 1
     +
-    +     new_card = await client.query("""
-    +         INSERT Card {
+    +     new_card = await client.query_single("""
+    +         insert Card {
     +             front := <str>$front,
     +             back := <str>$back,
     +             order := <int64>$order,
@@ -421,15 +377,18 @@ In this section, you will update the existing FastAPI application to use |Gel| t
     +     """, front=card.front, back=card.back,
     +          order=new_order, deck_id=deck_id)
     +
-    +     updated_deck = await client.query_single("""
-    +          UPDATE Deck
-    +          FILTER .id = <uuid>$id
-    +          SET {
-    +             cards += (SELECT Card { id, front, back } FILTER .id =      <uuid>$card_id)
-    +          }
-    +          """,
-    +          id=deck_id,
-    +          card_id=new_card.id,
+    +     new_deck = await client.query_single(
+    +         """
+    +         select(
+    +             update Deck
+    +             filter .id = <uuid>$id
+    +             set {
+    +                 cards += (select Card { id, front, back } filter .id = <uuid>$card_id)
+    +             }
+    +         ) { ** }
+    +         """,
+    +         id=deck_id,
+    +         card_id=new_card.id,
     +     )
     +
     +     if not new_card:
@@ -437,8 +396,15 @@ In this section, you will update the existing FastAPI application to use |Gel| t
     +
     +     return new_card
 
+Deleting linked data
+====================
+
+As the next step, update the card deletion operation to use |Gel| to remove a card from a deck:
+
+.. edb:split-section::
+
       @app.delete("/cards/{card_id}")
-      async def delete_card(card_id: UUID):
+      async def delete_card(card_id: str):
     -     decks = read_decks()
     -     deck = next((deck for deck in decks if deck.id == deck_id), None)
     -     if not deck:
@@ -448,17 +414,20 @@ In this section, you will update the existing FastAPI application to use |Gel| t
     -     write_decks(decks)
     -     return {"message": "Card deleted"}
     +     deleted = await client.query("""
-    +         DELETE Card
-    +         FILTER
+    +         delete Card
+    +         filter
     +             .id = <uuid>$card_id
     +     """, card_id=card_id)
     +
     +     if not deleted:
     +         raise HTTPException(status_code=404, detail="Card not found")
     +
-    +     return {"message": "Card deleted"}
+    +     return "Card deleted"
 
 .. edb:split-section::
+
+Querying data
+=============
 
   Finally, update the query endpoints to fetch data from |Gel|:
 
@@ -469,17 +438,17 @@ In this section, you will update the existing FastAPI application to use |Gel| t
       async def get_decks():
     -     return read_decks()
     +     decks = await client.query("""
-    +         SELECT Deck {
+    +         select Deck {
     +             id,
     +             name,
     +             description,
     +             cards := (
-    +                 SELECT .cards {
+    +                 select .cards {
     +                     id,
     +                     front,
     +                     back
     +                 }
-    +                 ORDER BY .order
+    +                 order BY .order
     +             )
     +         }
     +     """)
@@ -492,18 +461,18 @@ In this section, you will update the existing FastAPI application to use |Gel| t
     -     if not deck:
     -         raise HTTPException(status_code=404, detail=f"Deck with id {deck_id} not found")
     -     return deck
-    +     deck = await client.query("""
-    +         SELECT Deck {
+    +     deck = await client.query_single("""
+    +         select Deck {
     +             id,
     +             name,
     +             description,
     +             cards := (
-    +                 SELECT .cards {
+    +                 select .cards {
     +                     id,
     +                     front,
     +                     back
     +                 }
-    +                 ORDER BY .order
+    +                 order BY .order
     +             )
     +         }
     +         FILTER .id = <uuid>$id
