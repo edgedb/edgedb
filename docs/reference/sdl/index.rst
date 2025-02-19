@@ -71,5 +71,4 @@ to the previous migration:
     :hidden:
 
     objects
-    scalars
     properties

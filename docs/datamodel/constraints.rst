@@ -739,8 +739,8 @@ Description
 ^^^^^^^^^^^
 
 The command ``create constraint`` defines a new concrete constraint. It can
-only be used in the context of :eql:stmt:`create scalar type`,
-:eql:stmt:`alter scalar type`, :eql:stmt:`create property`,
+only be used in the context of :eql:stmt:`create scalar`,
+:eql:stmt:`alter scalar`, :eql:stmt:`create property`,
 :eql:stmt:`alter property`, :eql:stmt:`create link`, or :eql:stmt:`alter link`.
 
 *name* must be a name (optionally module-qualified) of a previously defined
