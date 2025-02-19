@@ -10,7 +10,6 @@ DDL
     objects
     scalars
     properties
-    globals
     migrations
 
 :edb-alt-title: Data Definition Language
