@@ -151,7 +151,7 @@ class GelSubstitutionTransform(transforms.SphinxTransform):
         for node in self.document.traverse(d_nodes.substitution_reference):
             nt = node.astext()
             if nt.lower() in {
-                "gel", "gel's","edgedb", "gelcmd", ".gel", "gel.toml",
+                "gel", "gel's", "edgedb", "gelcmd", ".gel", "gel.toml",
                 "gel-server", "geluri", "admin", "main",
                 "branch", "branches"
             }:
@@ -181,6 +181,7 @@ class GelSubstitutionTransform(transforms.SphinxTransform):
                     node.replace_self(sub)
                 else:
                     node.replace_self(d_nodes.Text(nt))
+
 
 class GelCmdRole:
 
