@@ -26,8 +26,10 @@ a ``future`` from your schema if absolutely necessary, but doing so is
 discouraged. Existing projects are unaffected by default, so you must manually
 add the ``future`` specification to gain early access.
 
-At the moment there are three ``future`` flags available:
+Flags
+=====
 
+At the moment there are three ``future`` flags available:
 
 - ``simple_scoping``
 

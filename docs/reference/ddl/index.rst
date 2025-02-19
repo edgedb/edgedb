@@ -8,7 +8,6 @@ DDL
     :hidden:
 
     objects
-    scalars
     properties
     migrations
 
