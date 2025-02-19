@@ -120,10 +120,10 @@ Request body
 ------------
 
 * ``context`` (object, required): Settings that define the context of the query.
-  * ``query`` (string, required): Specifies an expression to determine the relevant objects and index to serve as context for text generation. You may set this to any expression that produces a set of objects, even if it is not a standalone query.
-  * ``variables`` (object, optional): A dictionary of variables for use in the context query.
-  * ``globals`` (object, optional): A dictionary of globals for use in the context query.
-  * ``max_object_count`` (number, optional): Maximum number of objects to retrieve; default is 5.
+   * ``query`` (string, required): Specifies an expression to determine the relevant objects and index to serve as context for text generation. You may set this to any expression that produces a set of objects, even if it is not a standalone query.
+   * ``variables`` (object, optional): A dictionary of variables for use in the context query.
+   * ``globals`` (object, optional): A dictionary of globals for use in the context query.
+   * ``max_object_count`` (number, optional): Maximum number of objects to retrieve; default is 5.
 
 * ``model`` (string, required): The name of the text generation model to use.
 
@@ -132,14 +132,13 @@ Request body
 * ``stream`` (boolean, optional): Specifies whether the response should be streamed. Defaults to false.
 
 * ``prompt`` (object, optional): Settings that define a prompt. Omit to use the default prompt.
-  * ``name`` (string, optional): Name of predefined prompt.
-  * ``id`` (string, optional): ID of predefined prompt.
-  * ``custom`` (array of objects, optional): Custom prompt messages, each containing a ``role`` and ``content``. If no ``name`` or ``id`` was provided, the custom messages provided here become the prompt. If one of those was provided, these messages will be added to that existing prompt.
-
-    * ``role`` (string): "system", "user", "assistant", or "tool".
-    * ``content`` (string|object): Content of the message.
-    * ``tool_call_id`` (string): Identifier for tool call.
-    * ``tool_calls`` (array): Array of tool calls.
+   * ``name`` (string, optional): Name of predefined prompt.
+   * ``id`` (string, optional): ID of predefined prompt.
+   * ``custom`` (array of objects, optional): Custom prompt messages, each containing a ``role`` and ``content``. If no ``name`` or ``id`` was provided, the custom messages provided here become the prompt. If one of those was provided, these messages will be added to that existing prompt.
+      * ``role`` (string): "system", "user", "assistant", or "tool".
+      * ``content`` (string|object): Content of the message.
+      * ``tool_call_id`` (string): Identifier for tool call.
+      * ``tool_calls`` (array): Array of tool calls.
 
 * ``temperature`` (number, optional): Sampling temperature.
 
