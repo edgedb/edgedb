@@ -108,4 +108,3 @@ to the previous migration:
     scalars
     properties
     globals
-    future
