@@ -1,11 +1,14 @@
-.. edb:env-switcher::
-
 ==========
 Quickstart
 ==========
 
 .. toctree::
-  :maxdepth: 3
+  :maxdepth: 1
   :hidden:
 
-  nextjs
+  overview/index
+  setup/index
+  modeling/index
+  connecting/index
+  working/index
+  inheritance/index
