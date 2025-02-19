@@ -354,6 +354,7 @@ EdgeQL
   .. code-block:: edgeql
 
       update A[is B & C]
+      set { foo := 123 }
 
 * Implement ``\(expr)``-style string interpolation.
   (:eql:gh:`#8210`)
