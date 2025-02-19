@@ -77,7 +77,7 @@
 
   - ``gel.toml``: The configuration file for the Gel project instance.
   - ``dbschema/``: This directory contains the schema for the database, and later supporting files like migrations, and generated code.
-  - ``dbschema/default.gel``: The default schema file that you'll use to define your data model. It is empty for now, but you'll add your data model to this file in the next step.
+  - :dotgel:`dbschema/default`: The default schema file that you'll use to define your data model. It is empty for now, but you'll add your data model to this file in the next step.
 
   .. code-block:: sh
 
