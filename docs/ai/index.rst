@@ -8,13 +8,13 @@ Gel AI
     :hidden:
     :maxdepth: 3
 
-    javascript
-    guide_edgeql
-    guide_python
     quickstart_fastapi_ai
     reference_extai
     reference_http
     reference_python
+    javascript
+    guide_edgeql
+    guide_python
 
 :edb-alt-title: Using Gel AI
 

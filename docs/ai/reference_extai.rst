@@ -46,6 +46,8 @@ Reset configuration:
     configure current branch reset ext::ai::Config::indexer_naptime;
 
 
+.. _ref_ai_extai_reference_ui:
+
 UI
 ==
 
