@@ -554,7 +554,7 @@ Defining the schema
 
 The database :ref:`schema <ref_datamodel_index>` in Gel is defined
 declaratively. The :ref:`gel project init <ref_cli_edgedb_project_init>`
-command has created a file called ``dbchema/default.esdl``, which we're going to
+command has created a file called :dotgel:`dbschema/default`, which we're going to
 use to define our types.
 
 .. edb:split-section::
@@ -1432,7 +1432,7 @@ schema.
 .. edb:split-section::
 
   We begin by enabling the ``ai`` extension by adding the following like on top of
-  the ``dbschema/default.esdl``:
+  the :dotgel:`dbschema/default`:
 
   .. code-block:: sdl-diff
       :caption: dbschema/default.esdl
