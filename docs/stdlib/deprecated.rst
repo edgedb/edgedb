@@ -135,3 +135,14 @@ Deprecated
         {'data'}
         db> select str_rtrim('data.:.:.', '.:');
         {'data'}
+
+----------
+
+.. eql:type:: cfg::DatabaseConfig
+
+  The branch-level configuration object type.
+
+  As of |EdgeDB| 5.0, this config object represents database *branch*
+  and instance-level configuration.
+
+  **Use the identical** :eql:type:`cfg::BranchConfig` instead.
