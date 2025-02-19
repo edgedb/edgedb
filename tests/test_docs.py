@@ -9,6 +9,7 @@
 from typing import List
 
 import collections
+import contextlib
 import json
 import os
 import re
@@ -45,6 +46,78 @@ from edb.edgeql import parser as ql_parser
 
 def find_edgedb_root():
     return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+class LintControl:
+
+    _filename: str | None
+    _errors: list[str]
+
+    def __init__(self):
+        self._lint_on = True
+        self._line_no = 0
+        self._errors = []
+
+    @contextlib.contextmanager
+    def enter_file(self, filename: str):
+        self._filename = filename
+        self._line_no = 0
+        self._lint_on = True
+
+        try:
+            yield
+        finally:
+            try:
+                if not self._lint_on:
+                    raise AssertionError(
+                        f"Unexpected EOF. No closing '.. lint-on' found in "
+                        f"{self._filename}")
+            finally:
+                self._filename = None
+
+    @property
+    def filename(self) -> str:
+        assert self._filename is not None
+        return self._filename
+
+    def feed_line(self, line: str):
+        assert self._filename is not None
+        self._line_no += 1
+
+        if line.startswith('.. lint-off'):
+            if self._lint_on:
+                self._lint_on = False
+            else:
+                raise AssertionError(
+                    f'Mismatched lint-on/lint-off in '
+                    f'{self._filename}, line {self._line_no}'
+                )
+        elif line.startswith('.. lint-on'):
+            if not self._lint_on:
+                self._lint_on = True
+            else:
+                raise AssertionError(
+                    f'Mismatched lint-on/lint-off in '
+                    f'{self._filename}, line {self._line_no}'
+                )
+
+    def report_error(self, message: str):
+        self._errors.append(f'{self._filename}:{self._line_no}: {message}')
+
+    def raise_errors_if_any(self):
+        if self._errors:
+            raise AssertionError(
+                '\n'.join(self._errors)
+            )
+
+    def is_linting(self):
+        return self._lint_on
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, _et, _ev, _tb):
+        pass
 
 
 class TestDocSnippets(unittest.TestCase):
@@ -122,30 +195,6 @@ class TestDocSnippets(unittest.TestCase):
         document.note_source(filename, -1)
 
         parser.parse(source, document)
-
-        lines = source.split('\n')
-        lint_on = True
-        for lineno, line in enumerate(lines, 1):
-
-            if line.startswith('.. lint-off'):
-                if lint_on:
-                    lint_on = False
-                else:
-                    reporter.lint_errors.add(
-                        f'Mismatched lint-on/lint-off in '
-                        f'{filename}, line {lineno}')
-            elif line.startswith('.. lint-on'):
-                if not lint_on:
-                    lint_on = True
-                else:
-                    reporter.lint_errors.add(
-                        f'Mismatched lint-on/lint-off in '
-                        f'{filename}, line {lineno}')
-
-        if not lint_on:
-            reporter.lint_errors.add(
-                f'Unexpected EOF. No closing \'.. lint-on\' found in '
-                f'{filename}')
 
         if reporter.lint_errors:
             raise self.RestructuredTextStyleError(
@@ -429,38 +478,53 @@ class TestDocSnippets(unittest.TestCase):
         edgepath = find_edgedb_root()
         docspath = os.path.join(edgepath, 'docs')
 
-        errors = []
+        with LintControl() as lc:
+            for filename in self.find_rest_files(docspath):
+                if '/docs/changelog/' in filename:
+                    # changelog files contain a bunch of historical
+                    # text that sometimes can't use the new stuff.
+                    continue
 
-        for filename in self.find_rest_files(docspath):
-            if '/docs/changelog/' in filename:
-                # changelog files contain a bunch of historical
-                # text that sometimes can't use the new stuff.
-                continue
+                with lc.enter_file(filename):
+                    with open(filename, 'rt') as f:
+                        source = f.readlines()
 
-            with open(filename, 'rt') as f:
-                source = f.readlines()
+                    for line in source:
+                        lc.feed_line(line)
 
-            for lineno, line in enumerate(source):
-                if '``edgedb://' in line:
-                    errors.append(
-                        f'{filename}:{lineno}: do not use ``edgedb://``, '
-                        f'use |geluri| for "gel://" and '
-                        f':geluri:`blah` for "gel://blah"')
-                if '``gel://' in line:
-                    errors.append(
-                        f'{filename}:{lineno}: do not use ``gel://``, '
-                        f'use |geluri| for "gel://" and '
-                        f':geluri:`blah` for "gel://blah"')
+                        if not lc.is_linting():
+                            continue
 
-                if '.esdl``' in line or '.gel``' in line:
-                    errors.append(
-                        f'{filename}:{lineno}: do not use ``filename.esdl`` '
-                        f'or ``filename.gel``, use :dotgel:`filename` instead')
+                        if '``edgedb://' in line:
+                            lc.report_error(
+                                f'do not use ``edgedb://``, '
+                                f'use |geluri| for "gel://" and '
+                                f':geluri:`blah` for "gel://blah"')
+                        if '``gel://' in line:
+                            lc.report_error(
+                                f'do not use ``gel://``, '
+                                f'use |geluri| for "gel://" and '
+                                f':geluri:`blah` for "gel://blah"')
 
-        if errors:
-            raise AssertionError(
-                '\n'.join(errors)
-            )
+                        if '.esdl``' in line or '.gel``' in line:
+                            lc.report_error(
+                                f"don't use ``filename.esdl`` "
+                                f"or ``filename.gel``, use :dotgel:`filename` "
+                                f"instead")
+                        if '``gel ' in line:
+                            lc.report_error(
+                                f'do not use ``gel`` markup '
+                                f'for "gel" cli commands, '
+                                f'use :gelcmd:`command` instead; '
+                                f'it will be rendered as ``gel command``')
+                        if '``edgedb ' in line:
+                            lc.report_error(
+                                f'do not use ``edgedb`` markup '
+                                f'for "gel" cli commands, '
+                                f'use :gelcmd:`command` instead; '
+                                f'it will be rendered as ``gel command``')
+
+        lc.raise_errors_if_any()
 
     @unittest.skipIf(docutils is None, 'docutils is missing')
     def test_doc_test_broken_code_block_01(self):
