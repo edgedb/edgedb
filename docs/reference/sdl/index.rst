@@ -70,5 +70,4 @@ to the previous migration:
     :maxdepth: 3
     :hidden:
 
-    objects
     properties
