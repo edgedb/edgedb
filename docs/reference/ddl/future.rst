@@ -26,7 +26,7 @@ Description
 -----------
 
 The command ``create future`` enables the specified future behavior for
-the current :versionreplace:`database;5.0:branch`.
+the current |branch|.
 
 Examples
 --------
@@ -56,7 +56,7 @@ Description
 -----------
 
 The command ``drop future`` disables a currently active future behavior for the
-current :versionreplace:`database;5.0:branch`. However, this is only possible
+current |branch|. However, this is only possible
 for versions of Gel when the behavior in question is not officially
 introduced. Once a particular behavior is introduced as the standard behavior
 in an Gel release, it cannot be disabled. Running this command will simply
