@@ -91,8 +91,8 @@ GEL_SERVER_BOOTSTRAP_COMMAND_FILE
 .................................
 
 Run the script when initializing the database. The script is run by the default
-user within the default :versionreplace:`database;5.0:branch`. May be used with
-or without :gelenv:`SERVER_BOOTSTRAP_ONLY`.
+user within the default |branch|. May be used with or without
+:gelenv:`SERVER_BOOTSTRAP_ONLY`.
 
 
 GEL_SERVER_BOOTSTRAP_SCRIPT_FILE
@@ -103,7 +103,7 @@ GEL_SERVER_BOOTSTRAP_SCRIPT_FILE
     Use :gelenv:`SERVER_BOOTSTRAP_COMMAND_FILE` instead.
 
 Run the script when initializing the database. The script is run by the default
-user within the default :versionreplace:`database;5.0:branch`.
+user within the default |branch|.
 
 
 GEL_SERVER_COMPILER_POOL_MODE

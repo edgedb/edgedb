@@ -22,6 +22,7 @@ Schema
     annotations
     globals
     access_policies
+    modules
     functions
     triggers
     mutation_rewrites
@@ -121,8 +122,6 @@ Instances can be branched when working on new features, similar to branches in
 your VCS. Each branch has its own schema and data.
 
 
-.. _ref_datamodel_modules:
-
 Module
 ^^^^^^
 
@@ -131,65 +130,4 @@ Each |branch| has a schema consisting of several
 schemas into logical units. In practice, though, most users put their entire
 schema inside a single module called ``default``.
 
-.. code-block:: sdl
-
-  module default {
-    # declare types here
-  }
-
-.. versionadded:: 3.0
-
-    You may define nested modules using the following syntax:
-
-    .. code-block:: sdl
-
-        module dracula {
-            type Person {
-              required property name -> str;
-              multi link places_visited -> City;
-              property strength -> int16;
-            }
-
-            module combat {
-                function fight(
-                  one: dracula::Person,
-                  two: dracula::Person
-                ) -> str
-                  using (
-                    (one.name ?? 'Fighter 1') ++ ' wins!'
-                    IF (one.strength ?? 0) > (two.strength ?? 0)
-                    ELSE (two.name ?? 'Fighter 2') ++ ' wins!'
-                  );
-            }
-        }
-
-    Here we have a ``dracula`` module containing a ``Person`` type. Nested in
-    the ``dracula`` module we have a ``combat`` module.
-
-.. _ref_name_resolution:
-
-.. note:: Name resolution
-
-  When referencing schema objects from another module, you must use
-  a *fully-qualified* name in the form ``module_name::object_name``.
-
-The following module names are reserved by |Gel| and contain pre-defined
-types, utility functions, and operators.
-
-* ``std``: standard types, functions, and operators in the :ref:`standard
-  library <ref_std>`
-* ``math``: algebraic and statistical :ref:`functions <ref_std_math>`
-* ``cal``: local (non-timezone-aware) and relative date/time :ref:`types and
-  functions <ref_std_datetime>`
-* ``schema``: types describing the :ref:`introspection
-  <ref_datamodel_introspection>` schema
-* ``sys``: system-wide entities, such as user roles and
-  :ref:`databases <ref_datamodel_databases>`
-* ``cfg``: configuration and settings
-
-.. versionadded:: 3.0
-
-    You can chain together module names in a fully-qualified name to traverse a
-    tree of nested modules. For example, to call the ``fight`` function in the
-    nested module example above, you would use
-    ``dracula::combat::fight(<arguments>)``.
+Read more about modules in the :ref:`modules <ref_datamodel_modules>` section.

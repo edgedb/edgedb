@@ -132,6 +132,8 @@ configuration value ``simple_scoping``:
      - No
      - Yes
 
+.. _ref_warn_old_scoping:
+
 Warning on old scoping
 ----------------------
 
