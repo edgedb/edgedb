@@ -27,6 +27,8 @@ use std::collections::HashMap;
 use std::{borrow::Cow, path::Path};
 use tracing::warn;
 
+mod async_connector;
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 #[pyclass(eq, eq_int)]
 pub enum SSLMode {

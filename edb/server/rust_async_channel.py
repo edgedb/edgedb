@@ -48,6 +48,7 @@ class RustAsyncChannel:
         pipe: RustPipeProtocol,
         callback: Callable[[Tuple[Any, ...]], None],
     ) -> None:
+        self._closed = asyncio.Event()
         fd = pipe._fd
         self._buffered_reader = io.BufferedReader(
             io.FileIO(fd), buffer_size=MAX_BATCH_SIZE
@@ -56,7 +57,6 @@ class RustAsyncChannel:
         self._pipe = pipe
         self._callback = callback
         self._skip_reads = 0
-        self._closed = asyncio.Event()
 
     def __del__(self):
         if not self._closed.is_set():
