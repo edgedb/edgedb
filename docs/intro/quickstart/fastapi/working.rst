@@ -348,6 +348,9 @@ Now, update the card operations to use |Gel| to add cards to a deck:
 
 .. edb:split-section::
 
+.. code-block:: python-diff
+    :caption: main.py
+
       @app.post("/decks/{deck_id}/cards", response_model=Card)
       async def add_card(deck_id: UUID, card: CardBase):
     -     decks = read_decks()
@@ -396,12 +399,16 @@ Now, update the card operations to use |Gel| to add cards to a deck:
     +
     +     return new_card
 
+
 Deleting linked data
 ====================
 
 As the next step, update the card deletion operation to use |Gel| to remove a card from a deck:
 
 .. edb:split-section::
+
+  .. code-block:: python-diff
+    :caption: main.py
 
       @app.delete("/cards/{card_id}")
       async def delete_card(card_id: str):
