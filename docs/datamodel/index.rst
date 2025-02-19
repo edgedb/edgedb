@@ -27,6 +27,7 @@ Schema
     triggers
     mutation_rewrites
     inheritance
+    linkprops
     extensions
     future
     comparison

@@ -7,7 +7,6 @@ DDL
     :maxdepth: 3
     :hidden:
 
-    properties
     migrations
 
 :edb-alt-title: Data Definition Language
