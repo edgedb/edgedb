@@ -15,7 +15,6 @@ Cheatsheets
     insert
     update
     delete
-    link_properties
     boolean
     objects
     functions
@@ -52,7 +51,7 @@ Schema
   new types and modify existing ones on the fly.
 * :ref:`Schema Annotations <ref_cheatsheet_annotations>` -- Add human readable
   descriptions to items in your schema.
-* :ref:`Link Properties <ref_guide_linkprops>` -- Links can contain properties
+* :ref:`Link Properties <ref_datamodel_linkprops>` -- Links can contain properties
   used to store metadata about the link.
 
 CLI/Admin
