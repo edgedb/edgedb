@@ -341,6 +341,6 @@ Using the built-in RAG
 .. edb:split-section::
 
     Congratulations! We've now implemented AI features in our flashcards app.
-    Of cource, there's more to learn when it comes to using the AI extension.
+    Of course, there's more to learn when it comes to using the AI extension.
     Make sure to check out the Reference manual, or build an LLM-powered search
     bot from the ground up with the FastAPI Gel AI tutorial.
