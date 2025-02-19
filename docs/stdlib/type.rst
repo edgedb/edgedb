@@ -63,6 +63,8 @@ the ``name`` property inside ``__type__``:
 .. eql:operator:: is: anytype is type -> bool
                       anytype is not type -> bool
 
+    :index: is, type checking, compare, comparison
+
     Type checking operator.
 
     Check if ``A`` is an instance of ``B`` or any of ``B``'s subtypes.
@@ -93,7 +95,7 @@ the ``name`` property inside ``__type__``:
 
 .. eql:operator:: typeor: type | type -> type
 
-    :index: poly polymorphism polymorphic queries nested shapes
+    :index: \|, type union, polymorphism, polymorphic queries, nested shapes
 
     Type union operator.
 
@@ -111,25 +113,6 @@ the ``name`` property inside ``__type__``:
     It can similarly be used when specifying a link target type. The
     same logic then applies: in order to be a valid link target the
     object must satisfy ``object is (A | B | C)``.
-
-    .. code-block:: sdl
-        :version-lt: 3.0
-
-        abstract type Named {
-            required property name -> str;
-        }
-
-        abstract type Text {
-            required property body -> str;
-        }
-
-        type Item extending Named;
-
-        type Note extending Text;
-
-        type User extending Named {
-            multi link stuff -> Named | Text;
-        }
 
     .. code-block:: sdl
 
@@ -191,6 +174,8 @@ the ``name`` property inside ``__type__``:
 
 .. eql:operator:: cast: < type > anytype -> anytype
 
+    :index: <type>, type conversion, convert type
+
     Type cast operator.
 
     A type cast operator converts the specified value to another value of
@@ -205,7 +190,7 @@ the ``name`` property inside ``__type__``:
 
     Type cast is a run-time operation.  The cast will succeed only if a
     type conversion was defined for the type pair, and if the source value
-    satisfies the requirements of a target type. EdgeDB allows casting any
+    satisfies the requirements of a target type. Gel allows casting any
     scalar.
 
     It is illegal to cast one :eql:type:`Object` into another. The
@@ -292,7 +277,7 @@ the ``name`` property inside ``__type__``:
 
 .. eql:operator:: typeof: typeof anytype -> type
 
-    :index: type introspect introspection
+    :index: typeof, introspection
 
     Static type inference operator.
 
@@ -307,16 +292,6 @@ the ``name`` property inside ``__type__``:
 
     Consider the following types using links and properties with names
     that don't indicate their respective target types:
-
-    .. code-block:: sdl
-        :version-lt: 3.0
-
-        type Foo {
-            property bar -> int16;
-            link baz -> Bar;
-        }
-
-        type Bar extending Foo;
 
     .. code-block:: sdl
 
@@ -370,7 +345,7 @@ the ``name`` property inside ``__type__``:
 
 .. eql:operator:: introspect: introspect type -> schema::Type
 
-    :index: type typeof introspection
+    :index: introspect, type introspection, typeof
 
     Static type introspection operator.
 
@@ -385,16 +360,6 @@ the ``name`` property inside ``__type__``:
 
     Consider the following types using links and properties with names
     that don't indicate their respective target types:
-
-    .. code-block:: sdl
-        :version-lt: 3.0
-
-        type Foo {
-            property bar -> int16;
-            link baz -> Bar;
-        }
-
-        type Bar extending Foo;
 
     .. code-block:: sdl
 

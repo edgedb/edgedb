@@ -8,6 +8,8 @@ Sets
 Everything is a set
 -------------------
 
+.. index:: set, multiset, cardinality, empty set, singleton
+
 All values in EdgeQL are actually **sets**: a collection of values of a given
 **type**. All elements of a set must have the same type. The number of items in
 a set is known as its **cardinality**. A set with a cardinality of zero is
@@ -18,6 +20,8 @@ referred to as an **empty set**. A set with a cardinality of one is known as a
 
 Constructing sets
 -----------------
+
+.. index:: constructor, { }, union
 
 Set literals are declared with *set constructor* syntax: a comma-separated
 list of values inside a set of ``{curly braces}``.
@@ -49,7 +53,7 @@ A consequence of this is that nested sets are *flattened*.
   db> select 1 union (2 union (3 union 4));
   {1, 2, 3, 4}
 
-All values in a set must have the same type. For convenience, EdgeDB will
+All values in a set must have the same type. For convenience, Gel will
 *implicitly cast* values to other types, as long as there is no loss of
 information (e.g. converting a ``int16`` to an ``int64``). For a full
 reference, see the casting table in :ref:`Standard Library > Casts
@@ -121,9 +125,11 @@ You can retrieve the cardinality of a set with the :eql:func:`count` function.
 Empty sets
 ----------
 
+.. index:: null, exists
+
 The reason EdgeQL introduced the concept of *sets* is to eliminate the concept
 of ``null``. In SQL databases ``null`` is a special value denoting the absence
-of data; in EdgeDB the absence of data is just an empty set.
+of data; in Gel the absence of data is just an empty set.
 
 .. note::
 
@@ -131,8 +137,8 @@ of data; in EdgeDB the absence of data is just an empty set.
   permeates all of SQL and is often handled inconsistently in different
   circumstances. A number of specific inconsistencies are documented in detail
   in the `We Can Do Better Than SQL
-  <https://www.edgedb.com/blog/we-can-do-better-than-sql#null-a-bag-of-surprises>`_
-  post on the EdgeDB blog. For broader context, see Tony Hoare's talk
+  <https://www.geldata.com/blog/we-can-do-better-than-sql#null-a-bag-of-surprises>`_
+  post on the Gel blog. For broader context, see Tony Hoare's talk
   `"The Billion Dollar Mistake" <https://bit.ly/3H238oG>`_.
 
 
@@ -173,6 +179,8 @@ operator.
 Set references
 --------------
 
+.. index:: pointer, alias, with
+
 A set reference is a *pointer* to a set of values. Most commonly, this is the
 name of an :ref:`object type <ref_datamodel_object_types>` you've declared in
 your schema.
@@ -207,7 +215,9 @@ schema.
 Multisets
 ---------
 
-Technically sets in EdgeDB are actually *multisets*, because they can contain
+.. index:: multisets, distinct, duplicates
+
+Technically sets in Gel are actually *multisets*, because they can contain
 duplicates of the same element. To eliminate duplicates, use the
 :eql:op:`distinct` set operator.
 
@@ -222,6 +232,8 @@ duplicates of the same element. To eliminate duplicates, use the
 
 Checking membership
 -------------------
+
+.. index:: in
 
 Use the :eql:op:`in` operator to check whether a set contains a particular
 element.
@@ -239,6 +251,8 @@ element.
 Merging sets
 ------------
 
+.. index:: union, merge
+
 Use the :eql:op:`union` operator to merge two sets.
 
 .. code-block:: edgeql-repl
@@ -251,7 +265,7 @@ Use the :eql:op:`union` operator to merge two sets.
 Finding common members
 ----------------------
 
-.. versionadded:: 3.0
+.. index:: intersect
 
 Use the :eql:op:`intersect` operator to find common members between two sets.
 
@@ -281,7 +295,7 @@ resulting set.
 Removing common members
 -----------------------
 
-.. versionadded:: 3.0
+.. index:: except
 
 Use the :eql:op:`except` operator to leave only the members in the first set
 that do not appear in the second set.
@@ -314,6 +328,8 @@ first set's ``3`` members are eliminated from the resulting set.
 Coalescing
 ----------
 
+.. index:: empty set, ??, default values, optional
+
 Occasionally in queries, you need to handle the case where a set is empty. This
 can be achieved with a coalescing operator :eql:op:`?? <coalesce>`. This is
 commonly used to provide default values for optional :ref:`query parameters
@@ -341,25 +357,12 @@ commonly used to provide default values for optional :ref:`query parameters
 Inheritance
 -----------
 
-EdgeDB schemas support :ref:`inheritance <ref_datamodel_objects_inheritance>`;
+.. index:: type intersection, backlinks, [is ]
+
+|Gel| schemas support :ref:`inheritance <ref_datamodel_objects_inheritance>`;
 types (usually object types) can extend one or more other types. For instance
 you may declare an abstract object type ``Media`` that is extended by ``Movie``
 and ``TVShow``.
-
-.. code-block:: sdl
-    :version-lt: 3.0
-
-    abstract type Media {
-      required property title -> str;
-    }
-
-    type Movie extending Media {
-      property release_year -> int64;
-    }
-
-    type TVShow extending Media {
-      property num_seasons -> int64;
-    }
 
 .. code-block:: sdl
 
@@ -410,6 +413,8 @@ Type filters are commonly used in conjunction with :ref:`backlinks
 Aggregate vs element-wise operations
 ------------------------------------
 
+.. index:: cartesian product
+
 EdgeQL provides a large library of built-in functions and operators for
 handling data structures. It's useful to consider functions/operators as either
 *aggregate* or *element-wise*.
@@ -417,7 +422,7 @@ handling data structures. It's useful to consider functions/operators as either
 .. note::
 
   This is an over-simplification, but it's a useful mental model when just
-  starting out with EdgeDB. For a more complete guide, see :ref:`Reference >
+  starting out with Gel. For a more complete guide, see :ref:`Reference >
   Cardinality <ref_reference_cardinality>`.
 
 *Aggregate* operations are applied to the set *as a whole*; they
@@ -472,6 +477,8 @@ Cardinality <ref_reference_cardinality>`.
 Conversion to/from arrays
 -------------------------
 
+.. index:: array_unpack, array_agg, converting sets
+
 Both arrays and sets are collections of values that share a type. EdgeQL
 provides ways to convert one into the other.
 
@@ -524,10 +531,3 @@ Reference
   * - Cardinality assertion
     - :eql:func:`assert_distinct` :eql:func:`assert_single`
       :eql:func:`assert_exists`
-
-.. list-table::
-  :class: seealso
-
-  * - **See also**
-  * - `Tutorial > Building Blocks > Sets
-      </tutorial/building-blocks/working-with-sets>`_

@@ -1,70 +1,99 @@
-.. versionadded:: 2.0
-
 .. _ref_datamodel_globals:
 
 =======
 Globals
 =======
 
-Schemas can contain scalar-typed *global variables*.
+.. index:: global, required global
+
+Schemas in Gel can contain typed *global variables*. These create a mechanism
+for specifying session-level context that can be referenced in queries,
+access policies, triggers, and elsewhere with the ``global`` keyword.
+
+Here's a very common example of a global variable representing the current
+user ID:
 
 .. code-block:: sdl
-    :version-lt: 3.0
 
-    global current_user_id -> uuid;
+  global current_user_id: uuid;
 
-.. code-block:: sdl
+.. tabs::
 
-    global current_user_id: uuid;
+  .. code-tab:: edgeql
 
-These provide a useful mechanism for specifying session-level data that can be
-referenced in queries with the ``global`` keyword.
+    select User {
+      id,
+      posts: { title, content }
+    }
+    filter .id = global current_user_id;
 
-.. code-block:: edgeql
+  .. code-tab:: python
 
-  select User {
-    id,
-    posts: { title, content }
-  }
-  filter .id = global current_user_id;
+    # In a non-trivial example, `global current_user_id` would
+    # be used indirectly in an access policy or some other context.
+    await client.with_globals({'user_id': user_id}).qeury('''
+      select User {
+        id,
+        posts: { title, content }
+      }
+      filter .id = global current_user_id;
+    ''')
 
+  .. code-tab:: typescript
 
-As in the example above, this is particularly useful for representing the
-notion of a session or "current user".
+    // In a non-trivial example, `global current_user_id` would
+    // be used indirectly in an access policy or some other context.
+    await client.withGlobals({user_id}).qeury('''
+      select User {
+        id,
+        posts: { title, content }
+      }
+      filter .id = global current_user_id;
+    ''')
+
 
 Setting global variables
-^^^^^^^^^^^^^^^^^^^^^^^^
+========================
 
-Global variables are set when initializing a client. The exact API depends on
-which client library you're using.
+Global variables are set at session level or when initializing a client.
+The exact API depends on which client library you're using, but the general
+behavior and principles are the same across all libraries.
 
 .. tabs::
 
   .. code-tab:: typescript
 
-    import createClient from 'edgedb';
+    import createClient from 'gel';
 
     const baseClient = createClient();
-    // returns a new Client instance that stores the provided 
-    // globals and sends them along with all future queries:
+
+    // returns a new Client instance, that shares the underlying
+    // network connection with `baseClient` , but sends the configured
+    // globals along with all queries run through it:
     const clientWithGlobals = baseClient.withGlobals({
       current_user_id: '2141a5b4-5634-4ccc-b835-437863534c51',
     });
 
-    await clientWithGlobals.query(`select global current_user_id;`);
+    const result = await clientWithGlobals.query(
+      `select global current_user_id;`
+    );
 
   .. code-tab:: python
 
-    from edgedb import create_client
+    from gel import create_client
 
-    client = create_client().with_globals({
+    base_client = create_client()
+
+    # returns a new Client instance, that shares the underlying
+    # network connection with `base_client` , but sends the configured
+    # globals along with all queries run through it:
+    client = base_client.with_globals({
         'current_user_id': '580cc652-8ab8-4a20-8db9-4c79a4b1fd81'
     })
 
     result = client.query("""
         select global current_user_id;
     """)
-    print(result)
 
   .. code-tab:: go
 
@@ -75,23 +104,23 @@ which client library you're using.
       "fmt"
       "log"
 
-      "github.com/edgedb/edgedb-go"
+      "github.com/geldata/gel-go"
     )
 
     func main() {
       ctx := context.Background()
-      client, err := edgedb.CreateClient(ctx, edgedb.Options{})
+      client, err := gel.CreateClient(ctx, gel.Options{})
       if err != nil {
         log.Fatal(err)
       }
       defer client.Close()
 
-      id, err := edgedb.ParseUUID("2141a5b4-5634-4ccc-b835-437863534c51")
+      id, err := gel.ParseUUID("2141a5b4-5634-4ccc-b835-437863534c51")
       if err != nil {
         log.Fatal(err)
       }
 
-      var result edgedb.UUID
+      var result gel.UUID
       err = client.
         WithGlobals(map[string]interface{}{"current_user": id}).
         QuerySingle(ctx, "SELECT global current_user;", &result)
@@ -106,7 +135,7 @@ which client library you're using.
 
     use uuid::Uuid;
 
-    let client = edgedb_tokio::create_client().await.expect("Client init");
+    let client = gel_tokio::create_client().await.expect("Client init");
 
     let client_with_globals = client.with_globals_fn(|c| {
         c.set(
@@ -125,149 +154,368 @@ which client library you're using.
 
   .. code-tab:: edgeql
 
-    set global current_user_id := 
+    set global current_user_id :=
       <uuid>'2141a5b4-5634-4ccc-b835-437863534c51';
 
 
 Cardinality
------------
+===========
 
-Global variables can be marked ``required``; in this case, you must specify a
-default value.
+A global variable can be declared with one of two cardinalities:
 
-.. code-block:: sdl
-    :version-lt: 3.0
+- ``single`` (the default): At most one value.
+- ``multi``: A set of values. Only valid for computed global variables.
 
-    required global one_string -> str {
-      default := "Hi Mom!"
-    };
+In addition, a global can be marked ``required`` or ``optional`` (the default).
+If marked ``required``, a default value must be provided.
 
-.. code-block:: sdl
-
-    required global one_string: str {
-      default := "Hi Mom!"
-    };
 
 Computed globals
-----------------
+================
 
-Global variables can also be computed. The value of computed globals are
+.. index:: global, :=
+
+Global variables can also be computed. The value of computed globals is
 dynamically computed when they are referenced in queries.
 
 .. code-block:: sdl
 
-  required global random_global := datetime_of_transaction();
+  required global now := datetime_of_transaction();
 
 The provided expression will be computed at the start of each query in which
-the global is referenced. There's no need to provide an explicit type; the
-type is inferred from the computed expression.
+the global is referenced. There's no need to provide an explicit type; the type
+is inferred from the computed expression.
 
-Computed globals are not subject to the same constraints as non-computed ones;
-specifically, they can be object-typed and have a ``multi`` cardinality.
-
-.. code-block:: sdl
-    :version-lt: 3.0
-
-    global current_user_id -> uuid;
-
-    # object-typed global
-    global current_user := (
-      select User filter .id = global current_user_id
-    );
-
-    # multi global
-    global current_user_friends := (global current_user).friends;
+Computed globals can also be object-typed and have ``multi`` cardinality.
+For example:
 
 .. code-block:: sdl
 
-    global current_user_id: uuid;
+  global current_user_id: uuid;
 
-    # object-typed global
-    global current_user := (
-      select User filter .id = global current_user_id
-    );
+  # object-typed global
+  global current_user := (
+    select User filter .id = global current_user_id
+  );
 
-    # multi global
-    global current_user_friends := (global current_user).friends;
-
-
-Usage in schema
----------------
-
-.. You may be wondering what purpose globals serve that can't.
-.. For instance, the simple ``current_user_id`` example above could easily
-.. be rewritten like so:
-
-.. .. code-block:: edgeql-diff
-
-..     select User {
-..       id,
-..       posts: { title, content }
-..     }
-..   - filter .id = global current_user_id
-..   + filter .id = <uuid>$current_user_id
-
-.. There is a subtle difference between these two in terms of
-.. developer experience. When using parameters, you must provide a
-.. value for ``$current_user_id`` on each *query execution*. By constrast,
-.. the value of ``global current_user_id`` is defined when you initialize
-.. the client; you can use this "sessionified" client to execute
-.. user-specific queries without needing to keep pass around the
-.. value of the user's UUID.
-
-.. But that's a comparatively marginal difference.
-
-Unlike query parameters, globals can be referenced
-*inside your schema declarations*.
-
-.. code-block:: sdl
-    :version-lt: 3.0
-
-    type User {
-      property name -> str;
-      property is_self := (.id = global current_user_id)
-    };
+  # multi global
+  global current_user_friends := (global current_user).friends;
 
 
-.. code-block:: sdl
-    :version-lt: 4.0
+Referencing globals
+===================
 
-    type User {
-      name: str;
-      property is_self := (.id = global current_user_id)
-    };
+Unlike query parameters, globals can be referenced *inside your schema
+declarations*:
 
 .. code-block:: sdl
 
-    type User {
-      name: str;
-      is_self := (.id = global current_user_id)
-    };
+  type User {
+    name: str;
+    is_self := (.id = global current_user_id)
+  };
 
 This is particularly useful when declaring :ref:`access policies
-<ref_datamodel_access_policies>`.
-
-.. code-block:: sdl
-    :version-lt: 3.0
-
-    type Person {
-      required property name -> str;
-      access policy my_policy allow all using (.id = global current_user_id);
-    }
+<ref_datamodel_access_policies>`:
 
 .. code-block:: sdl
 
-    type Person {
-      required name: str;
-      access policy my_policy allow all using (.id = global current_user_id);
-    }
+  type Person {
+    required name: str;
+
+    access policy my_policy allow all
+      using (.id = global current_user_id);
+  }
 
 Refer to :ref:`Access Policies <ref_datamodel_access_policies>` for complete
 documentation.
 
-.. list-table::
-  :class: seealso
+.. _ref_eql_sdl_globals:
+.. _ref_eql_sdl_globals_syntax:
 
-  * - **See also**
-  * - :ref:`SDL > Globals <ref_eql_sdl_globals>`
-  * - :ref:`DDL > Globals <ref_eql_ddl_globals>`
+Declaring globals
+=================
+
+This section describes the syntax to declare a global variable in your schema.
+
+Syntax
+------
+
+Define a new global variable in SDL, corresponding to the more explicit DDL
+commands described later:
+
+.. sdl:synopsis::
+
+  # Global variable declaration:
+  [{required | optional}] [single]
+    global <name> -> <type>
+    [ "{"
+        [ default := <expression> ; ]
+        [ <annotation-declarations> ]
+        ...
+      "}" ]
+
+  # Computed global variable declaration:
+  [{required | optional}] [{single | multi}]
+    global <name> := <expression>;
+
+
+Description
+^^^^^^^^^^^
+
+There are two different forms of ``global`` declarations, as shown in the
+syntax synopsis above:
+
+1. A *settable* global (defined with ``-> <type>``) which can be changed using
+   a session-level :ref:`set <ref_eql_statements_session_set_alias>` command.
+
+2. A *computed* global (defined with ``:= <expression>``), which cannot be
+   directly set but instead derives its value from the provided expression.
+
+The following options are available:
+
+:eql:synopsis:`required`
+  If specified, the global variable is considered *required*. It is an
+  error for this variable to have an empty value. If a global variable is
+  declared *required*, it must also declare a *default* value.
+
+:eql:synopsis:`optional`
+  The global variable is considered *optional*, i.e. it is possible for the
+  variable to have an empty value. (This is the default.)
+
+:eql:synopsis:`multi`
+  Specifies that the global variable may have a set of values. Only
+  *computed* global variables can have this qualifier.
+
+:eql:synopsis:`single`
+  Specifies that the global variable must have at most a *single* value. It
+  is assumed that a global variable is ``single`` if neither ``multi`` nor
+  ``single`` is specified. All non-computed global variables must be *single*.
+
+:eql:synopsis:`<name>`
+  The name of the global variable. It can be fully-qualified with the module
+  name, or it is assumed to belong to the module in which it appears.
+
+:eql:synopsis:`<type>`
+  The type must be a valid :ref:`type expression <ref_eql_types>` denoting a
+  non-abstract scalar or a container type.
+
+:eql:synopsis:`<name> := <expression>`
+  Defines a *computed* global variable. The provided expression must be a
+  :ref:`Stable <ref_reference_volatility>` EdgeQL expression. It can refer
+  to other global variables. The type of a *computed* global variable is
+  not limited to scalar and container types; it can also be an object type.
+
+The valid SDL sub-declarations are:
+
+:eql:synopsis:`default := <expression>`
+  Specifies the default value for the global variable as an EdgeQL
+  expression. The default value is used in a session if the value was not
+  explicitly specified by the client, or was reset with the :ref:`reset
+  <ref_eql_statements_session_reset_alias>` command.
+
+:sdl:synopsis:`<annotation-declarations>`
+  Set global variable :ref:`annotation <ref_eql_sdl_annotations>`
+  to a given *value*.
+
+
+Examples
+--------
+
+Declare a new global variable:
+
+.. code-block:: sdl
+
+  global current_user_id -> uuid;
+  global current_user := (
+      select User filter .id = global current_user_id
+  );
+
+Set the global variable to a specific value using :ref:`session-level commands
+<ref_eql_statements_session_set_alias>`:
+
+.. code-block:: edgeql
+
+  set global current_user_id :=
+      <uuid>'00ea8eaa-02f9-11ed-a676-6bd11cc6c557';
+
+Use the computed global variable that is based on the value that was just set:
+
+.. code-block:: edgeql
+
+  select global current_user { name };
+
+:ref:`Reset <ref_eql_statements_session_reset_alias>` the global variable to
+its default value:
+
+.. code-block:: edgeql
+
+  reset global user_id;
+
+
+.. _ref_eql_ddl_globals:
+
+
+DDL commands
+============
+
+This section describes the low-level DDL commands for creating, altering, and
+dropping globals. You typically don't need to use these commands directly, but
+knowing about them is useful for reviewing migrations.
+
+
+Create global
+-------------
+
+:eql-statement:
+:eql-haswith:
+
+Declare a new global variable using DDL.
+
+.. eql:synopsis::
+
+  [ with <with-item> [, ...] ]
+  create [{required | optional}] [single]
+    global <name> -> <type>
+      [ "{" <subcommand>; [...] "}" ] ;
+
+  # Computed global variable form:
+
+  [ with <with-item> [, ...] ]
+  create [{required | optional}] [{single | multi}]
+    global <name> := <expression>;
+
+  # where <subcommand> is one of
+
+    set default := <expression>
+    create annotation <annotation-name> := <value>
+
+Description
+^^^^^^^^^^^
+
+As with SDL, there are two different forms of ``global`` declaration:
+
+- A global variable that can be :ref:`set <ref_eql_statements_session_set_alias>`
+  in a session.
+- A *computed* global that is derived from an expression (and so cannot be
+  directly set in a session).
+
+The subcommands mirror those in SDL:
+
+:eql:synopsis:`set default := <expression>`
+  Specifies the default value for the global variable as an EdgeQL
+  expression. The default value is used by the session if the value was not
+  explicitly specified or was reset with the :ref:`reset
+  <ref_eql_statements_session_reset_alias>` command.
+
+:eql:synopsis:`create annotation <annotation-name> := <value>`
+  Assign an annotation to the global variable. See :eql:stmt:`create annotation`
+  for details.
+
+
+Examples
+^^^^^^^^
+
+Define a new global property ``current_user_id``:
+
+.. code-block:: edgeql
+
+  create global current_user_id -> uuid;
+
+Define a new *computed* global property ``current_user`` based on the
+previously defined ``current_user_id``:
+
+.. code-block:: edgeql
+
+  create global current_user := (
+      select User filter .id = global current_user_id
+  );
+
+
+Alter global
+------------
+
+:eql-statement:
+:eql-haswith:
+
+Change the definition of a global variable.
+
+.. eql:synopsis::
+
+  [ with <with-item> [, ...] ]
+  alter global <name>
+    [ "{" <subcommand>; [...] "}" ] ;
+
+  # where <subcommand> is one of
+
+    set default := <expression>
+    reset default
+    rename to <newname>
+    set required
+    set optional
+    reset optionalily
+    set single
+    set multi
+    reset cardinality
+    set type <typename> reset to default
+    using (<computed-expr>)
+    create annotation <annotation-name> := <value>
+    alter annotation <annotation-name> := <value>
+    drop annotation <annotation-name>
+
+Description
+^^^^^^^^^^^
+
+The command :eql:synopsis:`alter global` changes the definition of a global
+variable. It can modify default values, rename the global, or change other
+attributes like optionality, cardinality, computed expressions, etc.
+
+Examples
+^^^^^^^^
+
+Set the ``description`` annotation of global variable ``current_user``:
+
+.. code-block:: edgeql
+
+  alter global current_user
+      create annotation description :=
+          'Current User as specified by the global ID';
+
+Make the ``current_user_id`` global variable ``required``:
+
+.. code-block:: edgeql
+
+  alter global current_user_id {
+      set required;
+      # A required global variable MUST have a default value.
+      set default := <uuid>'00ea8eaa-02f9-11ed-a676-6bd11cc6c557';
+  }
+
+
+Drop global
+-----------
+
+:eql-statement:
+:eql-haswith:
+
+Remove a global variable from the schema.
+
+.. eql:synopsis::
+
+  [ with <with-item> [, ...] ]
+  drop global <name> ;
+
+Description
+^^^^^^^^^^^
+
+The command :eql:synopsis:`drop global` removes the specified global variable
+from the schema.
+
+Example
+^^^^^^^
+
+Remove the ``current_user`` global variable:
+
+.. code-block:: edgeql
+
+  drop global current_user;

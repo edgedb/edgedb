@@ -4,7 +4,7 @@
 vs SQL and ORMs
 ===============
 
-EdgeDB's approach to schema modeling builds upon the foundation of SQL while
+|Gel's| approach to schema modeling builds upon the foundation of SQL while
 taking cues from modern tools like ORM libraries. Let's see how it stacks up.
 
 .. _ref_datamodel_sql_comparison:
@@ -33,20 +33,8 @@ to query across tables.
     director_id   uuid  REFERENCES people(id)
   );
 
-In EdgeDB, connections between tables are represented with :ref:`Links
+In |Gel|, connections between tables are represented with :ref:`Links
 <ref_datamodel_links>`.
-
-.. code-block:: sdl
-    :version-lt: 3.0
-
-    type Movie {
-      required property title -> str;
-      required link director -> Person;
-    }
-
-    type Person {
-      required property name -> str;
-    }
 
 .. code-block:: sdl
 
@@ -94,6 +82,6 @@ downsides too.
   the ORM library, not the maintainers of the database itself. Quality control
   and long-term maintenance is not always guaranteed.
 
-From the beginning, EdgeDB was designed to incorporate the best aspects of ORMs
+From the beginning, Gel was designed to incorporate the best aspects of ORMs
 — declarative modeling, object-oriented APIs, and intuitive querying —
 without the drawbacks.

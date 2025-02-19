@@ -292,8 +292,7 @@ Restore
 
 Sent by: client.
 
-Initiate restore to the current :versionreplace:`database;5.0:branch`.
-See :ref:`ref_protocol_restore_flow`.
+Initiate restore to the current |branch|. See :ref:`ref_protocol_restore_flow`.
 
 Format:
 
@@ -609,7 +608,7 @@ by the server.
 
 .. note::
     At the moment, the only SASL authentication method supported
-    by EdgeDB is ``SCRAM-SHA-256``
+    by Gel is ``SCRAM-SHA-256``
     (`RFC 7677 <https://tools.ietf.org/html/rfc7677>`_).
 
 The client must select an appropriate authentication method from the list
@@ -682,4 +681,4 @@ Format:
 .. eql:struct:: edb.protocol.Terminate
 
 .. _RFC1004:
-    https://github.com/edgedb/rfcs/blob/master/text/1004-transactions-api.rst
+    https://github.com/geldata/rfcs/blob/master/text/1004-transactions-api.rst

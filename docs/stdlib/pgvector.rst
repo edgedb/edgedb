@@ -1,5 +1,3 @@
-.. versionadded:: 3.0
-
 .. _ref_ext_pgvector:
 
 =============
@@ -9,8 +7,8 @@ ext::pgvector
 This can be used to store and efficiently retrieve text embeddings,
 such as those produced by OpenAI.
 
-The Postgres that comes packaged with the EdgeDB 3.0+ server includes
-``pgvector``, as does EdgeDB Cloud. It you are using a separate
+The Postgres that comes packaged with the Gel server includes
+``pgvector``, as does Gel Cloud. It you are using a separate
 Postgres backend, you will need to arrange for it to be installed.
 
 To activate this new functionality you can use the :ref:`extension
@@ -62,16 +60,16 @@ To populate your data, you can cast an array of any of the numeric types into
 
 .. code-block:: edgeql-repl
 
-    edgedb> insert Item {embedding := <v3>[1.2, 3, 4.5]};
+    gel> insert Item {embedding := <v3>[1.2, 3, 4.5]};
     {default::Item {id: f119d64e-0995-11ee-8804-ff8cd739d8b7}}
-    edgedb> insert Item {embedding := [-0.1, 7, 0]};
+    gel> insert Item {embedding := [-0.1, 7, 0]};
     {default::Item {id: f410c844-0995-11ee-8804-176f28167dd1}}
 
 You can also cast the vectors into an ``array<float32>>``:
 
 .. code-block:: edgeql-repl
 
-    edgedb> select <array<float32>>Item.embedding;
+    gel> select <array<float32>>Item.embedding;
     {[1.2, 3, 4.5], [-0.1, 7, 0]}
 
 You can query the nearest neighbour by ordering based on
@@ -79,11 +77,11 @@ You can query the nearest neighbour by ordering based on
 
 .. code-block:: edgeql-repl
 
-  edgedb> select Item {*}
-  ....... order by ext::pgvector::euclidean_distance(
-  .......   .embedding, <v3>[3, 1, 2])
-  ....... empty last
-  ....... limit 1;
+  gel> select Item {*}
+  .... order by ext::pgvector::euclidean_distance(
+  ....   .embedding, <v3>[3, 1, 2])
+  .... empty last
+  .... limit 1;
   {
     default::Item {
       id: f119d64e-0995-11ee-8804-ff8cd739d8b7,
@@ -95,9 +93,9 @@ You can also just retrieve all results within a certain distance:
 
 .. code-block:: edgeql-repl
 
-  edgedb> select Item {*}
-  ....... filter ext::pgvector::euclidean_distance(
-  .......   .embedding, <v3>[3, 1, 2]) < 5;
+  gel> select Item {*}
+  .... filter ext::pgvector::euclidean_distance(
+  ....   .embedding, <v3>[3, 1, 2]) < 5;
   {
     default::Item {
       id: f119d64e-0995-11ee-8804-ff8cd739d8b7,
@@ -110,15 +108,15 @@ distances:
 
 .. code-block:: edgeql-repl
 
-  edgedb> select Item {
-  .......   id,
-  .......   distance := ext::pgvector::euclidean_distance(
-  .......     .embedding, <v3>[3, 1, 2]),
-  .......   inner_product := -ext::pgvector::neg_inner_product(
-  .......     .embedding, <v3>[3, 1, 2]),
-  .......   cosine_similarity := 1 - ext::pgvector::cosine_distance(
-  .......     .embedding, <v3>[3, 1, 2]),
-  ....... };
+  gel> select Item {
+  ....   id,
+  ....   distance := ext::pgvector::euclidean_distance(
+  ....     .embedding, <v3>[3, 1, 2]),
+  ....   inner_product := -ext::pgvector::neg_inner_product(
+  ....     .embedding, <v3>[3, 1, 2]),
+  ....   cosine_similarity := 1 - ext::pgvector::cosine_distance(
+  ....     .embedding, <v3>[3, 1, 2]),
+  .... };
   {
     default::Item {
       id: f119d64e-0995-11ee-8804-ff8cd739d8b7,

@@ -4,7 +4,7 @@
 Client Libraries
 ================
 
-EdgeDB client libraries are a bit higher level than usual database bindings.
+|Gel| client libraries are a bit higher level than usual database bindings.
 In particular, they contain:
 
 * Structured data retrieval
@@ -17,7 +17,7 @@ Additionally, client libraries might provide:
 * Query builder
 
 This is a **work-in-progress** reference for writing client libraries for
-EdgeDB.
+|Gel|.
 
 External Links:
 
@@ -35,6 +35,6 @@ Contents:
 
 .. lint-off
 
-.. _RFC 1004: https://github.com/edgedb/rfcs/blob/master/text/1004-transactions-api.rst
+.. _RFC 1004: https://github.com/geldata/rfcs/blob/master/text/1004-transactions-api.rst
 
 .. lint-on

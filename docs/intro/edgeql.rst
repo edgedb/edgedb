@@ -3,26 +3,23 @@
 EdgeQL
 ======
 
-EdgeQL is the query language of EdgeDB. It's intended as a spiritual successor
+EdgeQL is the query language of Gel. It's intended as a spiritual successor
 to SQL that solves some of its biggest design limitations. This page is
 intended as a rapid-fire overview so you can hit the ground running with
-EdgeDB. Refer to the linked pages for more in-depth documentation.
+|Gel|. Refer to the linked pages for more in-depth documentation.
 
-Want to follow along with the queries below? Open the `Interactive
-Tutorial </tutorial>`_ in a separate tab. Copy and paste the queries below and
-execute them directly from the browser.
 
 .. note::
 
   The examples below also demonstrate how to express the query with the
-  :ref:`TypeScript client's <edgedb-js-intro>` query builder, which lets you
+  :ref:`TypeScript client's <gel-js-intro>` query builder, which lets you
   express arbitrary EdgeQL queries in a code-first, typesafe way.
 
 
 Scalar literals
 ^^^^^^^^^^^^^^^
 
-EdgeDB has a rich primitive type system consisting of the following data types.
+|Gel| has a rich primitive type system consisting of the following data types.
 
 .. list-table::
 
@@ -31,7 +28,7 @@ EdgeDB has a rich primitive type system consisting of the following data types.
   * - Booleans
     - ``bool``
   * - Numbers
-    - ``int16`` ``int32`` ``int64`` ``float32`` ``float64`` 
+    - ``int16`` ``int32`` ``int64`` ``float32`` ``float64``
       ``bigint`` ``decimal``
   * - UUID
     - ``uuid``
@@ -55,8 +52,8 @@ Basic literals can be declared using familiar syntax.
 
   .. code-tab:: edgeql-repl
 
-    db> select "i ❤️ edgedb"; # str
-    {'i ❤️ edgedb'}
+    db> select "I ❤️ EdgeQL"; # str
+    {'U ❤️ EdgeQL'}
     db> select false; # bool
     {false}
     db> select 42; # int64
@@ -73,7 +70,7 @@ Basic literals can be declared using familiar syntax.
 
   .. code-tab:: typescript
 
-    e.str("i ❤️ edgedb")
+    e.str("I ❤️ EdgeQL")
     // string
     e.bool(false)
     // boolean
@@ -112,9 +109,9 @@ structured string.
     e.datetime("1999-03-31T15:17:00Z")
     // Date
     e.duration("5 hours 4 minutes 3 seconds")
-    // edgedb.Duration (custom class)
+    // gel.Duration (custom class)
     e.cal.relative_duration("2 years 18 days")
-    // edgedb.RelativeDuration (custom class)
+    // gel.RelativeDuration (custom class)
 
 Primitive data can be composed into arrays and tuples, which can themselves be
 nested.
@@ -144,7 +141,7 @@ nested.
     // unknown
 
 
-EdgeDB also supports a special ``json`` type for representing unstructured
+|Gel| also supports a special ``json`` type for representing unstructured
 data. Primitive data structures can be converted to JSON using a type cast
 (``<json>``). Alternatively, a properly JSON-encoded string can be converted
 to ``json`` with the built-in ``to_json`` function. Indexing a ``json`` value
@@ -154,13 +151,13 @@ returns another ``json`` value.
 
   .. code-tab:: edgeql-repl
 
-    edgedb> select <json>5;
+    gel> select <json>5;
     {"5"}
-    edgedb> select <json>[1,2,3];
+    gel> select <json>[1,2,3];
     {"[1, 2, 3]"}
-    edgedb> select to_json('[{ "name": "Peter Parker" }]');
+    gel> select to_json('[{ "name": "Peter Parker" }]');
     {"[{\"name\": \"Peter Parker\"}]"}
-    edgedb> select to_json('[{ "name": "Peter Parker" }]')[0]['name'];
+    gel> select to_json('[{ "name": "Peter Parker" }]')[0]['name'];
     {"\"Peter Parker\""}
 
   .. code-tab:: typescript
@@ -180,7 +177,7 @@ Refer to :ref:`Docs > EdgeQL > Literals <ref_eql_literals>` for complete docs.
 Functions and operators
 ^^^^^^^^^^^^^^^^^^^^^^^
 
-EdgeDB provides a rich standard library of functions to operate and manipulate
+|Gel| provides a rich standard library of functions to operate and manipulate
 various data types.
 
 .. tabs::
@@ -669,7 +666,7 @@ executing a query.
 
   .. code-tab:: javascript
 
-    import {createClient} from "edgedb";
+    import {createClient} from "gel";
 
     const client = createClient();
     const result = await client.query(`select <str>$param`, {
@@ -679,9 +676,9 @@ executing a query.
 
   .. code-tab:: python
 
-    import edgedb
+    import gel
 
-    client = edgedb.create_async_client()
+    client = gel.create_async_client()
 
     async def main():
         result = await client.query("select <str>$param", param="Play it, Sam")
@@ -695,12 +692,12 @@ executing a query.
         "context"
         "log"
 
-        "github.com/edgedb/edgedb-go"
+        "github.com/geldata/gel-go"
     )
 
     func main() {
         ctx := context.Background()
-        client, err := edgedb.CreateClient(ctx, edgedb.Options{})
+        client, err := gel.CreateClient(ctx, gel.Options{})
         if err != nil {
             log.Fatal(err)
         }
@@ -719,12 +716,12 @@ executing a query.
   .. code-tab:: rust
 
     // [dependencies]
-    // edgedb-tokio = "0.5.0"
+    // gel-tokio = "0.5.0"
     // tokio = { version = "1.28.1", features = ["macros", "rt-multi-thread"] }
 
     #[tokio::main]
     async fn main() {
-        let conn = edgedb_tokio::create_client()
+        let conn = gel_tokio::create_client()
             .await
             .expect("Client initiation");
         let param = "Play it, Sam.";
@@ -816,21 +813,6 @@ Polymorphic queries
 ^^^^^^^^^^^^^^^^^^^
 
 Consider the following schema.
-
-.. code-block:: sdl
-    :version-lt: 3.0
-
-    abstract type Content {
-      required property title -> str;
-    }
-
-    type Movie extending Content {
-      property release_year -> int64;
-    }
-
-    type TVShow extending Content {
-      property num_seasons -> int64;
-    }
 
 .. code-block:: sdl
 

@@ -4,13 +4,15 @@
 Path scoping
 ============
 
-Beginning with EdgeDB 6.0, we are phasing out our historical (and
+.. index:: using future simple_scoping, using future warn_old_scoping
+
+Beginning with Gel 6.0, we are phasing out our historical (and
 somewhat notorious)
 :ref:`"path scoping" algorithm <ref_eql_old_path_resolution>`
 in favor of a much simpler algorithm that nevertheless behaves
 identically on *most* idiomatic EdgeQL queries.
 
-EdgeDB 6.0 will contain features to support migration to and testing
+Gel 6.0 will contain features to support migration to and testing
 of the new semantics.  We expect the migration to be relatively
 painless for most users.
 
@@ -84,7 +86,7 @@ Path scoping configuration
 
 .. versionadded:: 6.0
 
-EdgeDB 6.0 introduces a new
+Gel 6.0 introduces a new
 :ref:`future feature <ref_datamodel_future>`
 named ``simple_scoping`` alongside a
 configuration setting also named ``simple_scoping``.  The future
@@ -129,6 +131,8 @@ configuration value ``simple_scoping``:
      - ``false``
      - No
      - Yes
+
+.. _ref_warn_old_scoping:
 
 Warning on old scoping
 ----------------------
@@ -184,10 +188,10 @@ Legacy path scoping
 ===================
 
 This section describes the path scoping algorithm used exclusively
-until EdgeDB 5.0 and by default in EdgeDB 6.0.
-It will be removed in EdgeDB 7.0.
+until |EdgeDB| 5.0 and by default in |Gel| 6.0.
+It will be removed in Gel 7.0.
 
-Element-wise operations with multiple arguments in EdgeDB are generally applied
+Element-wise operations with multiple arguments in Gel are generally applied
 to the :ref:`cartesian product <ref_reference_cardinality_cartesian>` of all
 the input sets.
 
@@ -197,7 +201,7 @@ the input sets.
     {'aaaccc', 'aaaddd', 'bbbccc', 'bbbddd'}
 
 However, in cases where multiple element-wise arguments share a common path
-(``User.`` in this example), EdgeDB factors out the common path rather than
+(``User.`` in this example), Gel factors out the common path rather than
 using cartesian multiplication.
 
 .. code-block:: edgeql-repl
@@ -211,7 +215,7 @@ product, you can accomplish it one of three ways. You could use
 
 .. code-block:: edgeql-repl
 
-    edgedb> select User.first_name ++ ' ' ++ detached User.last_name;
+    gel> select User.first_name ++ ' ' ++ detached User.last_name;
     {
       'Mina Murray',
       'Mina Harker',
@@ -236,8 +240,8 @@ your set of ``User`` objects.
 
 .. code-block:: edgeql-repl
 
-    edgedb> with U := User
-    ....... select U.first_name ++ ' ' ++ User.last_name;
+    gel> with U := User
+    .... select U.first_name ++ ' ' ++ User.last_name;
     {
       'Mina Murray',
       'Mina Harker',
@@ -269,7 +273,7 @@ cartesian multiplication.
 
 That may leave you still wondering why ``U`` and ``User`` did not get a common
 path factored. ``U`` is just an alias of ``select User`` and ``User`` is the
-same symbol that we use in our name query. That's true, but EdgeDB doesn't
+same symbol that we use in our name query. That's true, but |Gel| doesn't
 factor in this case because of the queries' scopes.
 
 .. _ref_eql_path_resolution_scopes:
@@ -283,7 +287,7 @@ use a common symbol.
 
 .. code-block:: edgeql-repl
 
-    edgedb> select ((select User.first_name), (select User.last_name));
+    gel> select ((select User.first_name), (select User.last_name));
     {
       ('Mina', 'Murray'),
       ('Mina', 'Harker'),
@@ -310,9 +314,9 @@ object because it has been factored.
 
 .. code-block:: edgeql-repl
 
-    edgedb> select User {
-    ....... name:= (select User.first_name) ++ ' ' ++ (select User.last_name)
-    ....... };
+    gel> select User {
+    ....   name:= (select User.first_name) ++ ' ' ++ (select User.last_name)
+    .... };
     {
       default::User {name: 'Mina Murray'},
       default::User {name: 'Jonathan Harker'},
@@ -325,7 +329,7 @@ paths are still factored.
 
 .. code-block:: edgeql-repl
 
-    edgedb> select (Person.name, count(Person.friends));
+    gel> select (Person.name, count(Person.friends));
     {('Fran', 3), ('Bam', 2), ('Emma', 3), ('Geoff', 1), ('Tyra', 1)}
 
 In this example, ``count``, like all aggregate function, creates a nested
@@ -341,10 +345,10 @@ are *not* factored.
 
 .. code-block:: edgeql-repl
 
-    edgedb> select (array_agg(distinct Person.name), count(Person.friends));
+    gel> select (array_agg(distinct Person.name), count(Person.friends));
     {(['Fran', 'Bam', 'Emma', 'Geoff'], 3)}
 
-This query selects a tuple containing two nested scopes. Here, EdgeDB assumes
+This query selects a tuple containing two nested scopes. Here, |Gel| assumes
 you want an array of all unique names and a count of the total number of people
 who are anyone's friend.
 
@@ -362,4 +366,4 @@ The :ref:`offset <ref_eql_select_pagination>` and
 because they need to be applied globally to the entire result set of your
 query.
 
-.. _rfc: https://github.com/edgedb/rfcs/blob/master/text/1027-no-factoring.rst
+.. _rfc: https://github.com/geldata/rfcs/blob/master/text/1027-no-factoring.rst

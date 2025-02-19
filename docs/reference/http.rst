@@ -3,56 +3,36 @@
 HTTP API
 ========
 
-Using HTTP, you may check the health of your EdgeDB instance, check metrics on
+Using HTTP, you may check the health of your Gel instance, check metrics on
 your instance, and make queries.
 
 
-.. versionchanged:: _default
+Your instance's URL takes the form of ``http://<hostname>:<port>/``.
 
-    Your instance's URL takes the form of ``http://<hostname>:<port>/``. For
-    queries, you will append ``db/<database-name>/edgeql``.
+For queries, you will append ``db/<database-name>/edgeql`` for |EdgeDB| < 5,
+or ``branch/<branch-name>/edgeql`` for Gel and |EdgeDB| >= 5.
 
-.. versionchanged:: 5.0
+Here's how to determine your *local* Gel instance's HTTP server URL:
 
-    Your instance's URL takes the form of ``http://<hostname>:<port>/``. For
-    queries, you will append ``branch/<branch-name>/edgeql``.
+- The ``<database-name>``, in most cases, will be |main|.
 
-.. note::
+- The ``hostname`` will be ``localhost``
 
-    Here's how to determine your local EdgeDB instance's HTTP server URL:
+- Find the ``port`` by running :gelcmd:`instance list`. This will print a
+  table of all Gel instances on your machine, including their associated
+  port number.
 
-.. versionchanged:: _default
-
-    - The ``hostname`` will be ``localhost``
-    - Find the ``port`` by running ``edgedb instance list``. This will print a
-      table of all EdgeDB instances on your machine, including their associated
-      port number.
-    - In most cases, ``database-name`` will be ``edgedb``. An EdgeDB *instance*
-      can contain multiple databases. On initialization, a default database
-      called ``edgedb`` is created; all queries are executed against this
-      database unless otherwise specified.
-
-.. versionchanged:: 5.0
-
-    - The ``hostname`` will be ``localhost``
-    - Find the ``port`` by running ``edgedb instance list``. This will print a
-      table of all EdgeDB instances on your machine, including their associated
-      port number.
-    - The default branch in your EdgeDB database is ``main``. Use this for
-      ``<branch-name>`` unless you want to query a different branch.
-
-    To determine the URL of a remote instance you have linked with the CLI, you
-    can get both the hostname and port of the instance from the "Port" column
-    of the ``edgedb instance list`` table (formatted as ``<hostname>:<port>``).
-    The same guidance on local :versionreplace:`database;5.0:branch` names
-    applies to remote instances.
+To determine the URL of a remote instance you have linked with the CLI, you
+can get both the hostname and port of the instance from the "Port" column
+of the :gelcmd:`instance list` table (formatted as ``<hostname>:<port>``).
+The same guidance on local |branch| names applies to remote instances.
 
 .. _ref_reference_health_checks:
 
 Health Checks
 -------------
 
-EdgeDB exposes endpoints to check for aliveness and readiness of your database
+|Gel| exposes endpoints to check for aliveness and readiness of your database
 instance.
 
 Aliveness
@@ -93,7 +73,7 @@ Retrieve instance metrics.
 
     http://<hostname>:<port>/metrics
 
-All EdgeDB instances expose a Prometheus-compatible endpoint available via GET
+All Gel instances expose a Prometheus-compatible endpoint available via GET
 request. The following metrics are made available.
 
 System
@@ -222,8 +202,8 @@ schema. Add this to your schema, outside any ``module``:
     using extension edgeql_http;
 
 Then create a new migration and apply it using
-:ref:`ref_cli_edgedb_migration_create` and
-:ref:`ref_cli_edgedb_migrate`, respectively.
+:ref:`ref_cli_gel_migration_create` and
+:ref:`ref_cli_gel_migrate`, respectively.
 
 Your instance is now able to receive EdgeQL queries over HTTP.
 
@@ -235,19 +215,11 @@ Your instance is now able to receive EdgeQL queries over HTTP.
 Making a query request
 ^^^^^^^^^^^^^^^^^^^^^^
 
-Make a query to your EdgeDB database using this URL:
+Make a query to your Gel database using this URL:
 
-.. versionchanged:: _default
+.. code-block::
 
-    .. code-block::
-
-        http://<hostname>:<port>/db/<database-name>/edgeql
-
-.. versionchanged:: 5.0
-
-    .. code-block::
-
-        http://<hostname>:<port>/branch/<branch-name>/edgeql
+    http://<hostname>:<port>/branch/<branch-name>/edgeql
 
 You may make queries via either the POST or GET HTTP method. Query requests can
 take the following fields:
@@ -263,7 +235,7 @@ submit a JSON payload with ``query`` and ``variables`` as top-level keys in
 that payload as in this example:
 
 Here's an example query you might want to run to insert a new person in your
-database, as executed from the EdgeDB REPL:
+database, as executed from the Gel REPL:
 
 .. code-block:: edgeql-repl
 
@@ -274,23 +246,12 @@ database, as executed from the EdgeDB REPL:
 The query inserts a ``Person`` object. The object's ``name`` value is
 parameterized in the query as ``$name``.
 
-.. versionchanged:: _default
+This GET request would run the same query (assuming the instance is local
+and you want to query the |main| branch):
 
-    This GET request would run the same query (assuming the instance is local
-    and the database is named ``edgedb``):
+.. code-block::
 
-    .. code-block::
-
-        GET http://localhost:<port>/db/edgedb/edgeql?query=insert%20Person%20%7B%20name%20%3A%3D%20%3Cstr%3E$name%20%7D%3B&variables=%7B%22name%22%3A%20%22Pat%22%7D
-
-.. versionchanged:: 5.0
-
-    This GET request would run the same query (assuming the instance is local
-    and you want to query the ``main`` branch):
-
-    .. code-block::
-
-        GET http://localhost:<port>/branch/main/edgeql?query=insert%20Person%20%7B%20name%20%3A%3D%20%3Cstr%3E$name%20%7D%3B&variables=%7B%22name%22%3A%20%22Pat%22%7D
+    GET http://localhost:<port>/branch/main/edgeql?query=insert%20Person%20%7B%20name%20%3A%3D%20%3Cstr%3E$name%20%7D%3B&variables=%7B%22name%22%3A%20%22Pat%22%7D
 
 As you can see with even this simple query, URL encoding can quickly become
 onerous with queries over GET.

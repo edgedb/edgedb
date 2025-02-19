@@ -43,24 +43,6 @@ def get_version_key(num_patches: int):
         return f'_v{num_major}'
 
 
-def _setup_patches(patches: list[tuple[str, str]]) -> list[tuple[str, str]]:
-    """Do postprocessing on the patches list
-
-    For technical reasons, we can't run a user schema repair if there
-    is a pending standard schema change, so when applying repairs we
-    always defer them to the *last* repair patch, and we ensure that
-    edgeql+schema is followed by a repair if necessary.
-    """
-    seen_repair = False
-    npatches = []
-    for kind, patch in patches:
-        npatches.append((kind, patch))
-        if kind.startswith('edgeql+schema') and seen_repair:
-            npatches.append(('repair', ''))
-        seen_repair |= kind == 'repair'
-    return npatches
-
-
 """
 The actual list of patches. The patches are (kind, script) pairs.
 
@@ -76,5 +58,5 @@ The current kinds are:
  * repair - fix up inconsistencies in *user* schemas
  * sql-introspection - refresh all sql introspection views
 """
-PATCHES: list[tuple[str, str]] = _setup_patches([
-])
+PATCHES: list[tuple[str, str]] = [
+]

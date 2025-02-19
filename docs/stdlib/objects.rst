@@ -15,7 +15,7 @@ Base Objects
 
 
 ``std::BaseObject`` is the root of the object type hierarchy and all object
-types in EdgeDB, including system types, extend it either directly or
+types in Gel, including system types, extend it either directly or
 indirectly.  User-defined object types extend from :eql:type:`std::Object`
 type, which is a subtype of ``std::BaseObject``.
 
@@ -28,21 +28,6 @@ type, which is a subtype of ``std::BaseObject``.
     The root object type.
 
     Definition:
-
-    .. code-block:: sdl
-        :version-lt: 3.0
-
-        abstract type std::BaseObject {
-            # Universally unique object identifier
-            required property id -> uuid {
-                default := (select std::uuid_generate_v1mc());
-                readonly := true;
-                constraint exclusive;
-            }
-
-            # Object type in the information schema.
-            required readonly link __type__ -> schema::ObjectType;
-        }
 
     .. code-block:: sdl
 

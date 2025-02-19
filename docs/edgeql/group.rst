@@ -1,9 +1,10 @@
-.. versionadded:: 2.0
-
 .. _ref_eql_group:
 
 Group
 =====
+
+.. index:: group by, group using by, key, grouping, elements, analytics,
+           aggregate, rollup, cube, partition
 
 EdgeQL supports a top-level ``group`` statement. This is used to partition
 sets into subsets based on some parameters. These subsets then can be

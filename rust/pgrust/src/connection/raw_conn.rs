@@ -10,10 +10,7 @@ use crate::protocol::postgres::{FrontendBuilder, InitialBuilder};
 use crate::protocol::{postgres::data::SSLResponse, postgres::meta};
 use db_proto::StructBuffer;
 use gel_auth::AuthType;
-use gel_stream::client::{
-    stream::{Stream, StreamWithUpgrade, UpgradableStream},
-    Connector,
-};
+use gel_stream::{ConnectionError, Connector, Stream, StreamUpgrade};
 use std::collections::HashMap;
 use std::pin::Pin;
 use tokio::io::AsyncWriteExt;
@@ -74,16 +71,13 @@ impl ConnectionDriver {
         }
     }
 
-    async fn drive_bytes<B: Stream, C: Unpin>(
+    async fn drive_bytes<S: StreamUpgrade>(
         &mut self,
         state: &mut ConnectionState,
         drive: &[u8],
         message_buffer: &mut StructBuffer<meta::Message>,
-        stream: &mut UpgradableStream<B, C>,
-    ) -> Result<(), PGConnectionError>
-    where
-        (B, C): StreamWithUpgrade,
-    {
+        stream: &mut S,
+    ) -> Result<(), PGConnectionError> {
         message_buffer.push_fallible(drive, |msg| {
             state.drive(ConnectionDrive::Message(msg), self)
         })?;
@@ -100,7 +94,10 @@ impl ConnectionDriver {
             }
             if self.upgrade {
                 self.upgrade = false;
-                stream.secure_upgrade().await?;
+                stream
+                    .secure_upgrade()
+                    .await
+                    .map_err(ConnectionError::from)?;
                 state.drive(ConnectionDrive::SslReady, self)?;
             } else {
                 break;
@@ -109,15 +106,12 @@ impl ConnectionDriver {
         Ok(())
     }
 
-    async fn drive<B: Stream, C: Unpin>(
+    async fn drive<S: StreamUpgrade>(
         &mut self,
         state: &mut ConnectionState,
         drive: ConnectionDrive<'_>,
-        stream: &mut UpgradableStream<B, C>,
-    ) -> Result<(), PGConnectionError>
-    where
-        (B, C): StreamWithUpgrade,
-    {
+        stream: &mut S,
+    ) -> Result<(), PGConnectionError> {
         state.drive(drive, self)?;
         loop {
             if !self.send_buffer.is_empty() {
@@ -132,7 +126,10 @@ impl ConnectionDriver {
             }
             if self.upgrade {
                 self.upgrade = false;
-                stream.secure_upgrade().await?;
+                stream
+                    .secure_upgrade()
+                    .await
+                    .map_err(ConnectionError::from)?;
                 state.drive(ConnectionDrive::SslReady, self)?;
             } else {
                 break;
@@ -221,11 +218,11 @@ impl RawClient {
         }
 
         // This should not be possible -- we've fully upgraded the stream by now
-        let Ok(stream) = stream.into_choice() else {
+        let Ok(stream) = stream.into_boxed() else {
             return Err(invalid_state!("Connection was not ready"));
         };
 
-        Ok(RawClient::new_boxed(stream.into_boxed(), update.params))
+        Ok(RawClient::new_boxed(stream, update.params))
     }
 
     /// Consume the `RawClient` and return the underlying stream and connection parameters.

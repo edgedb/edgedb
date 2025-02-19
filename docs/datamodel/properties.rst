@@ -4,20 +4,10 @@
 Properties
 ==========
 
-:index: property
+.. index:: property, primitive types, fields, columns
 
 Properties are used to associate primitive data with an :ref:`object type
 <ref_datamodel_object_types>` or :ref:`link <ref_datamodel_link_properties>`.
-
-
-.. code-block:: sdl
-    :version-lt: 3.0
-
-    type Player {
-      property email -> str;
-      property points -> int64;
-      property is_online -> bool;
-    }
 
 .. code-block:: sdl
 
@@ -37,14 +27,9 @@ encompasses :ref:`scalar types <ref_datamodel_scalars>` like ``str`` and
 Required properties
 -------------------
 
+.. index:: required, optional, not null
+
 Properties can be either ``optional`` (the default) or ``required``.
-
-.. code-block:: sdl
-    :version-lt: 3.0
-
-    type User {
-      required property email -> str;
-    }
 
 .. code-block:: sdl
 
@@ -57,25 +42,11 @@ Properties can be either ``optional`` (the default) or ``required``.
 Property cardinality
 --------------------
 
+.. index:: cardinality, single, multi
+
 Properties have a **cardinality**, either ``single`` (the default) or
 ``multi``. A ``multi`` property of type ``str`` points to an *unordered set* of
 strings.
-
-.. code-block:: sdl
-    :version-lt: 3.0
-
-    type User {
-
-      # single isn't necessary here
-      # properties are single by default
-      single property name -> str;
-
-      # an unordered set of strings
-      multi property nicknames -> str;
-
-      # an unordered set of string arrays
-      multi property set_of_arrays -> array<str>;
-    }
 
 .. code-block:: sdl
 
@@ -105,21 +76,10 @@ more involved discussion, see :ref:`EdgeQL > Sets
 Default values
 --------------
 
+.. index:: default
+
 Properties can have a default value. This default can be a static value or an
 arbitrary EdgeQL expression, which will be evaluated upon insertion.
-
-.. code-block:: sdl
-    :version-lt: 3.0
-
-    type Player {
-      required property points -> int64 {
-        default := 0;
-      }
-
-      required property latitude -> float64 {
-        default := (360 * random() - 180);
-      }
-    }
 
 .. code-block:: sdl
 
@@ -136,18 +96,11 @@ arbitrary EdgeQL expression, which will be evaluated upon insertion.
 Readonly properties
 -------------------
 
+.. index:: readonly, immutable
+
 Properties can be marked as ``readonly``. In the example below, the
 ``User.external_id`` property can be set at the time of creation but not
 modified thereafter.
-
-.. code-block:: sdl
-    :version-lt: 3.0
-
-    type User {
-      required property external_id -> uuid {
-        readonly := true;
-      }
-    }
 
 .. code-block:: sdl
 
@@ -160,29 +113,10 @@ modified thereafter.
 Constraints
 -----------
 
+.. index:: constraint
+
 Properties can be augmented wth constraints. The example below showcases a
-subset of EdgeDB's built-in constraints.
-
-.. code-block:: sdl
-    :version-lt: 3.0
-
-    type BlogPost {
-      property title -> str {
-        constraint exclusive; # all post titles must be unique
-        constraint min_len_value(8);
-        constraint max_len_value(30);
-        constraint regexp(r'^[A-Za-z0-9 ]+$');
-      }
-
-      property status -> str {
-        constraint one_of('Draft', 'InReview', 'Published');
-      }
-
-      property upvotes -> int64 {
-        constraint min_value(0);
-        constraint max_value(9999);
-      }
-    }
+subset of Gel's built-in constraints.
 
 .. code-block:: sdl
 
@@ -209,17 +143,6 @@ expressions returning ``bool``. To reference the value of the property, use the
 special scope keyword ``__subject__``.
 
 .. code-block:: sdl
-    :version-lt: 3.0
-
-    type BlogPost {
-      property title -> str {
-        constraint expression on (
-          __subject__ = str_trim(__subject__)
-        );
-      }
-    }
-
-.. code-block:: sdl
 
     type BlogPost {
       title: str {
@@ -240,20 +163,11 @@ reference <ref_std_constraints>`.
 Annotations
 -----------
 
+.. index:: annotation, metadata, title, description, deprecated
+
 Properties can contain annotations, small human-readable notes. The built-in
 annotations are ``title``, ``description``, and ``deprecated``. You may also
 declare :ref:`custom annotation types <ref_datamodel_inheritance_annotations>`.
-
-.. code-block:: sdl
-    :version-lt: 3.0
-
-    type User {
-      property email -> str {
-        annotation title := 'Email address';
-        annotation description := "The user's email address.";
-        annotation deprecated := 'Use NewUser instead.';
-      }
-    }
 
 .. code-block:: sdl
 
@@ -269,22 +183,11 @@ declare :ref:`custom annotation types <ref_datamodel_inheritance_annotations>`.
 Abstract properties
 -------------------
 
+.. index:: abstract property
+
 Properties can be *concrete* (the default) or *abstract*. Abstract properties
 are declared independent of a source or target, can contain :ref:`annotations
 <ref_datamodel_annotations>`, and can be marked as ``readonly``.
-
-.. code-block:: sdl
-    :version-lt: 3.0
-
-    abstract property email_prop {
-      annotation title := 'An email address';
-      readonly := true;
-    }
-
-    type Student {
-      # inherits annotations and "readonly := true"
-      property email extending email_prop -> str;
-    }
 
 .. code-block:: sdl
 
@@ -303,6 +206,8 @@ are declared independent of a source or target, can contain :ref:`annotations
 
 Link properties
 ---------------
+
+.. index:: linkprops, relations, link table
 
 Properties can also be defined on **links**. For a full guide, refer to
 :ref:`Guides > Using link properties <ref_guide_linkprops>`.

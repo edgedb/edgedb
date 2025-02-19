@@ -17,7 +17,7 @@ GraphQL
     cheatsheet
 
 
-EdgeDB supports `GraphQL queries`__ via the built-in ``graphql`` extension. A
+|Gel| supports `GraphQL queries`__ via the built-in ``graphql`` extension. A
 full CRUD API for all object types, their properties (both material and
 computed), their links, and all :ref:`aliases <ref_datamodel_aliases>` is
 reflected in the GraphQL schema.
@@ -36,10 +36,10 @@ Then create a new migration and apply it.
 
 .. code-block:: bash
 
-  $ edgedb migration create
-  $ edgedb migrate
+  $ gel migration create
+  $ gel migrate
 
-Refer to the :ref:`connection docs <edgedb_client_connection>` for various
+Refer to the :ref:`connection docs <gel_client_connection>` for various
 methods of running these commands against remotely-hosted instances.
 
 Connection
@@ -50,32 +50,32 @@ GraphQL queries via HTTP at the following URL.
 
 ``http://<instance-hostname><instance-port>/branch/<branch-name>/graphql``
 
-The default ``branch-name`` will be ``main``, and after initializing your
+The default ``branch-name`` will be |main|, and after initializing your
 database, all queries are executed against it by default. If you want to query
 another branch instead, simply use that branch name in the URL.
 
-To find the port number associated with a local instance, run ``edgedb
-instance list``.
+To find the port number associated with a local instance, run
+:gelcmd:`instance list`.
 
 .. code-block:: bash
 
-  $ edgedb instance list
+  $ gel instance list
   ┌────────┬──────────────┬──────────┬───────────────┬─────────────┐
   │ Kind   │ Name         │ Port     │ Version       │ Status      │
   ├────────┼──────────────┼──────────┼───────────────┼─────────────┤
-  │ local  │ inst1        │ 10700    │ 2.x           │ running     │
-  │ local  │ inst2        │ 10702    │ 2.x           │ running     │
-  │ local  │ inst3        │ 10703    │ 2.x           │ running     │
+  │ local  │ inst1        │ 10700    │ 6.x           │ running     │
+  │ local  │ inst2        │ 10702    │ 6.x           │ running     │
+  │ local  │ inst3        │ 10703    │ 6.x           │ running     │
   └────────┴──────────────┴──────────┴───────────────┴─────────────┘
 
-To execute a GraphQL query against the branch ``main`` on the instance
+To execute a GraphQL query against the |main| branch on the instance
 named ``inst2``, we would send an HTTP request to
-``http://localhost:10702/branch/edgedb/main``.
+``http://localhost:10702/branch/gel/main``.
 
-To determine the URL of an EdgeDB Cloud instance, find the host by running
-``edgedb instance credentials -I <org-name>/<instance-name>``. Use the
+To determine the URL of a |Gel| Cloud instance, find the host by running
+:gelcmd:`instance credentials -I <org-name>/<instance-name>`. Use the
 ``host`` and ``port`` from that table in the URL format at the top of this
-section. Change the protocol to ``https`` since EdgeDB Cloud instances are
+section. Change the protocol to ``https`` since Gel Cloud instances are
 secured with TLS.
 
 .. note::
@@ -99,7 +99,7 @@ Authentication for the GraphQL endpoint is identical to that for the
 The protocol
 ------------
 
-EdgeDB can recieve GraphQL queries via both ``GET`` and ``POST`` requests.
+|Gel| can recieve GraphQL queries via both ``GET`` and ``POST`` requests.
 Requests can contain the following fields:
 
 - ``query`` - the GraphQL query string
@@ -223,11 +223,11 @@ There are also some additional limitations:
 - :ref:`Link properties<ref_datamodel_link_properties>` are not reflected, as
   GraphQL has no such concept.
 
-- Every non-abstract EdgeDB object type is simultaneously an interface
+- Every non-abstract |Gel| object type is simultaneously an interface
   and an object in terms of the GraphQL type system, which means that, for
   every one object type name, two names are needed in reflected
   GraphQL. This potentially results in name clashes if the convention
-  of using camel-case names for user types is not followed in EdgeDB.
+  of using camel-case names for user types is not followed in Gel.
 
 
 .. __: http://graphql.org/docs/queries/

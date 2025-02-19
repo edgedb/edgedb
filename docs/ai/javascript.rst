@@ -4,32 +4,32 @@
 JavaScript
 ==========
 
-:edb-alt-title: EdgeDB AI's JavaScript package
+:edb-alt-title: Gel AI's JavaScript package
 
-``@edgedb/ai`` offers a convenient wrapper around ``ext::ai``. Install it with
+``@gel/ai`` offers a convenient wrapper around ``ext::ai``. Install it with
 npm or via your package manager of choice:
 
 .. code-block:: bash
 
-    $ npm install @edgedb/ai # or
-    $ yarn add @edgedb/ai # or
-    $ pnpm add @edgedb/ai # or
-    $ bun add @edgedb/ai
+    $ npm install @gel/ai # or
+    $ yarn add @gel/ai # or
+    $ pnpm add @gel/ai # or
+    $ bun add @gel/ai
 
 
 Usage
 =====
 
-Start by importing ``createClient`` from ``edgedb`` and ``createAI`` from
-``@edgedb/ai``:
+Start by importing ``createClient`` from ``gel`` and ``createAI`` from
+``@gel/ai``:
 
 .. code-block:: typescript
 
-    import { createClient } from "edgedb";
-    import { createAI } from "@edgedb/ai";
+    import { createClient } from "gel";
+    import { createAI } from "@gel/ai";
 
-Create an EdgeDB client. Create an instance of the AI client by passing in the
-EdgeDB client and any options for the AI provider (like the text generation
+Create a |Gel| client. Create an instance of the AI client by passing in the
+Gel client and any options for the AI provider (like the text generation
 model):
 
 .. code-block:: typescript
@@ -93,16 +93,16 @@ API Reference
 .. js:function:: createAI( \
                    client: Client, \
                    options: Partial<AIOptions> = {} \
-                 ): EdgeDBAI
+                 ): GelAI
 
-    Creates an instance of ``EdgeDBAI`` with the specified client and options.
+    Creates an instance of ``GelAI`` with the specified client and options.
 
     :param client:
-        An EdgeDB client instance.
+        A |Gel| client instance.
 
     :param string options.model:
         Required. Specifies the AI model to use. This could be a version of GPT
-        or any other model supported by EdgeDB AI.
+        or any other model supported by |Gel| AI.
 
     :param options.prompt:
         Optional. Defines the input prompt for the AI model. The prompt can be
@@ -111,22 +111,22 @@ API Reference
         interactions. The default is the built-in system prompt.
 
 
-EdgeDBAI
---------
+GelAI
+-----
 
-Instances of ``EdgeDBAI`` offer methods for client configuration and utilizing
+Instances of ``GelAI`` offer methods for client configuration and utilizing
 RAG.
 
 Public methods
 ^^^^^^^^^^^^^^
 
-.. js:method:: withConfig(options: Partial<AIOptions>): EdgeDBAI
+.. js:method:: withConfig(options: Partial<AIOptions>): GelAI
 
-    Returns a new ``EdgeDBAI`` instance with updated configuration options.
+    Returns a new ``GelAI`` instance with updated configuration options.
 
     :param string options.model:
         Required. Specifies the AI model to use. This could be a version of GPT
-        or any other model supported by EdgeDB AI.
+        or any other model supported by |Gel| AI.
 
     :param options.prompt:
         Optional. Defines the input prompt for the AI model. The prompt can be
@@ -134,9 +134,9 @@ Public methods
         structure that includes roles and content for more complex
         interactions. The default is the built-in system prompt.
 
-.. js:method:: withContext(context: Partial<QueryContext>): EdgeDBAI
+.. js:method:: withContext(context: Partial<QueryContext>): GelAI
 
-    Returns a new ``EdgeDBAI`` instance with an updated query context.
+    Returns a new ``GelAI`` instance with an updated query context.
 
     :param string context.query:
         Required. Specifies an expression to determine the relevant objects and
@@ -179,11 +179,11 @@ Public methods
 
     Can be used in two ways:
 
-    - as **an async iterator** - if you want to process streaming data in 
+    - as **an async iterator** - if you want to process streaming data in
         real-time as it arrives, ideal for handling long-running streams.
 
-    - as **a Promise that resolves to a full Response object** - you have 
-        complete control over how you want to handle the stream, this might be 
+    - as **a Promise that resolves to a full Response object** - you have
+        complete control over how you want to handle the stream, this might be
         useful when you want to manipulate the raw stream or parse it in a custom way.
 
     :param string message:

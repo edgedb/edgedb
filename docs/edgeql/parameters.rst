@@ -3,6 +3,8 @@
 Parameters
 ==========
 
+.. index:: query params, query arguments, query args, $, < >$, input
+
 :edb-alt-title: Query Parameters
 
 EdgeQL queries can reference parameters with ``$`` notation. The value of these
@@ -15,18 +17,16 @@ parameters are supplied externally.
   select BlogPost filter .id = <uuid>$blog_id;
 
 Note that we provided an explicit type cast before the parameter. This is
-required, as it enables EdgeDB to enforce the provided types at runtime.
+required, as it enables Gel to enforce the provided types at runtime.
 
-.. versionadded:: 3.0
+Parameters can be named or unnamed tuples.
 
-    Parameters can be named or unnamed tuples.
+.. code-block:: edgeql
 
-    .. code-block:: edgeql
-
-        select <tuple<str, bool>>$var;
-        select <optional tuple<str, bool>>$var;
-        select <tuple<name: str, flag: bool>>$var;
-        select <optional tuple<name: str, flag: bool>>$var;
+    select <tuple<str, bool>>$var;
+    select <optional tuple<str, bool>>$var;
+    select <tuple<name: str, flag: bool>>$var;
+    select <optional tuple<name: str, flag: bool>>$var;
 
 Usage with clients
 ------------------
@@ -34,14 +34,14 @@ Usage with clients
 REPL
 ^^^^
 
-When you include a parameter reference in an EdgeDB REPL, you'll be prompted
+When you include a parameter reference in an Gel REPL, you'll be prompted
 interactively to provide a value or values.
 
 .. code-block:: edgeql-repl
 
   db> select 'I ❤️ ' ++ <str>$var ++ '!';
-  Parameter <str>$var: EdgeDB
-  {'I ❤️ EdgeDB!'}
+  Parameter <str>$var: Gel
+  {'I ❤️ Gel!'}
 
 
 Python
@@ -87,7 +87,7 @@ Go
 
 
 Refer to the Datatypes page of your preferred :ref:`client library
-<ref_clients_index>` to learn more about mapping between EdgeDB types and
+<ref_clients_index>` to learn more about mapping between Gel types and
 language-native types.
 
 
@@ -96,10 +96,10 @@ language-native types.
 Parameter types and JSON
 ------------------------
 
-Prior to EdgeDB 3.0, parameters can be only :ref:`scalars
-<ref_datamodel_scalar_types>` or arrays of scalars. In EdgeDB 3.0, parameters
-can also be tuples. If you need to pass complex structures as parameters, use
-EdgeDB's built-in :ref:`JSON <ref_std_json>` functionality.
+.. index:: complex parameters
+
+In Gel, parameters can also be tuples. If you need to pass complex structures
+as parameters, use Gel's built-in :ref:`JSON <ref_std_json>` functionality.
 
 .. code-block:: edgeql-repl
 
@@ -128,6 +128,8 @@ properties.
 Optional parameters
 -------------------
 
+.. index:: <optional >$
+
 By default, query parameters are ``required``; the query will fail if the
 parameter value is an empty set. You can use an ``optional`` modifier inside
 the type cast if the parameter is optional.
@@ -150,6 +152,8 @@ the type cast if the parameter is optional.
 Default parameter values
 ------------------------
 
+.. index:: ??
+
 When using optional parameters, you may want to provide a default value to use
 in case the parameter is not passed. You can do this by using the
 :eql:op:`?? (coalesce) <coalesce>` operator.
@@ -157,8 +161,8 @@ in case the parameter is not passed. You can do this by using the
 .. code-block:: edgeql-repl
 
   db> select 'Hello ' ++ <optional str>$name ?? 'there';
-  Parameter <str>$name (Ctrl+D for empty set `{}`): EdgeDB
-  {'Hello EdgeDB'}
+  Parameter <str>$name (Ctrl+D for empty set `{}`): Gel
+  {'Hello Gel'}
   db> select 'Hello ' ++ <optional str>$name ?? 'there';
   Parameter <str>$name (Ctrl+D for empty set `{}`):
   {'Hello there'}
@@ -167,9 +171,11 @@ in case the parameter is not passed. You can do this by using the
 What can be parameterized?
 --------------------------
 
+.. index:: order by parameters
+
 Any data manipulation language (DML) statement can be
 parameterized: ``select``, ``insert``, ``update``, and ``delete``. Since
-parameters can only be scalars, arrays of scalars, and, as of EdgeDB 3.0,
+parameters can only be scalars, arrays of scalars, and
 tuples of scalars, only parts of the query that would be one of those types can
 be parameterized. This excludes parts of the query like the type being queried
 and the property to order by.

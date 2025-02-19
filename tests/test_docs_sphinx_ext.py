@@ -36,6 +36,7 @@ class BaseDomainTest:
                 '-n',
                 '-C',
                 '-D', 'extensions=edb.tools.docs',
+                '-D', 'smartquotes_action=De',
                 '-q',
                 td_in,
                 td_out,
@@ -945,3 +946,96 @@ class TestBlockquote(unittest.TestCase, BaseDomainTest):
                 //container[@collapsed_block="True"]/paragraph/text()
             '''),
             ['spam', 'ham'])
+
+
+@unittest.skipIf(requests_xml is None, 'requests-xml package is not installed')
+class TestOthers(unittest.TestCase, BaseDomainTest):
+
+    def test_sphinx_edb_brand_name_01(self):
+        src = '''
+        blah |Gel|
+        blah2 |Gel's|
+        '''
+
+        out = self.build(src, format='xml')
+        x = requests_xml.XML(xml=out)
+
+        self.assertEqual(
+            x.xpath('''
+                //paragraph/inline[@edb-substitution="true"]/text()
+            '''),
+            ["Gel", "Gel's"])
+
+    def test_sphinx_edb_brand_name_02(self):
+        src = '''
+        blah |gelcmd|
+        blah 2 :gelcmd:`migrate --help`
+        blah 3 :gelcmd:`migrate
+        --help
+        --foo`
+
+        blah4 |geluri|
+        blah5 :geluri:`foo:bar@nax/a:123#12`
+
+        blah6 :dotgel:`default`
+
+        blah7 :gelenv:`HOST`
+        blah8 :gelenv:`HOST=AB`
+
+        DONE
+        '''
+
+        out = self.build(src, format='xml')
+        x = requests_xml.XML(xml=out)
+
+        self.assertEqual(
+            x.xpath('''
+                //paragraph/literal
+                    [@edb-substitution="true"]
+                    [@edb-gelcmd="true"]
+                    [@edb-gelcmd-top="true"]
+                    / text()
+            '''),
+            ['gel']
+        )
+
+        self.assertEqual(
+            x.xpath('''
+                //paragraph/literal
+                    [@edb-substitution="true"]
+                    [@edb-gelcmd="true"]
+                    [@edb-gelcmd-top="false"]
+                    / text()
+            '''),
+            ['gel migrate --help', 'gel migrate --help --foo']
+        )
+
+        self.assertEqual(
+            x.xpath('''
+                //paragraph/literal
+                    [@edb-substitution="true"]
+                    [@edb-geluri="true"]
+                    / text()
+            '''),
+            ['gel://', 'gel://foo:bar@nax/a:123#12']
+        )
+
+        self.assertEqual(
+            x.xpath('''
+                //paragraph/literal
+                    [@edb-substitution="true"]
+                    [@edb-dotgel="true"]
+                    / text()
+            '''),
+             ['default.gel']
+        )
+
+        self.assertEqual(
+            x.xpath('''
+                //paragraph/literal
+                    [@edb-substitution="true"]
+                    [@edb-gelenv="true"]
+                    / text()
+            '''),
+             ['GEL_HOST', 'GEL_HOST=AB']
+        )

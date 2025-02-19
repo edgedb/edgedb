@@ -6,15 +6,15 @@
 CLI
 ===
 
-:edb-alt-title: The EdgeDB CLI
+:edb-alt-title: The Gel CLI
 
-The ``edgedb`` command-line interface (CLI) provides an idiomatic way to
-install EdgeDB, spin up local instances, open a REPL, execute queries,
+The |gelcmd| command-line interface (CLI) provides an idiomatic way to
+install |Gel|, spin up local instances, open a REPL, execute queries,
 manage auth roles, introspect schema, create migrations, and more.
 
 You can install it with one shell command.
 
-.. _ref_cli_edgedb_install:
+.. _ref_cli_gel_install:
 
 .. rubric:: Installation
 
@@ -23,47 +23,47 @@ on-screen instructions:
 
 .. code-block:: bash
 
-    $ curl --proto '=https' --tlsv1.2 -sSf https://sh.edgedb.com | sh
+    $ curl --proto '=https' --tlsv1.2 -sSf https://geldata.com/sh | sh
 
 For Windows, the installation script is:
 
 .. code-block:: powershell
 
-    PS> iwr https://ps1.edgedb.com -useb | iex
+    PS> iwr https://geldata.com/ps1 -useb | iex
 
-* The `script <https://sh.edgedb.com>`_, inspired by ``rustup``, will
-  detect the OS and download the appropriate build of the EdgeDB CLI
-  tool, ``edgedb``.
-* The ``edgedb`` command is a single executable (it's `open source!
-  <https://github.com/edgedb/edgedb-cli/>`_)
-* Once installed, the ``edgedb`` command can be used to install,
-  uninstall, upgrade, and interact with EdgeDB server instances.
-* You can uninstall EdgeDB server or remove the ``edgedb`` command at
+* The `script <https://geldata.com/sh>`_, inspired by ``rustup``, will
+  detect the OS and download the appropriate build of the Gel CLI
+  tool, ``gel``.
+* The |gelcmd| command is a single executable (it's `open source!
+  <https://github.com/geldata/gel-cli/>`_)
+* Once installed, the ``gel`` command can be used to install,
+  uninstall, upgrade, and interact with |Gel| server instances.
+* You can uninstall Gel server or remove the ``gel`` command at
   any time.
 
 
 .. rubric:: Connection options
 
 All commands respect a common set of
-:ref:`connection options <ref_cli_edgedb_connopts>`, which let you specify
+:ref:`connection options <ref_cli_gel_connopts>`, which let you specify
 a target instance. This instance can be local to your machine or hosted
 remotely.
 
 
-.. _ref_cli_edgedb_nightly:
+.. _ref_cli_gel_nightly:
 
 .. rubric:: Nightly version
 
 To install the nightly version of the CLI (not to be confused with the nightly
-version of EdgeDB itself!) use this command:
+version of |Gel| itself!) use this command:
 
 .. code-block:: bash
 
-    $ curl --proto '=https' --tlsv1.2 -sSf https://sh.edgedb.com | \
+    $ curl --proto '=https' --tlsv1.2 -sSf https://geldata.com/sh | \
       sh -s -- --nightly
 
 
-.. _ref_cli_edgedb_uninstall:
+.. _ref_cli_gel_uninstall:
 
 .. rubric:: Uninstallation
 
@@ -72,41 +72,41 @@ macOS run:
 
 .. code-block:: bash
 
-   $ rm "$(which edgedb)"
+   $ rm "$(which gel)"
 
-To remove all configuration files, run ``edgedb info`` to list the directories
-where EdgeDB stores data, then use ``rm -rf <dir>`` to delete those
+To remove all configuration files, run :gelcmd:`info` to list the directories
+where |Gel| stores data, then use ``rm -rf <dir>`` to delete those
 directories.
 
 If the command-line tool was installed by the user (recommended) then it
 will also remove the binary.
 
-If you've used ``edgedb`` commands you can also delete
-:ref:`instances <ref_cli_edgedb_instance_destroy>` and :ref:`server
-<ref_cli_edgedb_server_uninstall>` packages, prior to removing the
+If you've used ``gel`` commands you can also delete
+:ref:`instances <ref_cli_gel_instance_destroy>` and :ref:`server
+<ref_cli_gel_server_uninstall>` packages, prior to removing the
 tool:
 
 .. code-block:: bash
 
-   $ edgedb instance destroy <instance_name>
+   $ gel instance destroy <instance_name>
 
 To list instances and server versions use the following commands
 respectively:
 
 .. code-block:: bash
 
-   $ edgedb instance status
-   $ edgedb server list-versions --installed-only
+   $ gel instance status
+   $ gel server list-versions --installed-only
 
 
-.. _ref_cli_edgedb_config:
+.. _ref_cli_gel_config:
 
 .. rubric:: Configure CLI and REPL
 
-You can customize the behavior of the ``edgedb`` CLI and REPL with a
+You can customize the behavior of the |gelcmd| CLI and REPL with a
 global configuration file. The file is called ``cli.toml`` and its
 location differs between operating systems. Use
-:ref:`ref_cli_edgedb_info` to find the "Config" directory on your
+:ref:`ref_cli_gel_info` to find the "Config" directory on your
 system.
 
 The ``cli.toml`` has the following structure. All fields are optional:
@@ -128,32 +128,32 @@ The ``cli.toml`` has the following structure. All fields are optional:
     verbose-errors = false        # Print all errors with maximum verbosity
 
 
-:ref:`Notes on network usage <ref_cli_edgedb_network>`
+:ref:`Notes on network usage <ref_cli_gel_network>`
 
 
 .. toctree::
     :maxdepth: 3
     :hidden:
 
-    edgedb_connopts
+    gel_connopts
     network
-    edgedb
-    edgedb_analyze
-    edgedb_branch/index
-    edgedb_configure
-    edgedb_cli_upgrade
-    edgedb_cloud/index
-    edgedb_database/index
-    edgedb_describe/index
-    edgedb_dump
-    edgedb_info
-    edgedb_instance/index
-    edgedb_list
-    edgedb_migrate
-    edgedb_migration/index
-    edgedb_project/index
-    edgedb_query
-    edgedb_restore
-    edgedb_server/index
-    edgedb_ui
-    edgedb_watch
+    gel
+    gel_project/index
+    gel_ui
+    gel_watch
+    gel_migrate
+    gel_migration/index
+    gel_cloud/index
+    gel_branch/index
+    gel_dump
+    gel_restore
+    gel_configure
+    gel_query
+    gel_analyze
+    gel_list
+    gel_info
+    gel_cli_upgrade
+    gel_server/index
+    gel_describe/index
+    gel_instance/index
+    gel_database/index

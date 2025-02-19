@@ -4,7 +4,7 @@
 Server configuration
 ====================
 
-EdgeDB exposes a number of configuration parameters that affect its
+|Gel| exposes a number of configuration parameters that affect its
 behavior.  In this section we review the ways to change the server
 configuration, as well as detail each available configuration parameter.
 
@@ -20,18 +20,18 @@ configuration parameters using EdgeQL. For example:
 
 .. code-block:: edgeql-repl
 
-  edgedb> configure instance set listen_addresses := {'127.0.0.1', '::1'};
+  gel> configure instance set listen_addresses := {'127.0.0.1', '::1'};
   CONFIGURE: OK
 
 CLI
 ---
 
-The :ref:`ref_cli_edgedb_configure` command allows modifying the system
+The :ref:`ref_cli_gel_configure` command allows modifying the system
 configuration from a terminal:
 
 .. code-block:: bash
 
-  $ edgedb configure set listen_addresses 127.0.0.1 ::1
+  $ gel configure set listen_addresses 127.0.0.1 ::1
 
 
 Available settings
@@ -108,8 +108,8 @@ Query behavior
   .. note::
 
       This setting can also be conveniently accessed via the "Config" dropdown
-      menu at the top of the EdgeDB UI (accessible by running the CLI command
-      ``edgedb ui`` from within a project). The setting will apply only to your
+      menu at the top of the Gel UI (accessible by running the CLI command
+      :gelcmd:`ui` from within a project). The setting will apply only to your
       UI session, so you won't have to remember to re-enable it when you're
       done.
 

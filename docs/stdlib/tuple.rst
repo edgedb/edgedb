@@ -49,14 +49,14 @@ Examples:
 
 .. code-block:: edgeql-repl
 
-    db> select (1, 'EdgeDB').0;
+    db> select (1, 'Gel').0;
     {1}
 
-    db> select (number := 1, name := 'EdgeDB').name;
-    {"EdgeDB"}
+    db> select (number := 1, name := 'Gel').name;
+    {"Gel"}
 
-    db> select (number := 1, name := 'EdgeDB').1;
-    {"EdgeDB"}
+    db> select (number := 1, name := 'Gel').1;
+    {"Gel"}
 
 Nesting tuples
 --------------
@@ -102,14 +102,6 @@ A named tuple:
 Any type can be used as a tuple element type.
 
 Here's an example of using this syntax in a schema definition:
-
-.. code-block:: sdl
-    :version-lt: 3.0
-
-    type GameElement {
-        required property name -> str;
-        required property position -> tuple<x: int64, y: int64>;
-    }
 
 .. code-block:: sdl
 

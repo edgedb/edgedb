@@ -7,7 +7,7 @@
 ========
 
 This changelog summarizes new features and breaking changes in
-EdgeDB 1.0 Release Candidate 1 "Epsilon Eridani".
+|EdgeDB| 1.0 Release Candidate 1 "Epsilon Eridani".
 
 
 Migrations
@@ -139,9 +139,9 @@ EdgeQL
 Command-Line Tools
 ==================
 
-* Add the :ref:`cli.toml <ref_cli_edgedb_config>` global configuration
+* Add the :ref:`cli.toml <ref_cli_gel_config>` global configuration
   file for customizing the CLI and REPL behavior. The location of the
-  file is shown as "Config" by :ref:`ref_cli_edgedb_info`.
+  file is shown as "Config" by :ref:`ref_cli_gel_info`.
 
 * Make SCRAM the default auth method (:eql:gh:`#2848`).
 * Add a server option to specify the default authentication method

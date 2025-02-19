@@ -1,7 +1,5 @@
 .. _ref_eql_statements_analyze:
 
-.. versionadded:: 3.0
-
 Analyze
 =======
 
@@ -22,7 +20,7 @@ Description
 ``analyze`` returns a table with performance metrics broken down by node.
 
 You may prepend the ``analyze`` keyword in either of our REPLs (CLI or :ref:`UI
-<ref_cli_edgedb_ui>`) or you may prepend in the UI's query builder for a
+<ref_cli_gel_ui>`) or you may prepend in the UI's query builder for a
 helpful visualization of your query's performance.
 
 After any ``analyze`` in a REPL, run the ``\expand`` command to see
@@ -58,5 +56,5 @@ Example
   :class: seealso
 
   * - **See also**
-  * - :ref:`CLI > edgedb analyze <ref_cli_edgedb_analyze>`
+  * - :ref:`CLI > gel analyze <ref_cli_gel_analyze>`
   * - :ref:`EdgeQL > Analyze <ref_eql_analyze>`

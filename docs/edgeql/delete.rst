@@ -3,6 +3,8 @@
 Delete
 ======
 
+.. index:: delete
+
 The ``delete`` command is used to delete objects from the database.
 
 .. code-block:: edgeql
@@ -27,6 +29,8 @@ on these clauses.
 
 Link deletion
 -------------
+
+.. index:: ConstraintViolationError
 
 Every link is associated with a *link deletion policy*. By default, it isn't
 possible to delete an object linked to by another.
@@ -57,18 +61,6 @@ To avoid this behavior, we could update the ``Movie.characters`` link to use
 the ``allow`` deletion policy.
 
 .. code-block:: sdl-diff
-    :version-lt: 3.0
-
-      type Movie {
-        required property title -> str { constraint exclusive };
-        required property release_year -> int64;
-    -   multi link characters -> Person;
-    +   multi link characters -> Person {
-    +     on target delete allow;
-    +   };
-      }
-
-.. code-block:: sdl-diff
 
       type Movie {
         required title: str { constraint exclusive };
@@ -83,6 +75,8 @@ the ``allow`` deletion policy.
 Cascading deletes
 ^^^^^^^^^^^^^^^^^
 
+.. index:: delete cascade, delete source, delete target, deletion policy
+
 If a link uses the ``delete source`` policy, then deleting a *target* of the
 link will also delete the object that links to it (the *source*). This behavior
 can be used to implement cascading deletes; be careful with this power!
@@ -92,6 +86,8 @@ The full list of deletion policies is documented at :ref:`Schema > Links
 
 Return value
 ------------
+
+.. index:: delete, returning
 
 A ``delete`` statement returns the set of deleted objects. You can pass this
 set into ``select`` to fetch properties and links of the (now-deleted)
@@ -113,5 +109,3 @@ permanently deleted.
   * - **See also**
   * - :ref:`Reference > Commands > Delete <ref_eql_statements_delete>`
   * - :ref:`Cheatsheets > Deleting data <ref_cheatsheet_delete>`
-  * - `Tutorial > Data Mutations > Delete
-      </tutorial/data-mutations/delete>`_

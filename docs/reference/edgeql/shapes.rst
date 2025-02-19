@@ -65,14 +65,6 @@ names associated with the given user" in a database defined by the
 following schema:
 
 .. code-block:: sdl
-    :version-lt: 3.0
-
-    type User {
-        required property name -> str;
-        multi link friends -> User;
-    }
-
-.. code-block:: sdl
 
     type User {
         required name: str;
@@ -118,7 +110,7 @@ This achieves a couple of things: it's easier to see which friends
 belong to which user and we no longer need the placeholder ``''`` for
 those users who don't have friends.
 
-The recommended way to get this information in EdgeDB, however, is to
+The recommended way to get this information in Gel, however, is to
 use *shapes*, because they mimic the structure of the data and the output:
 
 .. code-block:: edgeql-repl
@@ -218,7 +210,7 @@ these flags out as part of the shape's computed properties:
 It looks like this refactoring came at the cost of putting extra
 things into the output. In this case we don't want our intermediate
 calculations to actually show up in the output, so what can we do? In
-EdgeDB the output structure is determined *only* by the expression
+|Gel| the output structure is determined *only* by the expression
 appearing in the top-level :eql:stmt:`select`. This means
 that we can move our intermediate calculations into the :eql:kw:`with` block:
 
@@ -260,7 +252,7 @@ leaking them into the output.
 General Shaping Rules
 =====================
 
-In EdgeDB typically all shapes appearing in the top-level
+In Gel typically all shapes appearing in the top-level
 :eql:stmt:`select` should be reflected in the output. This
 also applies to shapes no matter where and how they are nested.
 Aside from other shapes, this includes nesting in arrays:

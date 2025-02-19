@@ -3,6 +3,7 @@
 Select
 ======
 
+.. index:: select
 
 The ``select`` command retrieves or computes a set of values. We've already
 seen simple queries that select primitive values.
@@ -50,54 +51,6 @@ Selecting objects
 
 However most queries are selecting *objects* that live in the database. For
 demonstration purposes, the queries below assume the following schema:
-
-.. code-block:: sdl
-    :version-lt: 3.0
-
-    module default {
-      abstract type Person {
-        required property name -> str { constraint exclusive };
-      }
-
-      type Hero extending Person {
-        property secret_identity -> str;
-        multi link villains := .<nemesis[is Villain];
-      }
-
-      type Villain extending Person {
-        link nemesis -> Hero;
-      }
-
-      type Movie {
-        required property title -> str { constraint exclusive };
-        required property release_year -> int64;
-        multi link characters -> Person;
-      }
-    }
-
-.. code-block:: sdl
-    :version-lt: 4.0
-
-    module default {
-      abstract type Person {
-        required name: str { constraint exclusive };
-      }
-
-      type Hero extending Person {
-        secret_identity: str;
-        multi link villains := .<nemesis[is Villain];
-      }
-
-      type Villain extending Person {
-        nemesis: Hero;
-      }
-
-      type Movie {
-        required title: str { constraint exclusive };
-        required release_year: int64;
-        multi characters: Person;
-      }
-    }
 
 .. code-block:: sdl
 
@@ -205,14 +158,13 @@ this result would look like this:
     {"id": "6c42c4ec-5c03-11ee-99ff-872c9906a467"}
   ]
 
-Learn to select objects by trying it in `our interactive object query
-tutorial </tutorial/basic-queries/objects>`_.
-
 
 .. _ref_eql_shapes:
 
 Shapes
 ------
+
+.. index:: select, shapes, { }
 
 To specify which properties to select, we attach a **shape** to ``Villain``. A
 shape can be attached to any object type expression in EdgeQL.
@@ -228,11 +180,10 @@ shape can be attached to any object type expression in EdgeQL.
     default::Villain {id: 6c42c4ec..., name: 'Obadiah Stane'},
   }
 
-To learn to use shapes by trying them yourself, see `our interactive shapes
-tutorial </tutorial/nested-structures/shapes>`_.
-
 Nested shapes
 ^^^^^^^^^^^^^
+
+.. index:: select, nested shapes
 
 Nested shapes can be used to fetch linked objects and their properties. Here we
 fetch all ``Villain`` objects and their nemeses.
@@ -279,7 +230,7 @@ identically to concrete/non-computed links like ``Villain.nemesis``.
 Splats
 ^^^^^^
 
-.. versionadded:: 3.0
+.. index:: select, splats, *, **, select *, select all, [is ].*, [is ].**
 
 Splats allow you to select all properties of a type using the asterisk (``*``)
 or all properties of the type and a single level of linked types with a double
@@ -530,6 +481,8 @@ we wouldn't get those with this query either.
 Filtering
 ---------
 
+.. index:: select, filter, where
+
 To filter the set of selected objects, use a ``filter <expr>`` clause. The
 ``<expr>`` that follows the ``filter`` keyword can be *any boolean expression*.
 
@@ -570,9 +523,6 @@ of the ``Villain`` type. In other words, we are in the **scope** of the
     produce an empty set if an operand is an empty set. Check out :ref:`our
     boolean cheatsheet <ref_cheatsheet_boolean>` for more info and help on how
     to mitigate this if you know your operands may be an empty set.
-
-Learn to filter your queries by trying it in `our interactive filters
-tutorial </tutorial/basic-queries/config>`_.
 
 Filtering by ID
 ^^^^^^^^^^^^^^^
@@ -639,14 +589,14 @@ links to a second object without a link back to the first.
 
 Spider-Man's villains always have a grudging respect for him, and their names
 can be displayed to reflect that if we know the ID of a movie that they
-starred in. (Note the ability to :ref:`cast from a uuid <ref_uuid_casting>`
-to an object type, which was added in EdgeDB 3.0!)
+starred in. Note the ability to :ref:`cast from a uuid <ref_uuid_casting>`
+to an object type.
 
 .. code-block:: edgeql-repl
-    
-    db> select Villain filter .<characters = 
-    ...   <Movie><uuid>'6c60c28a-5c03-11ee-99ff-dfa425012a05' { 
-    ...     name := .name ++ ', who got to see Spider-Man!' 
+
+    db> select Villain filter .<characters =
+    ...   <Movie><uuid>'6c60c28a-5c03-11ee-99ff-dfa425012a05' {
+    ...     name := .name ++ ', who got to see Spider-Man!'
     ...   };
     {
       'Obadiah Stane',
@@ -664,7 +614,7 @@ traversing a backlink would look like this:
 
 .. code-block:: edgeql-repl
 
-    db> with movie := 
+    db> with movie :=
     ...   <Movie><uuid>'6c60c28a-5c03-11ee-99ff-dfa425012a05',
     ...     select movie.characters[is Villain] {
     ...       name := .name ++ ', who got to see Spider-Man!'
@@ -673,8 +623,35 @@ traversing a backlink would look like this:
 
 .. _ref_eql_select_order:
 
+Filtering, ordering, and limiting of links
+==========================================
+
+Clauses like ``filter``, ``order by``, and ``limit`` can be used on links.
+If no properties of a link are selected, you can place the clauses directly
+inside the shape:
+
+.. code-block:: edgeql
+
+  select User {
+    likes order by .title desc limit 10
+  };
+
+If properties are selected, place the clauses after the link's shape:
+
+.. code-block:: edgeql
+
+  select User {
+    likes: {
+      id,
+      title
+    } order by .title desc limit 10
+  };
+
+
 Ordering
 --------
+
+.. index:: order by, sorting, asc, desc, then, empty first, empty last
 
 Order the result of a query with an ``order by`` clause.
 
@@ -695,7 +672,7 @@ expression, primitive or otherwise.
 
 .. note::
 
-  In EdgeDB all values are orderable. Objects are compared using their ``id``;
+  In Gel all values are orderable. Objects are compared using their ``id``;
   tuples and arrays are compared element-by-element from left to right. By
   extension, the generic comparison operators :eql:op:`= <eq>`,
   :eql:op:`\< <lt>`, :eql:op:`\> <gt>`, etc. can be used with any two
@@ -735,7 +712,9 @@ are handled, see :ref:`Reference > Commands > Select
 Pagination
 ----------
 
-EdgeDB supports ``limit`` and ``offset`` clauses. These are
+.. index:: limit, offset
+
+|Gel| supports ``limit`` and ``offset`` clauses. These are
 typically used in conjunction with ``order by`` to maintain a consistent
 ordering across pagination queries.
 
@@ -798,6 +777,8 @@ providing one or the other.
 Computed fields
 ---------------
 
+.. index:: computeds, :=
+
 Shapes can contain *computed fields*. These are EdgeQL expressions that are
 computed on the fly during the execution of the query. As with other clauses,
 we can use :ref:`leading dot notation <ref_dot_notation>` (e.g. ``.name``) to
@@ -851,6 +832,8 @@ As with nested filters, the *current scope* changes inside nested shapes.
 Backlinks
 ---------
 
+.. index:: .<
+
 Fetching backlinks is a common use case for computed fields. To demonstrate
 this, let's fetch a list of all movies starring a particular Hero.
 
@@ -880,26 +863,6 @@ Instead of re-declaring backlinks inside every query where they're needed, it's
 common to add them directly into your schema as computed links.
 
 .. code-block:: sdl-diff
-    :version-lt: 3.0
-
-      abstract type Person {
-        required property name -> str {
-          constraint exclusive;
-        };
-    +   multi link movies := .<characters[is Movie]
-      }
-
-.. code-block:: sdl-diff
-    :version-lt: 4.0
-
-      abstract type Person {
-        required name: str {
-          constraint exclusive;
-        };
-    +   multi link movies := .<characters[is Movie]
-      }
-
-.. code-block:: sdl-diff
 
       abstract type Person {
         required name: str {
@@ -911,7 +874,7 @@ common to add them directly into your schema as computed links.
 .. note::
 
   In the example above, the ``Person.movies`` is a ``multi`` link. Including
-  these keywords is optional, since EdgeDB can infer this from the assigned
+  these keywords is optional, since Gel can infer this from the assigned
   expression ``.<characters[is Movie]``. However, it's a good practice to
   include the explicit keywords to make the schema more readable and "sanity
   check" the cardinality.
@@ -930,6 +893,9 @@ shapes just like a non-computed link.
 
 Subqueries
 ----------
+
+.. index:: nested queries, composition, composing queries, composable,
+           embedded queries, embedding queries
 
 There's no limit to the complexity of computed expressions. EdgeQL is designed
 to be fully composable; entire queries can be embedded inside each other.
@@ -961,15 +927,11 @@ Below, we use a subquery to select all movies containing a villain's nemesis.
 Polymorphic queries
 -------------------
 
-:index: poly polymorphism nested shapes
+.. index:: polymorphism
 
 All queries thus far have referenced concrete object types: ``Hero`` and
 ``Villain``. However, both of these types extend the abstract type ``Person``,
 from which they inherit the ``name`` property.
-
-To learn how to leverage polymorphism in your queries, see `our interactive
-polymorphism tutorial
-</tutorial/nested-structures/polymorphism>`_.
 
 Polymorphic sets
 ^^^^^^^^^^^^^^^^
@@ -1015,6 +977,8 @@ abstract type (such as ``Movie.characters``) or a :eql:op:`union type
 
 Polymorphic fields
 ^^^^^^^^^^^^^^^^^^
+
+.. index:: [is ].
 
 We can fetch different properties *conditional* on the subtype of each object
 by prefixing property/link references with ``[is <type>]``. This is known as a
@@ -1166,7 +1130,7 @@ know about the type of the current object. The splat operator can be used to
 see this object's makeup, while the double splat operator produces too much
 output to show on this page. Playing around with the splat and double splat
 operator inside ``__type__`` is a quick way to get some insight into the
-internals of EdgeDB.
+internals of Gel.
 
 .. code-block:: edgeql-repl
 
@@ -1195,6 +1159,8 @@ internals of EdgeDB.
 
 Free objects
 ------------
+
+.. index:: ad hoc type
 
 To select several values simultaneously, you can "bundle" them into a "free
 object". Free objects are a set of key-value pairs that can contain any
@@ -1251,13 +1217,3 @@ For full documentation on ``with``, see :ref:`EdgeQL > With <ref_eql_with>`.
   * - **See also**
   * - :ref:`Reference > Commands > Select <ref_eql_statements_select>`
   * - :ref:`Cheatsheets > Selecting data <ref_cheatsheet_select>`
-  * - `Tutorial > Basic Queries > Objects
-      </tutorial/basic-queries/objects>`_
-  * - `Tutorial > Basic Queries > Filters
-      </tutorial/basic-queries/config>`_
-  * - `Tutorial > Basic Queries > Aggregates
-      </tutorial/basic-queries/aggregate-functions>`_
-  * - `Tutorial > Nested Structures > Shapes
-      </tutorial/nested-structures/shapes>`_
-  * - `Tutorial > Nested Structures > Polymorphism
-      </tutorial/nested-structures/polymorphism>`_

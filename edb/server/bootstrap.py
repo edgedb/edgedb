@@ -50,9 +50,10 @@ from edb import buildmeta
 from edb import errors
 
 from edb import edgeql
-from edb.ir import statypes
 from edb.ir import typeutils as irtyputils
 from edb.edgeql import ast as qlast
+from edb.edgeql import codegen as qlcodegen
+from edb.edgeql import qltypes
 
 from edb.common import debug
 from edb.common import devmode
@@ -71,6 +72,7 @@ from edb.schema import reflection as s_refl
 from edb.schema import schema as s_schema
 from edb.schema import std as s_std
 from edb.schema import types as s_types
+from edb.schema import utils as s_utils
 
 from edb.server import args as edbargs
 from edb.server import config
@@ -614,7 +616,6 @@ def compile_bootstrap_script(
     expected_cardinality_one: bool = False,
     output_format: edbcompiler.OutputFormat = edbcompiler.OutputFormat.JSON,
 ) -> Tuple[s_schema.Schema, str]:
-
     ctx = edbcompiler.new_compiler_context(
         compiler_state=compiler.state,
         user_schema=schema,
@@ -686,8 +687,7 @@ def prepare_repair_patch(
     globalschema: s_schema.Schema,
     schema_class_layout: s_refl.SchemaClassLayout,
     backend_params: params.BackendRuntimeParams,
-    config: Any,
-) -> bytes:
+) -> str:
     compiler = edbcompiler.new_compiler(
         std_schema=stdschema,
         reflection_schema=reflschema,
@@ -701,13 +701,13 @@ def prepare_repair_patch(
     )
     res = edbcompiler.repair_schema(compilerctx)
     if not res:
-        return b""
+        return ""
     sql, _, _ = res
 
-    return sql
+    return sql.decode('utf-8')
 
 
-PatchEntry = tuple[tuple[str, ...], tuple[str, ...], dict[str, Any], bool]
+PatchEntry = tuple[tuple[str, ...], tuple[str, ...], dict[str, Any]]
 
 
 async def gather_patch_info(
@@ -786,6 +786,8 @@ def prepare_patch(
     patch_info: Optional[dict[str, list[str]]],
     user_schema: Optional[s_schema.Schema]=None,
     global_schema: Optional[s_schema.Schema]=None,
+    *,
+    dbname: Optional[str]=None,
 ) -> PatchEntry:
     val = f'{pg_common.quote_literal(json.dumps(num + 1))}::jsonb'
     # TODO: This is an INSERT because 2.0 shipped without num_patches.
@@ -801,7 +803,7 @@ def prepare_patch(
 
     # Pure SQL patches are simple
     if kind == 'sql':
-        return (patch, update), (), {}, False
+        return (patch, update), (), {}
 
     # metaschema-sql: just recreate a function from metaschema
     if kind == 'metaschema-sql':
@@ -809,11 +811,37 @@ def prepare_patch(
         create = dbops.CreateFunction(func(), or_replace=True)
         block = dbops.PLTopBlock()
         create.generate(block)
-        return (block.to_string(), update), (), {}, False
+        return (block.to_string(), update), (), {}
 
     if kind == 'repair':
         assert not patch
-        return (update,), (), {}, True
+        if not user_schema:
+            return (update,), (), dict(is_user_update=True)
+        assert global_schema
+
+        # TODO: Implement the last-repair-only optimization?
+        try:
+            logger.info("repairing database '%s'", dbname)
+            sql = prepare_repair_patch(
+                schema,
+                reflschema,
+                user_schema,
+                global_schema,
+                schema_class_layout,
+                backend_params
+            )
+        except errors.EdgeDBError as e:
+            if isinstance(e, errors.InternalServerError):
+                raise
+            raise errors.SchemaError(
+                f'Could not repair schema inconsistencies in '
+                f'database branch "{dbname}". Probably the schema is '
+                f'no longer valid due to a bug fix.\n'
+                f'Downgrade to the last working version, fix '
+                f'the schema issue, and try again.'
+            ) from e
+
+        return (update, sql), (), {}
 
     # EdgeQL and reflection schema patches need to be compiled.
     current_block = dbops.PLTopBlock()
@@ -874,7 +902,7 @@ def prepare_patch(
         # There isn't anything to do on the system database for
         # userext updates.
         if user_schema is None:
-            return (update,), (), dict(is_user_ext_update=True), False
+            return (update,), (), dict(is_user_update=True)
 
         # Only run a userext update if the extension we are trying to
         # update is installed.
@@ -883,7 +911,7 @@ def prepare_patch(
             s_exts.Extension, extension_name, default=None)
 
         if not extension:
-            return (update,), (), {}, False
+            return (update,), (), {}
 
         assert global_schema
         cschema = s_schema.ChainedSchema(
@@ -1097,13 +1125,13 @@ def prepare_patch(
         sys_updates = (patch,) + sys_updates
     else:
         regular_updates = spatches + (update,)
-        # FIXME: This is a hack to make the is_user_ext_update cases
+        # FIXME: This is a hack to make the is_user_update cases
         # work (by ensuring we can always read their current state),
         # but this is actually a pretty dumb approach and we can do
         # better.
         regular_updates += sys_updates
 
-    return regular_updates, sys_updates, updates, False
+    return regular_updates, sys_updates, updates
 
 
 async def create_branch(
@@ -1753,8 +1781,10 @@ async def _init_stdlib(
             await conn.sql_execute(testmode_sql.encode("utf-8"))
             trampolines.extend(new_trampolines)
         # _testmode includes extra config settings, so make sure
-        # those are picked up.
+        # those are picked up...
         config_spec = config.load_spec_from_schema(stdlib.stdschema)
+        # ...and that config functions dependent on it are regenerated
+        await metaschema.regenerate_config_support_functions(conn, config_spec)
 
     logger.info('Finalizing database setup...')
 
@@ -1929,13 +1959,13 @@ async def _configure(
                 backend_params.has_configfile_access
             )
         ):
-            if isinstance(setting.default, statypes.Duration):
-                val = f'<std::duration>"{setting.default.to_iso8601()}"'
-            else:
-                val = repr(setting.default)
-            script = f'''
-                CONFIGURE INSTANCE SET {setting.name} := {val};
-            '''
+            script = qlcodegen.generate_source(
+                qlast.ConfigSet(
+                    name=qlast.ObjectRef(name=setting.name),
+                    scope=qltypes.ConfigScope.INSTANCE,
+                    expr=s_utils.const_ast_from_python(setting.default),
+                )
+            )
             schema, sql = compile_bootstrap_script(compiler, schema, script)
             await _execute(ctx.conn, sql)
 

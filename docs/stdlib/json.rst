@@ -58,7 +58,7 @@ JSON
 Constructing JSON Values
 ------------------------
 
-JSON in EdgeDB is a :ref:`scalar type <ref_datamodel_scalar_types>`. This type
+JSON in Gel is a :ref:`scalar type <ref_datamodel_scalar_types>`. This type
 doesn't have its own literal, and instead can be obtained by either casting a
 value to the :eql:type:`json` type, or by using the :eql:func:`to_json`
 function:
@@ -70,7 +70,7 @@ function:
     db> select <json>'hello world';
     {Json("\"hello world\"")}
 
-Any value in EdgeDB can be cast to a :eql:type:`json` type as well:
+Any value in Gel can be cast to a :eql:type:`json` type as well:
 
 .. code-block:: edgeql-repl
 
@@ -79,18 +79,16 @@ Any value in EdgeDB can be cast to a :eql:type:`json` type as well:
     db> select <json>cal::to_local_date(datetime_current(), 'UTC');
     {Json("\"2022-11-21\"")}
 
-.. versionadded:: 3.0
+The :eql:func:`json_object_pack` function provides one more way to
+construct JSON. It constructs a JSON object from an array of key/value
+tuples:
 
-    The :eql:func:`json_object_pack` function provides one more way to
-    construct JSON. It constructs a JSON object from an array of key/value
-    tuples:
+.. code-block:: edgeql-repl
 
-    .. code-block:: edgeql-repl
+    db> select json_object_pack({("hello", <json>"world")});
+    {Json("{\"hello\": \"world\"}")}
 
-        db> select json_object_pack({("hello", <json>"world")});
-        {Json("{\"hello\": \"world\"}")}
-
-Additionally, any :eql:type:`Object` in EdgeDB can be cast as a
+Additionally, any :eql:type:`Object` in Gel can be cast as a
 :eql:type:`json` type. This produces the same JSON value as the
 JSON-serialized result of that said object. Furthermore, this result will
 be the same as the output of a :eql:stmt:`select expression <select>` in
@@ -117,7 +115,7 @@ conditions for casting:
   string representing its original value. This means it is also possible to
   cast a JSON string back to those types. The value of the UUID or datetime
   string must be properly formatted to successfully cast from JSON, otherwise
-  EdgeDB will raise an exception.
+  Gel will raise an exception.
 - JSON numbers can be cast to any :ref:`numeric type <ref_std_numeric>`.
 - JSON booleans can be cast to a :eql:type:`bool` type.
 - JSON ``null`` is unique because it can be cast to an empty set (``{}``) of
@@ -176,7 +174,7 @@ JSON array.
     .. note::
 
         This type is backed by the Postgres ``jsonb`` type which has a size
-        limit of 256MiB minus one byte. The EdgeDB ``json`` type is also
+        limit of 256MiB minus one byte. The Gel ``json`` type is also
         subject to this limitation.
 
 
@@ -184,6 +182,8 @@ JSON array.
 
 
 .. eql:operator:: jsonidx: json [ int64 ] -> json
+
+    :index: [int], index access
 
     Accesses the element of the JSON string or array at a given index.
 
@@ -211,6 +211,8 @@ JSON array.
 
 .. eql:operator:: jsonslice: json [ int64 : int64 ] -> json
 
+    :index: [int:int]
+
     Produces a JSON value comprising a portion of the existing JSON value.
 
     JSON *arrays* and *strings* can be sliced in the same way as
@@ -236,6 +238,8 @@ JSON array.
 
 .. eql:operator:: jsonplus: json ++ json -> json
 
+    :index: ++, concatenate, join, add
+
     Concatenates two JSON arrays, objects, or strings into one.
 
     JSON arrays, objects and strings can be concatenated with JSON values of
@@ -260,6 +264,8 @@ JSON array.
 
 
 .. eql:operator:: jsonobjdest: json [ str ] -> json
+
+    :index: [str], json get key
 
     Accesses an element of a JSON object given its key.
 
@@ -382,8 +388,6 @@ JSON array.
                       JsonEmpty.ReturnEmpty) \
                   -> optional json
 
-    .. versionadded:: 2.0
-
     Returns an updated JSON target with a new value.
 
     .. code-block:: edgeql-repl
@@ -471,8 +475,6 @@ JSON array.
 
 .. eql:function:: std::json_object_pack(pairs: SET OF tuple<str, json>) -> \
                   json
-
-    .. versionadded:: 3.0
 
     Returns the given set of key/value tuples as a JSON object.
 

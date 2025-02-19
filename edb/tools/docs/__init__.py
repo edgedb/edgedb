@@ -30,6 +30,7 @@ from . import eql
 from . import js
 from . import sdl
 from . import graphql
+from . import go
 from . import shared
 
 
@@ -119,6 +120,7 @@ def setup(app):
     js.setup_domain(app)
     sdl.setup_domain(app)
     graphql.setup_domain(app)
+    go.setup_domain(app)
 
     app.add_directive('versionadded', VersionAdded, True)
     app.add_directive('versionchanged', VersionChanged, True)

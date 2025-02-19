@@ -4,50 +4,49 @@
 Jupyter Notebook
 ================
 
-:edb-alt-title: Using EdgeDB with Jupyter Notebook
+:edb-alt-title: Using Gel with Jupyter Notebook
 
 1. `Install Jupyter Notebook
    <https://docs.jupyter.org/en/latest/install/notebook-classic.html>`__
 
-2. Install the EdgeDB Python library with ``pip install edgedb``
+2. Install the Gel Python library with ``pip install gel``
 
-3. Set the appropriate `connection environment variables
-   <https://docs.edgedb.com/database/reference/connection>`__ required for your
-   EdgeDB instance
+3. Set the appropriate :ref:`connection environment variables
+   <ref_reference_connection>` required for your
+   Gel instance
 
-   **For EdgeDB Cloud instances**
+   **For Gel Cloud instances**
 
-   - ``EDGEDB_INSTANCE``- your instance name (``<org-name>/<instance-name>``)
-   - ``EDGEDB_SECRET_KEY``- a secret key with permissions for the selected instance.
+   - :gelenv:`INSTANCE`- your instance name (``<org-name>/<instance-name>``)
+   - :gelenv:`SECRET_KEY`- a secret key with permissions for the selected instance.
 
      .. note::
 
-         You may create a secret key with the CLI by running ``edgedb cloud
-         secretkey create`` or in the `EdgeDB Cloud UI
-         <https://cloud.edgedb.com/>`__.
+         You may create a secret key with the CLI by running :gelcmd:`cloud
+         secretkey create` or in the `Gel Cloud UI
+         <https://cloud.geldata.com/>`__.
 
    **For other remote instances**
 
-   - ``EDGEDB_DSN``- the DSN of your remote instance
+   - :gelenv:`DSN`- the DSN of your remote instance
 
      .. note::
 
         DSNs take the following format:
-        ``edgedb://<username>:<password>@<hostname-or-ip>:<port>/<branch>``.
-        Omit any segment, and EdgeDB will fall back to a default value listed
-        in `our DSN specification
-        <https://docs.edgedb.com/database/reference/dsn#ref-dsn>`__
+        :geluri:`<username>:<password>@<hostname-or-ip>:<port>/<branch>`.
+        Omit any segment, and Gel will fall back to a default value listed
+        in :ref:`our DSN specification <ref_dsn>`
 
-   **For local EdgeDB instances**
+   **For local Gel instances**
 
-   - ``EDGEDB_INSTANCE``- your instance name
-   - ``EDGEDB_USER`` & ``EDGEDB_PASSWORD``
+   - :gelenv:`INSTANCE`- your instance name
+   - :gelenv:`USER` & :gelenv:`PASSWORD`
 
    .. note :: Usernames and passwords
 
-      EdgeDB creates an ``edgedb`` user by default, but the password is
+      Gel creates an |admin| user by default, but the password is
       randomized. You may set the password for this role by running ``alter
-      role edgedb { set password := '<password>'; };`` or you may create a new
+      role admin { set password := '<password>'; };`` or you may create a new
       role using ``create superuser role <name> { set password := '<password>';
       };``.
 
@@ -56,13 +55,13 @@ Jupyter Notebook
 
 5. Create a new notebook.
 
-6. In one of your notebook's blocks, import the EdgeDB library and run a query.
+6. In one of your notebook's blocks, import the Gel library and run a query.
 
    .. code-block:: python
 
-      import edgedb
+      import gel
 
-      client = edgedb.create_client()
+      client = gel.create_client()
 
       def main():
           query = "SELECT 1 + 1;" # Swap in any query you want

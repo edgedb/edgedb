@@ -1,11 +1,9 @@
 .. _ref_eql_analyze:
 
-.. versionadded:: 3.0
-
 Analyze
 =======
 
-:index: performance
+.. index:: analyze, explain, performance, postgres query planner
 
 Prefix an EdgeQL query with ``analyze`` to run a performance analysis of that
 query.
@@ -36,8 +34,8 @@ query.
 
     In addition to using the ``analyze`` statement in the CLI or UI's REPL, you
     may also run performance analysis via our CLI's :ref:`analyze command
-    <ref_cli_edgedb_analyze>` and the UI's query builder (accessible by running
-    :ref:`ref_cli_edgedb_ui` to invoke your instance's UI) by prepending your
+    <ref_cli_gel_analyze>` and the UI's query builder (accessible by running
+    :ref:`ref_cli_gel_ui` to invoke your instance's UI) by prepending your
     query with ``analyze``. This method offers helpful visualizations to to
     make it easy to understand your query's performance.
 
@@ -49,5 +47,5 @@ more fine-grained performance metrics on the previously analyzed query.
   :class: seealso
 
   * - **See also**
-  * - :ref:`CLI > edgedb analyze <ref_cli_edgedb_analyze>`
+  * - :ref:`CLI > gel analyze <ref_cli_gel_analyze>`
   * - :ref:`Reference > EdgeQL > analyze <ref_eql_statements_analyze>`

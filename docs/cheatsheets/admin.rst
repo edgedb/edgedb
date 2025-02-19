@@ -3,42 +3,39 @@
 Administering an instance
 =========================
 
-.. versionchanged:: _default
+Create a schema branch:
 
-    Create a database:
+.. code-block:: edgeql-repl
+
+    db> create schema branch my_new_feature from main;
+    OK: CREATE BRANCH
+
+
+Create a data branch:
+
+.. code-block:: edgeql-repl
+
+    db> create data branch my_new_feature from main;
+    OK: CREATE BRANCH
+
+
+Create an empty branch:
+
+.. code-block:: edgeql-repl
+
+    db> create empty branch my_new_feature;
+    OK: CREATE BRANCH
+
+
+.. note::
+    Prior to |Gel| and |EdgeDB| 5.0 *branches* were called *databases*.
+    A command to create a new empty *database* is ``create database``
+    (still supported for backwards compatibility).
 
     .. code-block:: edgeql-repl
 
-        db> create database my_new_project;
+        db> create database my_new_feature;
         OK: CREATE DATABASE
-
-.. versionchanged:: 5.0
-
-    Create a schema branch:
-
-    .. code-block:: edgeql-repl
-
-        db> create schema branch my_new_feature from main;
-        OK: CREATE BRANCH
-
-
-
-    Create a data branch:
-
-    .. code-block:: edgeql-repl
-
-        db> create data branch my_new_feature from main;
-        OK: CREATE BRANCH
-
-
-
-    Create an empty branch:
-
-    .. code-block:: edgeql-repl
-
-        db> create empty branch my_new_feature;
-        OK: CREATE BRANCH
-
 
 
 Create a role:
@@ -103,4 +100,4 @@ Run a script from command line:
 
 .. cli:synopsis::
 
-    cat myscript.edgeql | edgedb [<connection-option>...]
+    cat myscript.edgeql | gel [<connection-option>...]

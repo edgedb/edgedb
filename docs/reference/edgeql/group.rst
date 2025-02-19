@@ -1,5 +1,3 @@
-.. versionadded:: 2.0
-
 .. _ref_eql_statements_group:
 
 Group
@@ -9,10 +7,6 @@ Group
 :eql-haswith:
 
 :index: group using by
-
-.. note::
-
-  The ``group`` statement is only available in EdgeDB 2.0 or later.
 
 ``group``--partition a set into subsets based on one or more keys
 

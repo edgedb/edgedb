@@ -24,17 +24,6 @@ Constraints
     object properties to restrict maximum magnitude for a vector:
 
     .. code-block:: sdl
-        :version-lt: 3.0
-
-        type Vector {
-            required property x -> float64;
-            required property y -> float64;
-            constraint expression on (
-                __subject__.x^2 + __subject__.y^2 < 25
-            );
-        }
-
-    .. code-block:: sdl
 
         type Vector {
             required x: float64;
@@ -166,29 +155,11 @@ Constraints
     Scalar type definitions cannot include this constraint.
 
     This constraint has an additional effect of creating an
-    implicit :ref:`index <ref_datamodel_indexes>` on a property. 
-    This means that there's no need to add explicit indexes 
+    implicit :ref:`index <ref_datamodel_indexes>` on a property.
+    This means that there's no need to add explicit indexes
     for properties with this constraint.
 
     Example:
-
-    .. code-block:: sdl
-        :version-lt: 3.0
-
-        type User {
-            # Make sure user names are unique.
-            required property name -> str {
-                constraint exclusive;
-            }
-            # Already indexed, don't need to do this:
-            # index on (.name) 
-
-            # Make sure none of the "owned" items belong
-            # to any other user.
-            multi link owns -> Item {
-                constraint exclusive;
-            }
-        }
 
     .. code-block:: sdl
 
@@ -211,17 +182,6 @@ Constraints
     of properties is unique. This can be achieved by defining an
     ``exclusive`` constraint for the combination, rather than on each
     property:
-
-    .. code-block:: sdl
-        :version-lt: 3.0
-
-        type UniqueCoordinates {
-            required property x -> int64;
-            required property y -> int64;
-
-            # Each combination of x and y must be unique.
-            constraint exclusive on ( (.x, .y) );
-        }
 
     .. code-block:: sdl
 
@@ -252,5 +212,3 @@ Constraints
   * - :ref:`DDL > Constraints <ref_eql_ddl_constraints>`
   * - :ref:`Introspection > Constraints
       <ref_datamodel_introspection_constraints>`
-  * - `Tutorial > Advanced EdgeQL > Constraints
-      </tutorial/advanced-edgeql/constraints>`_

@@ -18,17 +18,34 @@
 
 
 from __future__ import annotations
-from typing import Any, Optional
+from typing import (
+    Any,
+    Callable,
+    ClassVar,
+    Generic,
+    Mapping,
+    Optional,
+    Self,
+    TypeVar,
+)
 
 import dataclasses
+import datetime
+import decimal
+import enum
 import functools
 import re
 import struct
-import datetime
+import uuid
 
 import immutables
 
 from edb import errors
+from edb.common import parametric
+from edb.common import uuidgen
+
+from edb.schema import name as s_name
+from edb.schema import objects as s_obj
 
 MISSING: Any = object()
 
@@ -99,6 +116,14 @@ class ScalarType:
 
     def to_backend_str(self) -> str:
         raise NotImplementedError
+
+    @classmethod
+    def to_backend_expr(cls, expr: str) -> str:
+        raise NotImplementedError("{cls}.to_backend_expr()")
+
+    @classmethod
+    def to_frontend_expr(cls, expr: str) -> Optional[str]:
+        raise NotImplementedError("{cls}.to_frontend_expr()")
 
     def to_json(self) -> str:
         raise NotImplementedError
@@ -375,6 +400,14 @@ class Duration(ScalarType):
     def to_backend_str(self) -> str:
         return f'{self.to_microseconds()}us'
 
+    @classmethod
+    def to_backend_expr(cls, expr: str) -> str:
+        return f"edgedb_VER._interval_to_ms(({expr})::interval)::text || 'ms'"
+
+    @classmethod
+    def to_frontend_expr(cls, expr: str) -> Optional[str]:
+        return None
+
     def to_json(self) -> str:
         return self.to_iso8601()
 
@@ -494,6 +527,14 @@ class ConfigMemory(ScalarType):
 
         return f'{self._value}B'
 
+    @classmethod
+    def to_backend_expr(cls, expr: str) -> str:
+        return f"edgedb_VER.cfg_memory_to_str({expr})"
+
+    @classmethod
+    def to_frontend_expr(cls, expr: str) -> Optional[str]:
+        return f"(edgedb_VER.str_to_cfg_memory({expr})::text || 'B')"
+
     def to_json(self) -> str:
         return self.to_str()
 
@@ -503,8 +544,195 @@ class ConfigMemory(ScalarType):
     def __hash__(self) -> int:
         return hash(self._value)
 
-    def __eq__(self, other: object) -> bool:
+    def __eq__(self, other: Any) -> bool:
         if isinstance(other, ConfigMemory):
             return self._value == other._value
         else:
             return False
+
+
+typemap = {
+    'std::str': str,
+    'std::anyint': int,
+    'std::anyfloat': float,
+    'std::decimal': decimal.Decimal,
+    'std::bigint': decimal.Decimal,
+    'std::bool': bool,
+    'std::json': str,
+    'std::uuid': uuidgen.UUID,
+    'std::duration': Duration,
+    'cfg::memory': ConfigMemory,
+}
+
+
+def maybe_get_python_type_for_scalar_type_name(name: str) -> Optional[type]:
+    return typemap.get(name)
+
+
+E = TypeVar("E", bound=enum.StrEnum)
+
+
+class EnumScalarType(
+    ScalarType,
+    parametric.SingleParametricType[E],
+    Generic[E],
+):
+    """Configuration value represented by a custom string enum type that
+    supports arbitrary value mapping to backend (Postgres) configuration
+    values, e.g mapping "Enabled"/"Disabled" enum to a bool value, etc.
+
+    We use SingleParametricType to obtain runtime access to the Generic
+    type arg to avoid having to copy-paste the constructors.
+    """
+
+    _val: E
+    _eql_type: ClassVar[Optional[s_name.QualName]]
+
+    def __init_subclass__(
+        cls,
+        *,
+        edgeql_type: Optional[str] = None,
+        **kwargs: Any,
+    ) -> None:
+        global typemap
+        super().__init_subclass__(**kwargs)
+        if edgeql_type is not None:
+            if edgeql_type in typemap:
+                raise TypeError(
+                    f"{edgeql_type} is already a registered EnumScalarType")
+            typemap[edgeql_type] = cls
+            cls._eql_type = s_name.QualName.from_string(edgeql_type)
+
+    def __init__(
+        self,
+        val: E | str,
+    ) -> None:
+        if isinstance(val, self.type):
+            self._val = val
+        elif isinstance(val, str):
+            try:
+                self._val = self.type(val)
+            except ValueError:
+                raise errors.InvalidValueError(
+                    f'unexpected backend value for '
+                    f'{self.__class__.__name__}: {val!r}'
+                ) from None
+
+    def to_str(self) -> str:
+        return str(self._val)
+
+    def to_json(self) -> str:
+        return self._val
+
+    def encode(self) -> bytes:
+        return self._val.encode("utf8")
+
+    @classmethod
+    def get_translation_map(cls) -> Mapping[E, str]:
+        raise NotImplementedError
+
+    @classmethod
+    def decode(cls, data: bytes) -> Self:
+        return cls(val=cls.type(data.decode("utf8")))
+
+    def __repr__(self) -> str:
+        return f"<statypes.{self.__class__.__name__} '{self._val}'>"
+
+    def __hash__(self) -> int:
+        return hash(self._val)
+
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, type(self)):
+            return self._val == other._val
+        else:
+            return NotImplemented
+
+    def __reduce__(self) -> tuple[
+        Callable[..., EnumScalarType[Any]],
+        tuple[
+            Optional[tuple[type, ...] | type],
+            E,
+        ],
+    ]:
+        assert type(self).is_fully_resolved(), \
+            f'{type(self)} parameters are not resolved'
+
+        cls: type[EnumScalarType[E]] = self.__class__
+        types: Optional[tuple[type, ...]] = self.orig_args
+        if types is None or not cls.is_anon_parametrized():
+            typeargs = None
+        else:
+            typeargs = types[0] if len(types) == 1 else types
+        return (cls.__restore__, (typeargs, self._val))
+
+    @classmethod
+    def __restore__(
+        cls,
+        typeargs: Optional[tuple[type, ...] | type],
+        val: E,
+    ) -> Self:
+        if typeargs is None or cls.is_anon_parametrized():
+            obj = cls(val)
+        else:
+            obj = cls[typeargs](val)  # type: ignore[index]
+
+        return obj
+
+    @classmethod
+    def get_edgeql_typeid(cls) -> uuid.UUID:
+        return s_obj.get_known_type_id('std::str')
+
+    @classmethod
+    def get_edgeql_type(cls) -> s_name.QualName:
+        """Return fully-qualified name of the scalar type for this setting."""
+        assert cls._eql_type is not None
+        return cls._eql_type
+
+    def to_backend_str(self) -> str:
+        """Convert static frontend config value to backend config value."""
+        return self.get_translation_map()[self._val]
+
+    @classmethod
+    def to_backend_expr(cls, expr: str) -> str:
+        """Convert dynamic backend config value to frontend config value."""
+        cases_list = []
+        for fe_val, be_val in cls.get_translation_map().items():
+            cases_list.append(f"WHEN lower('{fe_val}') THEN '{be_val}'")
+        cases = "\n".join(cases_list)
+        errmsg = f"unexpected frontend value for {cls.__name__}: %s"
+        err = f"edgedb_VER.raise(NULL::text, msg => format('{errmsg}', v))"
+        return (
+            f"(SELECT CASE v\n{cases}\nELSE\n{err}\nEND "
+            f"FROM lower(({expr})) AS f(v))"
+        )
+
+    @classmethod
+    def to_frontend_expr(cls, expr: str) -> Optional[str]:
+        """Convert dynamic frontend config value to backend config value."""
+        cases_list = []
+        for fe_val, be_val in cls.get_translation_map().items():
+            cases_list.append(f"WHEN lower('{be_val}') THEN '{fe_val}'")
+        cases = "\n".join(cases_list)
+        errmsg = f"unexpected backend value for {cls.__name__}: %s"
+        err = f"edgedb_VER.raise(NULL::text, msg => format('{errmsg}', v))"
+        return (
+            f"(SELECT CASE v\n{cases}\nELSE\n{err}\nEND "
+            f"FROM lower(({expr})) AS f(v))"
+        )
+
+
+class EnabledDisabledEnum(enum.StrEnum):
+    Enabled = "Enabled"
+    Disabled = "Disabled"
+
+
+class EnabledDisabledType(
+    EnumScalarType[EnabledDisabledEnum],
+    edgeql_type="cfg::TestEnabledDisabledEnum",
+):
+    @classmethod
+    def get_translation_map(cls) -> Mapping[EnabledDisabledEnum, str]:
+        return {
+            EnabledDisabledEnum.Enabled: "true",
+            EnabledDisabledEnum.Disabled: "false",
+        }

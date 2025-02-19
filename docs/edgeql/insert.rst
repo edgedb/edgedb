@@ -3,56 +3,10 @@
 Insert
 ======
 
+.. index:: insert, returning
+
 The ``insert`` command is used to create instances of object types. The code
 samples on this page assume the following schema:
-
-.. code-block:: sdl
-    :version-lt: 3.0
-
-    module default {
-      abstract type Person {
-        required property name -> str { constraint exclusive };
-      }
-
-      type Hero extending Person {
-        property secret_identity -> str;
-        multi link villains := .<nemesis[is Villain];
-      }
-
-      type Villain extending Person {
-        link nemesis -> Hero;
-      }
-
-      type Movie {
-        required property title -> str { constraint exclusive };
-        required property release_year -> int64;
-        multi link characters -> Person;
-      }
-    }
-
-.. code-block:: sdl
-    :version-lt: 4.0
-
-    module default {
-      abstract type Person {
-        required name: str { constraint exclusive };
-      }
-
-      type Hero extending Person {
-        secret_identity: str;
-        multi link villains := .<nemesis[is Villain];
-      }
-
-      type Villain extending Person {
-        nemesis: Hero;
-      }
-
-      type Movie {
-        required title: str { constraint exclusive };
-        required release_year: int64;
-        multi characters: Person;
-      }
-    }
 
 .. code-block:: sdl
 
@@ -160,6 +114,8 @@ You can use :ref:`ref_eql_with` to tidy this up if you prefer:
 Inserting links
 ---------------
 
+.. index:: inserting links
+
 EdgeQL's composable syntax makes link insertion painless. Below, we insert
 "Spider-Man: No Way Home" and include all known heroes and villains as
 ``characters`` (which is basically true).
@@ -218,6 +174,8 @@ returned, this query will fail at runtime.
 Nested inserts
 --------------
 
+.. index:: nested inserts
+
 Just as we used subqueries to populate links with existing objects, we can also
 execute *nested inserts*.
 
@@ -274,6 +232,8 @@ actually exist in the database.
 With block
 ----------
 
+.. index:: with insert
+
 In the previous query, we selected Black Widow twice: once in the
 ``characters`` set and again as the ``nemesis`` of Dreykov. In circumstances
 like this, pulling a subquery into a ``with`` block lets you avoid
@@ -319,7 +279,9 @@ can reference earlier ones.
 Conflicts
 ---------
 
-EdgeDB provides a general-purpose mechanism for gracefully handling possible
+.. index:: unless conflict on, else
+
+|Gel| provides a general-purpose mechanism for gracefully handling possible
 exclusivity constraint violations. Consider a scenario where we are trying to
 ``insert`` Eternals (the ``Movie``), but we can't remember if it already exists
 in the database.
@@ -356,6 +318,8 @@ conflicts and provide a fallback expression.
 Upserts
 ^^^^^^^
 
+.. index:: upserts, unless conflict on, else update
+
 There are no limitations on what the ``else`` clause can contain; it can be any
 EdgeQL expression, including an :ref:`update <ref_eql_update>` statement. This
 lets you express *upsert* logic in a single EdgeQL query.
@@ -378,9 +342,6 @@ lets you express *upsert* logic in a single EdgeQL query.
 When a conflict occurs during the initial ``insert``, the statement falls back
 to the ``update`` statement in the ``else`` clause. This updates the
 ``release_year`` of the conflicting object.
-
-To learn to use upserts by trying them yourself, see `our interactive upserts
-tutorial </tutorial/data-mutations/upsert>`_.
 
 .. note::
 
@@ -458,6 +419,8 @@ tutorial </tutorial/data-mutations/upsert>`_.
 Suppressing failures
 ^^^^^^^^^^^^^^^^^^^^
 
+.. index:: unless conflict
+
 The ``else`` clause is optional; when omitted, the ``insert`` statement will
 return an *empty set* if a conflict occurs. This is a common way to prevent
 ``insert`` queries from failing on constraint violations.
@@ -475,6 +438,8 @@ return an *empty set* if a conflict occurs. This is a common way to prevent
 
 Bulk inserts
 ------------
+
+.. index:: bulk inserts
 
 Bulk inserts are performed by passing in a JSON array as a :ref:`query
 parameter <ref_eql_params>`, :eql:func:`unpacking <json_array_unpack>` it, and
@@ -502,7 +467,3 @@ using a :ref:`for loop <ref_eql_for>` to insert the objects.
   * - **See also**
   * - :ref:`Reference > Commands > Insert <ref_eql_statements_insert>`
   * - :ref:`Cheatsheets > Inserting data <ref_cheatsheet_insert>`
-  * - `Tutorial > Data Mutations > Insert
-      </tutorial/data-mutations/insert>`_
-  * - `Tutorial > Data Mutations > Upsert
-      </tutorial/data-mutations/upsert>`_

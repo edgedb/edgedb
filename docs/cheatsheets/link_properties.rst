@@ -31,17 +31,6 @@ Let's a create a ``Person.friends`` link with a ``strength`` property
 corresponding to the strength of the friendship.
 
 .. code-block:: sdl
-    :version-lt: 3.0
-
-    type Person {
-      required property name -> str { constraint exclusive };
-
-      multi link friends -> Person {
-        property strength -> float64;
-      }
-    }
-
-.. code-block:: sdl
 
     type Person {
       required name: str { constraint exclusive };
@@ -53,20 +42,6 @@ corresponding to the strength of the friendship.
 
 Constraints
 -----------
-
-.. code-block:: sdl
-    :version-lt: 3.0
-
-    type Person {
-      required property name -> str { constraint exclusive };
-
-      multi link friends -> Person {
-        property strength -> float64;
-        constraint expression on (
-          __subject__@strength >= 0
-        );
-      }
-    }
 
 .. code-block:: sdl
 
@@ -85,19 +60,6 @@ Indexes
 -------
 
 To index on a link property, you must declare an abstract link and extend it.
-
-.. code-block:: sdl
-    :version-lt: 3.0
-
-    abstract link friendship {
-      property strength -> float64;
-      index on (__subject__@strength);
-    }
-
-    type Person {
-      required property name -> str { constraint exclusive };
-      multi link friends extending friendship -> Person;
-    }
 
 .. code-block:: sdl
 
@@ -245,13 +207,13 @@ Querying
 
 .. code-block:: edgeql-repl
 
-  edgedb> select Person {
-  .......   name,
-  .......   friends: {
-  .......     name,
-  .......     @strength
-  .......   }
-  ....... };
+  gel> select Person {
+  ....   name,
+  ....   friends: {
+  ....     name,
+  ....     @strength
+  ....   }
+  .... };
   {
     default::Person {name: 'Alice', friends: {}},
     default::Person {
@@ -311,12 +273,8 @@ Querying
     :eql:func:`assert_distinct` here to assure the compiler that the result set
     is distinct.
 
-.. note::
-
-    Specifying link properties of a computed backlink in your shape is
-    supported as of EdgeDB 3.0.
-
-    If you have this schema:
+    Specifying link properties of a computed backlink in your shape is also
+    supported. If you have this schema:
 
     .. code-block:: sdl
 
@@ -330,7 +288,7 @@ Querying
           multi link followers := .<follows[is Person];
         }
 
-    this query will work as of EdgeDB 3.0:
+    this query will work as expected:
 
     .. code-block:: edgeql
 
@@ -345,7 +303,7 @@ Querying
     even though ``@followed`` is a link property of ``follows`` and we are
     accessing is through the computed backlink ``followers`` instead.
 
-    If you need link properties on backlinks in earlier versions of EdgeDB, you
+    If you need link properties on backlinks in earlier versions of |Gel|, you
     can use this workaround:
 
     .. code-block:: edgeql

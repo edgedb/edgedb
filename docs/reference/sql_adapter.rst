@@ -1,65 +1,46 @@
-.. versionadded:: 3.0
-
 .. _ref_sql_adapter:
 
 ===========
 SQL adapter
 ===========
 
-.. edb:youtube-embed:: 0KdY2MPb2oc
-
 Connecting
 ==========
 
-EdgeDB server supports PostgreSQL connection interface. It implements PostgreSQL
+|Gel| server supports PostgreSQL connection interface. It implements PostgreSQL
 wire protocol as well as SQL query language.
 
-As of EdgeDB 6.0, it also supports a subset of Data Modification Language,
+As of |Gel| 6.0, it also supports a subset of Data Modification Language,
 namely INSERT, DELETE and UPDATE statements.
 
 It does not, however, support PostgreSQL Data Definition Language
 (e.g. ``CREATE TABLE``). This means that it is not possible to use SQL
-connections to EdgeDB to modify its schema. Instead, the schema should be
-managed using ESDL (EdgeDB Schema Definition Language) and migration commands.
+connections to Gel to modify its schema. Instead, the schema should be
+managed in |.gel| files using Gel Schema Definition Language and migration
+commands.
 
-Any Postgres-compatible client can connect to an EdgeDB database by using the
-same port that is used for the EdgeDB protocol and the
-:versionreplace:`database;5.0:branch` name, username, and password already used
-for the database.
-
-.. versionchanged:: _default
-
-    Here's how you might connect to a local instance on port 10701 (determined
-    by running ``edgedb instance list``) with a database ``edgedb`` using the
-    ``psql`` CLI:
-
-    .. code-block:: bash
-
-        $ psql -h localhost -p 10701 -U edgedb -d edgedb
-
-    You'll then be prompted for a password. If you don't have it, you can run
-    ``edgedb instance credentials --insecure-dsn`` and grab it out of the DSN
-    the command returns. (It's the string between the second colon and the "at"
-    symbol: ``edgedb://edgedb:PASSWORD_IS_HERE@<host>:<port>/<database>``)
+Any Postgres-compatible client can connect to an Gel database by using the
+same port that is used for the Gel protocol and the |branch| name, username,
+and password already used for the database.
 
 .. versionchanged:: 5.0
 
     Here's how you might connect to a local instance on port 10701 (determined
-    by running ``edgedb instance list``) on a branch ``main`` using the
+    by running :gelcmd:`instance list`) on a branch |main| using the
     ``psql`` CLI:
 
     .. code-block:: bash
 
-        $ psql -h localhost -p 10701 -U edgedb -d main
+        $ psql -h localhost -p 10701 -U admin -d main
 
     You'll then be prompted for a password. If you don't have it, you can run
-    ``edgedb instance credentials --insecure-dsn`` and grab it out of the DSN
+    :gelcmd:`instance credentials --insecure-dsn` and grab it out of the DSN
     the command returns. (It's the string between the second colon and the "at"
-    symbol: ``edgedb://edgedb:PASSWORD_IS_HERE@<host>:<port>/<branch>``)
+    symbol: :geluri:`admin:PASSWORD_IS_HERE@<host>:<port>/<branch>`)
 
 .. note::
 
-    The insecure DSN returned by the CLI for EdgeDB Cloud instances will not
+    The insecure DSN returned by the CLI for Gel Cloud instances will not
     contain the password. You will need to either :ref:`create a new role and
     set the password <ref_sql_adapter_new_role>`, using those values to connect
     to your SQL client, or change the password of the existing role, using that
@@ -67,14 +48,14 @@ for the database.
 
     .. code-block:: edgeql-repl
 
-        db> alter role edgedb {
+        db> alter role admin {
         ...   set password := 'my-password'
         ... };
         OK: ALTER ROLE
 
 .. warning::
 
-    Connecting to an EdgeDB Cloud instance via a Postgres client requires SNI
+    Connecting to an Gel Cloud instance via a Postgres client requires SNI
     support which was introduced in libpq v14. If a Postgres client uses your
     system's libpq (``psql`` does), you can connect as long as your libpq
     version is 14+. To check your version, run ``psql --version`` or
@@ -101,35 +82,27 @@ name as your user name when you connect via your SQL client.
       set password := 'your-password'
     };
 
-.. versionchanged:: _default
+.. code-block:: bash
 
-    .. code-block:: bash
-
-        $ psql -h localhost -p 10701 -U sql -d edgedb
-
-.. versionchanged:: 5.0
-
-    .. code-block:: bash
-
-        $ psql -h localhost -p 10701 -U sql -d main
+    $ psql -h localhost -p 10701 -U sql -d main
 
 In this example, when prompted for the password, you would enter
 ``your-password``.
 
 .. warning::
 
-    EdgeDB server requires TLS by default, and this is also true for our SQL
+    Gel server requires TLS by default, and this is also true for our SQL
     support. Make sure to require SSL encryption in your SQL tool or client
-    when using EdgeDB's SQL support. Alternatively, you can disable the TLS
-    requirement by setting the ``EDGEDB_SERVER_BINARY_ENDPOINT_SECURITY``
+    when using Gel's SQL support. Alternatively, you can disable the TLS
+    requirement by setting the :gelenv:`SERVER_BINARY_ENDPOINT_SECURITY`
     environment variable to ``optional``.
 
 
 Querying
 ========
 
-Object types in your EdgeDB schema are exposed as regular SQL tables containing
-all the data you store in your EdgeDB database.
+Object types in your Gel schema are exposed as regular SQL tables containing
+all the data you store in your Gel database.
 
 If you have a database with the following schema:
 
@@ -253,16 +226,16 @@ Tested SQL tools
 - `dbt <https://www.getdbt.com/>`_ [2]_
 
 
-.. [1] At the moment, EdgeDB does not support "Log replication" (i.e., using
+.. [1] At the moment, Gel does not support "Log replication" (i.e., using
    the `Postgres replication mechanism`_). Supported replication methods
    include `XMIN Replication`_, incremental updates using "a user-defined
    monotonically increasing id," and full table updates.
 .. [2] dbt models are built and stored in the database as either tables or
-   views. Because the EdgeDB SQL adapter does not allow writing or even
+   views. Because the Gel SQL adapter does not allow writing or even
    creating schemas, view, or tables, any attempt to materialize dbt models
    will result in errors. If you want to build the models, we suggest first
    transferring your data to a true Postgres instance via pg_dump or Airbyte.
-   Tests and previews can still be run directy against the EdgeDB instance.
+   Tests and previews can still be run directy against the Gel instance.
 
 .. _Postgres replication mechanism:
    https://www.postgresql.org/docs/current/runtime-config-replication.html
@@ -270,12 +243,12 @@ Tested SQL tools
    https://www.postgresql.org/docs/15/ddl-system-columns.html
 
 
-ESDL to PostgreSQL
-==================
+Gel to PostgreSQL
+=================
 
-As mentioned, the SQL schema of the database is managed trough EdgeDB Schema
-Definition Language (ESDL). Here is a breakdown of how each of the ESDL
-construct is mapped to PostgreSQL schema:
+As mentioned, the SQL schema of the database is managed trough Gel Schema
+Definition Language. Here is a breakdown of how each of its
+constructs is mapped to PostgreSQL schema:
 
 - Objects types are mapped into tables.
   Each table has columns ``id UUID`` and ``__type__ UUID`` and one column for
@@ -318,33 +291,26 @@ construct is mapped to PostgreSQL schema:
 DML commands
 ============
 
-.. versionchanged:: _default
-
-    Data Modification Language commands (``INSERT``, ``UPDATE``, ``DELETE``, ..)
-    are not supported in EdgeDB <6.0.
-
-.. versionchanged:: 6.0
-
 .. versionadded:: 6.0
 
-    When using ``INSERT``, ``DELETE`` or ``UPDATE`` on any table, mutation
-    rewrites and triggers are applied. These commands do not have a
-    straight-forward translation to EdgeQL DML commands, but instead use the
-    following mapping:
+When using ``INSERT``, ``DELETE`` or ``UPDATE`` on any table, mutation
+rewrites and triggers are applied. These commands do not have a
+straight-forward translation to EdgeQL DML commands, but instead use the
+following mapping:
 
-    - ``INSERT INTO "Foo"`` object table maps to ``insert Foo``,
+- ``INSERT INTO "Foo"`` object table maps to ``insert Foo``,
 
-    - ``INSERT INTO "Foo.keywords"`` link/property table maps to an
-      ``update Foo { keywords += ... }``,
+- ``INSERT INTO "Foo.keywords"`` link/property table maps to an
+    ``update Foo { keywords += ... }``,
 
-    - ``DELETE FROM "Foo"`` object table maps to ``delete Foo``,
+- ``DELETE FROM "Foo"`` object table maps to ``delete Foo``,
 
-    - ``DELETE FROM "Foo.keywords"`` link property/table maps to
-      ``update Foo { keywords -= ... }``,
+- ``DELETE FROM "Foo.keywords"`` link property/table maps to
+    ``update Foo { keywords -= ... }``,
 
-    - ``UPDATE "Foo"`` object table maps to ``update Foo set { ... }``,
+- ``UPDATE "Foo"`` object table maps to ``update Foo set { ... }``,
 
-    - ``UPDATE "Foo.keywords"`` is not supported.
+- ``UPDATE "Foo.keywords"`` is not supported.
 
 
 Connection settings
@@ -363,7 +329,7 @@ SQL adapter supports most of PostgreSQL connection settings
 
 .. versionadded:: 6.0
 
-    In addition, there are the following EdgeDB-specific settings:
+    In addition, there are the following Gel-specific settings:
 
     - settings prefixed with ``"global "`` set the values of globals.
 
@@ -421,25 +387,19 @@ perform worse compared to other tables in the database. As a result, tools like
 Locking
 =======
 
-.. versionchanged:: _default
-
-    SQL adapter does not support ``LOCK`` in EdgeDB <6.0.
-
-.. versionchanged:: 6.0
-
 .. versionadded:: 6.0
 
-    SQL adapter supports LOCK command with the following limitations:
+SQL adapter supports LOCK command with the following limitations:
 
-    - it cannot be used on tables that represent object types with access
-      properties or links of such objects,
-    - it cannot be used on tables that represent object types that have child
-      types extending them.
+- it cannot be used on tables that represent object types with access
+    properties or links of such objects,
+- it cannot be used on tables that represent object types that have child
+    types extending them.
 
 Query cache
 ===========
 
-An SQL query is issued to EdgeDB, it is compiled to an internal SQL query, which
+An SQL query is issued to Gel, it is compiled to an internal SQL query, which
 is then issued to the backing PostgreSQL instance. The compiled query is then
 cached, so each following issue of the same query will not perform any
 compilation, but just pass through the cached query.
@@ -450,7 +410,7 @@ compilation, but just pass through the cached query.
     extracts constant values and replaces them by internal query parameters.
     This allows sharing of compilation cache between queries that differ in
     only constant values. This process is totally opaque and is fully handled by
-    EdgeDB. For example:
+    Gel. For example:
 
     .. code-block:: sql
 
@@ -462,7 +422,7 @@ compilation, but just pass through the cached query.
 
         SELECT $1, $2;
 
-    This way, when a similar query is issued to EdgeDB:
+    This way, when a similar query is issued to Gel:
 
     .. code-block:: sql
 
@@ -503,16 +463,16 @@ Following functions are not supported:
 - most of system administration functions.
 
 
-Example: gradual transition from ORMs to EdgeDB
-===============================================
+Example: gradual transition from ORMs to Gel
+============================================
 
 When a project is using Object-Relational Mappings (e.g. SQLAlchemy, Django,
-Hibernate ORM, TypeORM) and is considering the migration to EdgeDB, it might
+Hibernate ORM, TypeORM) and is considering the migration to Gel, it might
 want to execute the transition gradually, as opposed to a total rewrite of the
 project.
 
 In this case, the project can start the transition by migrating the ORM models
-to EdgeDB Schema Definition Language.
+to Gel Schema Definition Language.
 
 For example, such Hibernate ORM model in Java:
 
@@ -532,7 +492,7 @@ For example, such Hibernate ORM model in Java:
         // ... getters and setters ...
     }
 
-... would be translated to the following EdgeDB SDL:
+... would be translated to the following Gel SDL:
 
 .. code-block:: sdl
 
@@ -542,8 +502,8 @@ For example, such Hibernate ORM model in Java:
         required releaseYear: int32;
     }
 
-A new EdgeDB instance can now be created and migrated to the translated schema.
-At this stage, EdgeDB will allow SQL connections to write into the ``"Movie"``
+A new Gel instance can now be created and migrated to the translated schema.
+At this stage, Gel will allow SQL connections to write into the ``"Movie"``
 table, just as it would have been created with the following DDL command:
 
 .. code-block:: sql
@@ -555,11 +515,11 @@ table, just as it would have been created with the following DDL command:
         releaseYear INTEGER NOT NULL
     );
 
-When translating the old ORM model to EdgeDB SDL, one should aim to make the
-SQL schema of EdgeDB match the SQL schema that the ORM expects.
+When translating the old ORM model to Gel SDL, one should aim to make the
+SQL schema of Gel match the SQL schema that the ORM expects.
 
 When this match is accomplished, any query that used to work with the old, plain
-PostgreSQL, should now also work with the EdgeDB. For example, we can execute
+PostgreSQL, should now also work with the Gel. For example, we can execute
 the following query:
 
 .. code-block:: sql
@@ -569,7 +529,7 @@ the following query:
     RETURNING id, title, releaseYear;
 
 To complete the migration, the data can be exported from our old database into
-an ``.sql`` file, which can be import it into EdgeDB:
+an ``.sql`` file, which can be import it into Gel:
 
 .. code-block:: bash
 
@@ -577,18 +537,18 @@ an ``.sql`` file, which can be import it into EdgeDB:
         --data-only --inserts --no-owner --no-privileges \
         > dump.sql
 
-    $ psql {your EdgeDB connection params} --file dump.sql
+    $ psql {your Gel connection params} --file dump.sql
 
-Now, the ORM can be pointed to EdgeDB instead of the old PostgreSQL database,
+Now, the ORM can be pointed to Gel instead of the old PostgreSQL database,
 which has been fully replaced.
 
 Arguably, the development of new features with the ORM is now more complex for
 the duration of the transition, since the developer has to modify two model
-definitions: the ORM and the EdgeDB schema.
+definitions: the ORM and the Gel schema.
 
-But it allows any new models to use EdgeDB schema, EdgeQL and code generators
+But it allows any new models to use Gel schema, EdgeQL and code generators
 for the client language of choice. The ORM-based code can now also be gradually
 rewritten to use EdgeQL, one model at the time.
 
 For a detailed migration example, see repository
-`edgedb/hibernate-example <https://github.com/edgedb/hibernate-example>`_.
+`geldata/hibernate-example <https://github.com/geldata/hibernate-example>`_.

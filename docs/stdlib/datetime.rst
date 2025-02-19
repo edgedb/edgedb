@@ -101,7 +101,7 @@ Dates and Times
 
 .. _ref_std_datetime_intro:
 
-EdgeDB offers two ways of representing date/time values:
+|Gel| offers two ways of representing date/time values:
 
 * a timezone-aware :eql:type:`std::datetime` type;
 
@@ -119,7 +119,7 @@ There are also two different ways of measuring duration:
 All related operators, functions, and type casts are designed to maintain a
 strict separation between timezone-aware and "local" date/time values.
 
-EdgeDB stores and outputs timezone-aware values in UTC format.
+|Gel| stores and outputs timezone-aware values in UTC format.
 
 .. note::
 
@@ -310,7 +310,7 @@ functionality.
         db> select <duration>'48 hours 45 minutes';
         {<duration>'48:45:00'}
         db> select <duration>'11 months';
-        edgedb error: InvalidValueError: invalid input syntax for type
+        gel error: InvalidValueError: invalid input syntax for type
         std::duration: '11 months'
           Hint: Units bigger than hours cannot be used for std::duration.
 
@@ -496,8 +496,6 @@ functionality.
 
 .. eql:type:: cal::date_duration
 
-    .. versionadded:: 2.0
-
     A type for representing a span of time in days.
 
     This type is similar to :eql:type:`cal::relative_duration`, except it only
@@ -538,7 +536,7 @@ functionality.
 
     In most cases, ``date_duration`` is fully compatible with
     :eql:type:`cal::relative_duration` and shares the same general behavior
-    and caveats. EdgeDB will apply type coercion in the event it expects a
+    and caveats. Gel will apply type coercion in the event it expects a
     :eql:type:`cal::relative_duration` and finds a ``cal::date_duration``
     instead.
 
@@ -572,6 +570,8 @@ functionality.
                           cal::local_date + cal::relative_duration \
                               -> cal::local_datetime
                           cal::local_date + duration -> cal::local_datetime
+
+    :index: +, duration, datetime, add
 
     Adds a duration and any other datetime value.
 
@@ -621,6 +621,8 @@ functionality.
                            cal::relative_duration - duration\
                                 -> cal::relative_duration
 
+    :index: -, duration, datetime, subtract
+
     Subtracts two compatible datetime or duration values.
 
     .. code-block:: edgeql-repl
@@ -649,10 +651,10 @@ functionality.
 
         Subtraction doesn't make sense for some type combinations. You
         couldn't subtract a point in time from a duration, so neither can
-        EdgeDB (although the inverse — subtracting a duration from a point in
+        Gel (although the inverse — subtracting a duration from a point in
         time — is perfectly fine). You also couldn't subtract a timezone-aware
         datetime from a local one or vice versa. If you attempt any of these,
-        EdgeDB will raise an exception as shown in these examples.
+        Gel will raise an exception as shown in these examples.
 
     When subtracting a date/time object from a time interval, an exception
     will be raised:
@@ -875,8 +877,6 @@ functionality.
                                     el: str) -> float64
                   std::duration_get(dt: cal::date_duration, \
                                     el: str) -> float64
-
-    .. versionadded:: 2.0
 
     Returns the element of a duration given a unit name.
 
@@ -1416,8 +1416,6 @@ functionality.
 
     :index: justify_hours
 
-    .. versionadded:: 2.0
-
     Convert 24-hour chunks into days.
 
     This function converts all 24-hour chunks into day units. The resulting
@@ -1447,8 +1445,6 @@ functionality.
                   ) -> cal::date_duration
 
     :index: justify_days
-
-    .. versionadded:: 2.0
 
     Convert 30-day chunks into months.
 

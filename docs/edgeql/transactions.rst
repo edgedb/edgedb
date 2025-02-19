@@ -3,6 +3,9 @@
 Transactions
 ============
 
+.. index:: start transaction, declare savepoint, release savepoint,
+           rollback to savepoint, rollback, commit
+
 EdgeQL supports atomic transactions. The transaction API consists
 of several commands:
 
@@ -35,13 +38,13 @@ of several commands:
 Client libraries
 ----------------
 
-There is rarely a reason to use these commands directly. All EdgeDB client
+There is rarely a reason to use these commands directly. All Gel client
 libraries provide dedicated transaction APIs that handle transaction creation
 under the hood.
 
 Examples below show a transaction that sends 10 cents from the account
 of a ``BankCustomer`` called ``'Customer1'`` to ``BankCustomer`` called
-``'Customer2'``. The equivalent EdgeDB schema and queries are:
+``'Customer2'``. The equivalent Gel schema and queries are:
 
 .. code-block::
 
@@ -96,7 +99,7 @@ Using the querybuilder:
     await query2.run(tx);
   });
 
-Full documentation at :ref:`Client Libraries > TypeScript/JS <edgedb-js-intro>`;
+Full documentation at :ref:`Client Libraries > TypeScript/JS <gel-js-intro>`;
 
 Python
 ^^^^^^
@@ -112,14 +115,14 @@ Python
               filter .name = 'Customer2'
               set { bank_balance := .bank_balance +10 };""")
 
-Full documentation at :ref:`Client Libraries > Python <edgedb-python-intro>`;
+Full documentation at :ref:`Client Libraries > Python <gel-python-intro>`;
 
 Golang
 ^^^^^^
 
 .. code-block:: go
 
-	err = client.Tx(ctx, func(ctx context.Context, tx *edgedb.Tx) error {
+	err = client.Tx(ctx, func(ctx context.Context, tx *gel.Tx) error {
 		query1 := `update BankCustomer
 			filter .name = 'Customer1'
 			set { bank_balance := .bank_balance -10 };`
@@ -138,7 +141,7 @@ Golang
 		log.Fatal(err)
 	}
 
-Full documentation at :ref:`Client Libraries > Go <edgedb-go-intro>`.
+Full documentation at :ref:`Client Libraries > Go <gel-go-intro>`.
 
 Rust
 ^^^^
@@ -162,4 +165,5 @@ Rust
       .await
       .expect("Transaction should have worked");
 
-Full documentation at :ref:`Client Libraries > Rust <ref_rust_index>`.
+.. XXX: Add Rust docs
+.. Full documentation at :ref:`Client Libraries > Rust <ref_rust_index>`.

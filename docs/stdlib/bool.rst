@@ -134,6 +134,8 @@ Booleans
 
 .. eql:operator:: or: bool or bool -> bool
 
+    :index: or
+
     Evaluates ``true`` if either boolean is ``true``.
 
     .. code-block:: edgeql-repl
@@ -166,6 +168,8 @@ Booleans
 
 .. eql:operator:: and: bool and bool -> bool
 
+    :index: and
+
     Evaluates ``true`` if both booleans are ``true``.
 
     .. code-block:: edgeql-repl
@@ -197,6 +201,8 @@ Booleans
 
 
 .. eql:operator:: not: not bool -> bool
+
+    :index: not
 
     Logically negates a given boolean value.
 
@@ -321,8 +327,6 @@ operator.
                     named only message: optional str = <str>{} \
                   ) -> bool
 
-    .. versionadded:: 3.0
-
     Checks that the input bool is ``true``.
 
     If the input bool is ``false``, ``assert`` raises a
@@ -334,10 +338,10 @@ operator.
         {true}
 
         db> select assert(false);
-        edgedb error: QueryAssertionError: assertion failed
+        gel error: QueryAssertionError: assertion failed
 
         db> select assert(false, message := 'value is not true');
-        edgedb error: QueryAssertionError: value is not true
+        gel error: QueryAssertionError: value is not true
 
     ``assert`` can be used in triggers to create more powerful constraints. In
     this schema, the ``Person`` type has both ``friends`` and ``enemies``
@@ -384,7 +388,7 @@ operator.
         ...     select detached Person filter .name = 'Dracula'
         ...   )
         ... };
-        edgedb error: EdgeDBError: Invalid frenemies
+        gel error: GelError: Invalid frenemies
 
     In the following examples, the ``size`` properties of the ``File`` objects
     are ``1024``, ``1024``, and ``131,072``.
@@ -397,7 +401,7 @@ operator.
 
         db> for obj in (select File)
         ... union (assert(obj.size <= 64*1024, message := 'file too big'));
-        edgedb error: QueryAssertionError: file too big
+        gel error: QueryAssertionError: file too big
 
     You may call ``assert`` in the ``order by`` clause of your ``select``
     statement. This will ensure it is called only on objects that pass your
@@ -415,7 +419,7 @@ operator.
 
         db> select File { name, size }
         ... order by assert(.size <= 64*1024, message := "file too big");
-        edgedb error: QueryAssertionError: file too big
+        gel error: QueryAssertionError: file too big
 
         db> select File { name, size }
         ... filter .size <= 64*1024

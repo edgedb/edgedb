@@ -14,7 +14,7 @@ use crate::{
 };
 use db_proto::StructBuffer;
 use futures::{future::Either, FutureExt};
-use gel_stream::client::{stream::Stream, Connector};
+use gel_stream::{Connector, Stream};
 use std::{
     cell::RefCell,
     future::ready,
@@ -52,7 +52,7 @@ pub enum PGConnError {
 ///
 /// ```
 /// # use pgrust::connection::*;
-/// # use gel_stream::client::{Target, Connector};
+/// # use gel_stream::{Target, Connector};
 /// # _ = async {
 /// # let credentials = Credentials::default();
 /// # let connector = Connector::new(Target::new_tcp(("localhost", 1234))).unwrap();

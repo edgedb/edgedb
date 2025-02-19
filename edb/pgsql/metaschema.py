@@ -1747,11 +1747,11 @@ class AssertJSONTypeFunction(trampoline.VersionedFunction):
                     'wrong_object_type',
                     msg => coalesce(
                         msg,
-                        (
-                            'expected JSON '
-                            || array_to_string(typenames, ' or ')
-                            || '; got JSON '
-                            || coalesce(jsonb_typeof(val), 'UNKNOWN')
+                        format(
+                            'expected JSON %s; got JSON %s: %s',
+                            array_to_string(typenames, ' or '),
+                            coalesce(jsonb_typeof(val), 'UNKNOWN'),
+                            val::text
                         )
                     ),
                     detail => detail
@@ -3392,7 +3392,7 @@ class InterpretConfigValueToJsonFunction(trampoline.VersionedFunction):
       - for memory size: we always convert to kilobytes;
       - already unitless numbers are left as is.
 
-    See https://www.postgresql.org/docs/12/config-setting.html
+    See https://www.postgresql.org/docs/current/config-setting.html
     for information about the units Postgres config system has.
     """
 
@@ -3444,6 +3444,53 @@ class InterpretConfigValueToJsonFunction(trampoline.VersionedFunction):
         )
 
 
+class PostgresJsonConfigValueToFrontendConfigValueFunction(
+    trampoline.VersionedFunction,
+):
+    """Convert a Postgres config value to frontend config value.
+
+    Most values are retained as-is, but some need translation, which
+    is implemented as a to_frontend_expr() on the corresponding
+    setting ScalarType.
+    """
+
+    def __init__(self, config_spec: edbconfig.Spec) -> None:
+        variants_list = []
+        for setting in config_spec.values():
+            if (
+                setting.backend_setting
+                and isinstance(setting.type, type)
+                and issubclass(setting.type, statypes.ScalarType)
+            ):
+                conv_expr = setting.type.to_frontend_expr('"value"->>0')
+                if conv_expr is not None:
+                    variants_list.append(f"""
+                        WHEN {ql(setting.backend_setting)}
+                        THEN to_jsonb({conv_expr})
+                    """)
+
+        variants = "\n".join(variants_list)
+        text = f"""
+        SELECT (
+            CASE "setting_name"
+                {variants}
+                ELSE "value"
+            END
+        )
+        """
+
+        super().__init__(
+            name=('edgedb', '_postgres_json_config_value_to_fe_config_value'),
+            args=[
+                ('setting_name', ('text',)),
+                ('value', ('jsonb',))
+            ],
+            returns=('jsonb',),
+            volatility='immutable',
+            text=text,
+        )
+
+
 class PostgresConfigValueToJsonFunction(trampoline.VersionedFunction):
     """Convert a Postgres setting to JSON value.
 
@@ -3471,26 +3518,10 @@ class PostgresConfigValueToJsonFunction(trampoline.VersionedFunction):
 
     text = r"""
         SELECT
-            (CASE
-
-                WHEN parsed_value.unit != ''
-                THEN
-                    edgedb_VER._interpret_config_value_to_json(
-                        parsed_value.val,
-                        settings.vartype,
-                        1,
-                        parsed_value.unit
-                    )
-
-                ELSE
-                    edgedb_VER._interpret_config_value_to_json(
-                        "setting_value",
-                        settings.vartype,
-                        settings.multiplier,
-                        settings.unit
-                    )
-
-            END)
+            edgedb_VER._postgres_json_config_value_to_fe_config_value(
+                "setting_name",
+                backend_json_value.value
+            )
         FROM
             LATERAL (
                 SELECT regexp_match(
@@ -3521,8 +3552,29 @@ class PostgresConfigValueToJsonFunction(trampoline.VersionedFunction):
                     as vartype,
                     COALESCE(settings_in.multiplier, '1') as multiplier,
                     COALESCE(settings_in.unit, '') as unit
-            ) as settings
+            ) AS settings
+        CROSS JOIN LATERAL
+            (SELECT
+                (CASE
+                    WHEN parsed_value.unit != ''
+                    THEN
+                        edgedb_VER._interpret_config_value_to_json(
+                            parsed_value.val,
+                            settings.vartype,
+                            1,
+                            parsed_value.unit
+                        )
 
+                    ELSE
+                        edgedb_VER._interpret_config_value_to_json(
+                            "setting_value",
+                            settings.vartype,
+                            settings.multiplier,
+                            settings.unit
+                        )
+
+                END) AS value
+            ) AS backend_json_value
     """
 
     def __init__(self) -> None:
@@ -3748,11 +3800,14 @@ class SysConfigFullFunction(trampoline.VersionedFunction):
         pg_config AS (
             SELECT
                 spec.name,
-                edgedb_VER._interpret_config_value_to_json(
-                    settings.setting,
-                    settings.vartype,
-                    settings.multiplier,
-                    settings.unit
+                edgedb_VER._postgres_json_config_value_to_fe_config_value(
+                    settings.name,
+                    edgedb_VER._interpret_config_value_to_json(
+                        settings.setting,
+                        settings.vartype,
+                        settings.multiplier,
+                        settings.unit
+                    )
                 ) AS value,
                 source AS source,
                 TRUE AS is_backend
@@ -4123,12 +4178,9 @@ class ApplySessionConfigFunction(trampoline.VersionedFunction):
             valql = '"value"->>0'
             if (
                 isinstance(setting.type, type)
-                and issubclass(setting.type, statypes.Duration)
+                and issubclass(setting.type, statypes.ScalarType)
             ):
-                valql = f"""
-                    edgedb_VER._interval_to_ms(({valql})::interval)::text \
-                    || 'ms'
-                """
+                valql = setting.type.to_backend_expr(valql)
 
             variants_list.append(f'''
                 WHEN "name" = {ql(setting_name)}
@@ -5244,6 +5296,8 @@ def get_bootstrap_commands(
         dbops.CreateFunction(TypeIDToConfigType()),
         dbops.CreateFunction(ConvertPostgresConfigUnitsFunction()),
         dbops.CreateFunction(InterpretConfigValueToJsonFunction()),
+        dbops.CreateFunction(
+            PostgresJsonConfigValueToFrontendConfigValueFunction(config_spec)),
         dbops.CreateFunction(PostgresConfigValueToJsonFunction()),
         dbops.CreateFunction(SysConfigFullFunction()),
         dbops.CreateFunction(SysConfigUncachedFunction()),
@@ -8183,6 +8237,26 @@ async def generate_support_functions(
     commands.generate(block)
     await _execute_block(conn, block)
     return trampoline_functions(cmds)
+
+
+async def regenerate_config_support_functions(
+    conn: PGConnection,
+    config_spec: edbconfig.Spec,
+) -> None:
+    # Regenerate functions dependent on config spec.
+    commands = dbops.CommandGroup()
+
+    funcs = [
+        ApplySessionConfigFunction(config_spec),
+        PostgresJsonConfigValueToFrontendConfigValueFunction(config_spec),
+    ]
+
+    cmds = [dbops.CreateFunction(func, or_replace=True) for func in funcs]
+    commands.add_commands(cmds)
+
+    block = dbops.PLTopBlock()
+    commands.generate(block)
+    await _execute_block(conn, block)
 
 
 async def generate_more_support_functions(

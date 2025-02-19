@@ -95,6 +95,8 @@ Sets
 
 .. eql:operator:: distinct: distinct set of anytype -> set of anytype
 
+    :index: distinct, unique, set of
+
     Produces a set of all unique elements in the given set.
 
     ``distinct`` is a set operator that returns a new set where
@@ -112,7 +114,7 @@ Sets
 .. eql:operator:: in: anytype in set of anytype -> bool
                       anytype not in set of anytype -> bool
 
-    :index: intersection
+    :index: in, not in, intersection, contains, set of
 
     Checks if a given element is a member of a given set.
 
@@ -148,9 +150,11 @@ Sets
 
 .. eql:operator:: union: set of anytype union set of anytype -> set of anytype
 
+    :index: union, merge, join, set of
+
     Merges two sets.
 
-    Since EdgeDB sets are formally multisets, ``union`` is a *multiset sum*,
+    Since Gel sets are formally multisets, ``union`` is a *multiset sum*,
     so effectively it merges two multisets keeping all of their members.
 
     For example, applying ``union`` to ``{1, 2, 2}`` and
@@ -166,7 +170,7 @@ Sets
 .. eql:operator:: intersect: set of anytype intersect set of anytype \
                                 -> set of anytype
 
-    .. versionadded:: 3.0
+    :index: intersect, common, set of
 
     Produces a set containing the common items between the given sets.
 
@@ -184,7 +188,7 @@ Sets
 .. eql:operator:: except: set of anytype except set of anytype \
                                 -> set of anytype
 
-    .. versionadded:: 3.0
+    :index: except, set of
 
     Produces a set of all items in the first set which are not in the second.
 
@@ -202,7 +206,7 @@ Sets
 .. eql:operator:: if..else: set of anytype if bool else set of anytype \
                                 -> set of anytype
 
-    :index: if else ifelse elif ternary
+    :index: if else, ifelse, elif, ternary, conditional
 
     Produces one of two possible results based on a given condition.
 
@@ -236,21 +240,12 @@ Sets
     some condition:
 
     .. code-block:: edgeql
-    
+
         with
           name := <str>$0,
           admin := <bool>$1
         select (insert AdminUser { name := name }) if admin
           else (insert User { name := name });
-
-    .. note::
-
-        DML (i.e., :ref:`insert <ref_eql_insert>`, :ref:`update
-        <ref_eql_update>`, :ref:`delete <ref_eql_delete>`) was not supported
-        in ``if...else`` prior to EdgeDB 4.0. If you need to do one of these
-        on an older version of EdgeDB, you can use a 
-        :ref:`for loop conditional <ref_eql_for_conditional_dml>` as a
-        workaround.
 
 
 -----------
@@ -259,10 +254,12 @@ Sets
 .. eql:operator:: if..then..else: if bool then set of anytype else set of \
                                 anytype -> set of anytype
 
+    :index: if then else, ifelse, elif, conditional
+
     .. versionadded:: 4.0
 
     Produces one of two possible results based on a given condition.
-    
+
     Uses ``then`` for an alternative syntax order to ``if..else`` above.
 
     .. eql:synopsis::
@@ -299,7 +296,7 @@ Sets
     some condition:
 
     .. code-block:: edgeql
-    
+
         with
           name := <str>$0,
           admin := <bool>$1
@@ -314,6 +311,8 @@ Sets
 
 .. eql:operator:: coalesce: optional anytype ?? set of anytype \
                               -> set of anytype
+
+    :index: ??, empty set
 
     Produces the first of its operands that is not an empty set.
 
@@ -332,20 +331,22 @@ Sets
     Without the coalescing operator, the above query will skip any
     ``Issue`` without priority.
 
-    As of EdgeDB 4.0, the coalescing operator can be used to express
-    things like "select or insert if missing":
-  
+    The coalescing operator can be used to express things like
+    "select or insert if missing":
+
     .. code-block:: edgeql
 
-        select 
+        select
           (select User filter .name = 'Alice') ??
-          (insert User { name := 'Alice' }); 
+          (insert User { name := 'Alice' });
 
 ----------
 
 .. _ref_stdlib_set_detached:
 
 .. eql:operator:: detached: detached set of anytype -> set of anytype
+
+    :index: detached, set of
 
     Detaches the input set reference from the current scope.
 
@@ -400,6 +401,8 @@ Sets
 
 .. eql:operator:: exists: exists set of anytype -> bool
 
+    :index: exists, set of, is empty
+
     Determines whether a set is empty or not.
 
     ``exists`` is an aggregate operator that returns a singleton set
@@ -417,7 +420,7 @@ Sets
 
 .. eql:operator:: isintersect: anytype [is type] -> anytype
 
-    :index: is type intersection
+    :index: [is type], type intersection, filter
 
     Filters a set based on its type. Will return back the specified type.
 
@@ -429,25 +432,6 @@ Sets
     with :ref:`backlinks <ref_datamodel_links>`.
 
     Consider the following types:
-
-    .. code-block:: sdl
-        :version-lt: 3.0
-
-        type User {
-            required property name -> str;
-        }
-
-        abstract type Owned {
-            required link owner -> User;
-        }
-
-        type Issue extending Owned {
-            required property title -> str;
-        }
-
-        type Comment extending Owned {
-            required property body -> str;
-        }
 
     .. code-block:: sdl
 

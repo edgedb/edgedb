@@ -18,7 +18,7 @@ pyo3.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 db_proto.workspace = true
-gel-stream.workspace = true
+gel-stream = { workspace = true, features = ["client"] }
 
 futures = "0"
 thiserror = "1"
@@ -41,6 +41,7 @@ features = ["full"]
 [dev-dependencies]
 tracing-subscriber.workspace = true
 captive_postgres.workspace = true
+gel-stream = { workspace = true, features = ["rustls"] }
 
 scopeguard = "1"
 pretty_assertions = "1.2.0"

@@ -3,7 +3,9 @@
 Introspection
 =============
 
-All of the schema information in EdgeDB is stored in the ``schema``
+.. index:: describe, introspect, typeof, schema module
+
+All of the schema information in Gel is stored in the ``schema``
 :ref:`module <ref_datamodel_modules>` and is accessible via
 *introspection queries*.
 
@@ -24,7 +26,7 @@ to the ``schema::ObjectType``. For scalars there's the
 to get the type of an expression.
 
 Finally, the command :eql:stmt:`describe` can be used to get
-information about EdgeDB types in a variety of human-readable formats.
+information about Gel types in a variety of human-readable formats.
 
 .. toctree::
     :maxdepth: 3

@@ -15,31 +15,20 @@ The type descriptor is essentially a list of type information *blocks*:
 * *blocks* can reference other *blocks*.
 
 While parsing the *blocks*, a database driver can assemble an
-*encoder* or a *decoder* of the EdgeDB binary data.
+*encoder* or a *decoder* of the Gel binary data.
 
 An *encoder* is used to encode objects, native to the driver's runtime,
-to binary data that EdgeDB can decode and work with.
+to binary data that Gel can decode and work with.
 
-A *decoder* is used to decode data from EdgeDB native format to
+A *decoder* is used to decode data from Gel native format to
 data types native to the driver.
 
-.. versionchanged:: _default
-
-    There is one special type with *type id* of zero:
-    ``00000000-0000-0000-0000-000000000000``. The describe result of this type
-    contains zero *blocks*. It's used when a statement returns no meaningful
-    results, e.g. the ``CREATE DATABASE example`` statement.  It is also used
-    to represent the input descriptor when a query does not receive any
-    arguments, or the state descriptor for an empty/default state.
-
-.. versionchanged:: 5.0
-
-    There is one special type with *type id* of zero:
-    ``00000000-0000-0000-0000-000000000000``. The describe result of this type
-    contains zero *blocks*. It's used when a statement returns no meaningful
-    results, e.g. the ``CREATE BRANCH example`` statement.  It is also used to
-    represent the input descriptor when a query does not receive any arguments,
-    or the state descriptor for an empty/default state.
+There is one special type with *type id* of zero:
+``00000000-0000-0000-0000-000000000000``. The describe result of this type
+contains zero *blocks*. It's used when a statement returns no meaningful
+results, e.g. the ``CREATE BRANCH example`` statement.  It is also used to
+represent the input descriptor when a query does not receive any arguments,
+or the state descriptor for an empty/default state.
 
 .. versionadded:: 6.0
 
@@ -106,7 +95,7 @@ Scalar Type Descriptor
     };
 
 The descriptor IDs for fundamental scalar types are constant.
-The following table lists all EdgeDB fundamental type descriptor IDs:
+The following table lists all Gel fundamental type descriptor IDs:
 
 .. list-table::
    :header-rows: 1

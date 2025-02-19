@@ -4,7 +4,7 @@
 Postgres
 ========
 
-In this guide, we show how to move your data from Postgres to EdgeDB. However,
+In this guide, we show how to move your data from Postgres to Gel. However,
 most of the approaches covered here should be applicable to other SQL
 databases as well.
 
@@ -12,8 +12,8 @@ As an example we'll use an app that allowed users to chat. The main features
 of this app revolve around posting and responding to messages. Once the data
 is moved, it is then possible to use :ref:`EdgeQL <ref_edgeql>` instead of SQL
 to fetch the desired data in the app's API calls. Here we'll mainly focus on
-the data structures used for that, how to reflect them into EdgeDB, and how to
-script moving the data across to the EdgeDB database.
+the data structures used for that, how to reflect them into Gel, and how to
+script moving the data across to the Gel database.
 
 
 Schema modeling
@@ -77,7 +77,7 @@ are such tables, so let's look at them:
 .. lint-on
 
 The ``badges`` table uses the ``name`` of the badge as a primary key as
-opposed to a separate ``id``. In order to reflect that properly in EdgeDB, we
+opposed to a separate ``id``. In order to reflect that properly in Gel, we
 would have to add an :eql:constraint:`exclusive` constraint to this property.
 Meanwhile ``not null`` makes the property ``required``, leaving us with a type
 like this:
@@ -92,7 +92,7 @@ like this:
     }
 
 The ``statuses`` table has a dedicated ``id`` column in addition to ``title``.
-However, the automatic ``id`` in EdgeDB is a :eql:type:`uuid`, whereas in our
+However, the automatic ``id`` in Gel is a :eql:type:`uuid`, whereas in our
 original dataset it is an ``integer``. Let's assume that for this table we
 never actually use the ``id`` in our code, relying instead on the fact that
 ``title`` is ``UNIQUE`` and serves as a much more descriptive identifier. We
@@ -140,8 +140,8 @@ Next, we can look at the ``users`` table:
 
 The ``users`` table, like ``statuses``, has an ``id`` column, which is not a
 :eql:type:`uuid`. Instead of omitting the ``id`` data, we'll record it as
-``app_id`` in EdgeDB to facilitate the transition. We may still want to
-eventually drop it in favor of the built-in ``id`` from EdgeDB, but we need it
+``app_id`` in Gel to facilitate the transition. We may still want to
+eventually drop it in favor of the built-in ``id`` from Gel, but we need it
 for now. Incidentally, even if the ``id`` was specified as a ``uuid`` value
 the recommended process is to record it as ``app_id`` as opposed to try and
 replicate it as the main object ``id``. It is, however, also possible to bring
@@ -149,7 +149,7 @@ it over as the main ``id`` by adjusting certain :ref:`client connection
 settings <ref_std_cfg_client_connections>`. The column ``client_settings``
 would become a :eql:type:`json` property. The columns ``badge_name`` and
 ``status_id`` reference ``badges`` and ``statuses`` respectively and will
-become *links* in EdgeDB instead of *properties*, even though a property would
+become *links* in Gel instead of *properties*, even though a property would
 more closely mirror how they are stored in Postgres:
 
 .. code-block:: sql
@@ -239,7 +239,7 @@ Then we look at the ``posts`` table:
 The ``posts`` table also has an ``id`` that we want to keep around, at least
 during the transition. We have a couple of columns using a ``timestamp with
 time zone`` value, so they'll become :eql:type:`datetime` properties in
-EdgeDB. The ``user_id``, ``thread_id``, and ``reply_to_id`` columns will
+|Gel|. The ``user_id``, ``thread_id``, and ``reply_to_id`` columns will
 become *links* to ``User``, ``Thread``, and ``Post`` respectively:
 
 .. code-block:: sql
@@ -360,12 +360,12 @@ type. In the end we end up with a schema that looks something like this:
 Copying the data
 ----------------
 
-Now that we have a schema, we can use :ref:`ref_cli_edgedb_project_init` to
-set up our new EdgeDB database. A new schema migration is added via
-:ref:`ref_cli_edgedb_migration_create` and then :ref:`edgedb migrate
-<ref_cli_edgedb_migration_apply>` applies the schema changes to the database.
+Now that we have a schema, we can use :ref:`ref_cli_gel_project_init` to
+set up our new Gel database. A new schema migration is added via
+:ref:`ref_cli_gel_migration_create` and then :ref:`gel migrate
+<ref_cli_gel_migration_apply>` applies the schema changes to the database.
 After the schema migration, we'll still need to copy the existing data from
-Postgres. JSON is a pretty good intermediate format for this operation. EdgeDB
+Postgres. JSON is a pretty good intermediate format for this operation. Gel
 can cast data from :eql:type:`json` to all of the built-in scalar types, so we
 should be able to use a JSON dump with minimal additional processing when
 importing all the data.
@@ -396,7 +396,7 @@ We will dump ``badges`` and ``statuses`` first:
 
 These tables can be dumped directly to a file using a ``COPY ... TO
 <filename>`` command. We can then read the files and use a simple loop to
-import the data into EdgeDB.
+import the data into Gel.
 
 .. note::
 
@@ -430,7 +430,7 @@ import the data into EdgeDB.
 
 The ``threads`` table can likewise be dumped directly as JSON with the only
 minor difference being that we want to change the ``id`` to ``app_id`` when we
-move the data to EdgeDB:
+move the data to Gel:
 
 .. code-block:: python
 
@@ -486,7 +486,7 @@ The ``posts`` table can be dumped as JSON directly, but we'll need to write
 sub-queries in the import script to correctly link ``Post`` objects. In order
 to make this simpler, we can order the original data by ``creation_time`` so
 we know any ``Post`` object that is referenced by the ``reply_to_id`` has
-already been re-created in EdgeDB.
+already been re-created in Gel.
 
 .. code-block:: python
 
@@ -514,7 +514,7 @@ already been re-created in EdgeDB.
 
 Finally, we can deal with the bookmarks since we've imported both the users
 and the posts. The ``bookmarks`` table can be dumped as JSON directly, and
-then we can write appropriate ``update`` query to add this data to EdgeDB:
+then we can write appropriate ``update`` query to add this data to Gel:
 
 .. code-block:: python
 
@@ -559,7 +559,7 @@ this:
     {
       default::User {
         name: 'Cameron',
-        email: 'cameron@edgedb.com',
+        email: 'cameron@example.com',
         status: {},
         badge: default::Badge {name: 'admin'},
         bookmark: {
@@ -569,7 +569,7 @@ this:
             @note: 'rendering glitch',
           },
           default::Post {
-            body: 'Funny you ask, Alice. I actually work at EdgeDB!',
+            body: 'Funny you ask, Alice. I actually work at Gel!',
             user: default::User {name: 'Dana'},
             @note: 'follow-up',
           },

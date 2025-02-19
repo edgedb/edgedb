@@ -43,7 +43,6 @@ from edb import errors
 
 from edb.common import typeutils
 from edb.common import parsing
-from edb.common import uuidgen
 from edb.common import value_dispatch
 from edb.edgeql import ast as qlast
 from edb.edgeql import compiler as qlcompiler
@@ -495,6 +494,9 @@ def bool_const_to_python(
 def cast_const_to_python(ir: irast.TypeCast, schema: s_schema.Schema) -> Any:
 
     schema, stype = irtyputils.ir_typeref_to_type(schema, ir.to_type)
+    if not isinstance(stype, s_scalars.ScalarType):
+        raise UnsupportedExpressionError(
+            "non-scalar casts are not supported in Python eval")
     pytype = scalar_type_to_python_type(stype, schema)
     sval = evaluate_to_python_val(ir.expr, schema=schema)
     return python_cast(sval, pytype)
@@ -544,31 +546,23 @@ def schema_type_to_python_type(
             f'{stype.get_displayname(schema)} is not representable in Python')
 
 
-typemap = {
-    'std::str': str,
-    'std::anyint': int,
-    'std::anyfloat': float,
-    'std::decimal': decimal.Decimal,
-    'std::bigint': decimal.Decimal,
-    'std::bool': bool,
-    'std::json': str,
-    'std::uuid': uuidgen.UUID,
-    'std::duration': statypes.Duration,
-    'cfg::memory': statypes.ConfigMemory,
-}
-
-
 def scalar_type_to_python_type(
-    stype: s_types.Type,
+    stype: s_scalars.ScalarType,
     schema: s_schema.Schema,
 ) -> type:
-    for basetype_name, pytype in typemap.items():
-        basetype = schema.get(
-            basetype_name, type=s_scalars.ScalarType, default=None)
-        if basetype and stype.issubclass(schema, basetype):
-            return pytype
+    typname = stype.get_name(schema)
+    pytype = statypes.maybe_get_python_type_for_scalar_type_name(str(typname))
+    if pytype is None:
+        for ancestor in stype.get_ancestors(schema).objects(schema):
+            typname = ancestor.get_name(schema)
+            pytype = statypes.maybe_get_python_type_for_scalar_type_name(
+                str(typname))
+            if pytype is not None:
+                break
 
-    if stype.is_enum(schema):
+    if pytype is not None:
+        return pytype
+    elif stype.is_enum(schema):
         return str
 
     raise UnsupportedExpressionError(
@@ -618,8 +612,10 @@ def object_type_to_spec(
                     ptype, schema, spec_class=spec_class,
                     parent=parent, _memo=_memo)
                 _memo[ptype] = pytype
-        else:
+        elif isinstance(ptype, s_scalars.ScalarType):
             pytype = scalar_type_to_python_type(ptype, schema)
+        else:
+            raise UnsupportedExpressionError(f"unsupported cast type: {ptype}")
 
         ptr_card: qltypes.SchemaCardinality = p.get_cardinality(schema)
         if ptr_card.is_known():

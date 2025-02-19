@@ -1,49 +1,156 @@
 .. _ref_datamodel_future:
 
 ===============
-Future Behavior
+Future behavior
 ===============
 
-Any time that we add new functionality to EdgeDB we strive to do it in the
-least disruptive way possible. Deprecation warnings, documentation and guides
-can help make these transitions smoother, but sometimes the changes are just
-too big, especially if they affect already existing functionality. It is often
-inconvenient dealing with these changes at the same time as upgrading to a new
-major version of EdgeDB. To help with this transition we introduce
-:ref:`future <ref_eql_sdl_future>` specification.
+.. index:: future, nonrecursive_access_policies
 
-The purpose of this specification is to provide a way to try out and ease into
-an upcoming feature before a major release. Sometimes enabling future behavior
-is necessary to fix some current issues. Other times enabling future behavior
-can simply provide a way to test out the feature before it gets released, to
-make sure that the current project codebase is compatible and well-behaved. It
-provides a longer timeframe for adopting a new feature and for catching bugs
-that arise from the change in behavior.
+This article explains what the ``using future ...;`` statement means in your
+schema.
 
-The ``future`` specification is intended to help with transitions between
-major releases. Once a feature is released this specification is no longer
-necessary to enable that feature and it will be removed from the schema during
-the upgrade process.
+Our goal is to make |Gel| the best database system in the world, which requires
+us to keep evolving. Usually, we can add new functionality while preserving
+backward compatibility, but on rare occasions we must implement changes that
+require elaborate transitions.
 
-Once some behavior is available as a ``future`` all new :ref:`projects
-<ref_intro_projects>` enable this behavior by default when initializing an
-empty database. It is possible to explicitly disable the ``future`` feature by
-removing it from the schema, but it is not recommended unless the feature is
-causing some issues which cannot be fixed otherwise. Existing projects don't
-change their behavior by default, the ``future`` specification needs to be
-added to the schema by the developer in order to gain early access to it.
+To handle these cases, we introduce *future* behavior, which lets you try out
+upcoming features before a major release. Sometimes enabling a future is
+necessary to fix current issues; other times it offers a safe and easy way to
+ensure your codebase remains compatible. This approach provides more time to
+adopt a new feature and identify any resulting bugs.
 
-At the moment there is only one ``future`` available:
+Any time a behavior is available as a ``future,`` all new :ref:`projects
+<ref_intro_projects>` enable it by default for empty databases. You can remove
+a ``future`` from your schema if absolutely necessary, but doing so is
+discouraged. Existing projects are unaffected by default, so you must manually
+add the ``future`` specification to gain early access.
 
-- ``nonrecursive_access_policies``: makes access policies :ref:`non-recursive
-  <ref_datamodel_access_policies_nonrecursive>` and simplifies policy
-  interactions.
+Flags
+=====
+
+At the moment there are three ``future`` flags available:
+
+- ``simple_scoping``
+
+  Introduced in |Gel| 6.0, this flag simplifies the scoping rules for
+  path expressions. Read more about it and in great detail in
+  :ref:`ref_eql_path_resolution`.
+
+- ``warn_old_scoping``
+
+  Introduced in |Gel| 6.0, this flag will emit a warning when a query
+  is detected to depend on the old scoping rules. This is an intermediate
+  step towards enabling the ``simple_scoping`` flag in existing large
+  codebases.
+
+  Read more about this flag in :ref:`ref_warn_old_scoping`.
+
+.. _ref_datamodel_access_policies_nonrecursive:
+.. _nonrecursive:
+
+- ``nonrecursive_access_policies``: makes access policies non-recursive.
+
+  This flag is no longer used becauae the behavior is enabled
+  by default since |EdgeDB| 4. The flag was helpful to ease transition
+  from EdgeDB 3.x to 4.x.
+
+  Since |EdgeDB| 3.0, access policy restrictions do **not** apply
+  to any access policy expression. This means that when reasoning about access
+  policies it is no longer necessary to take other policies into account.
+  Instead, all data is visible for the purpose of *defining* an access
+  policy.
+
+  This change was made to simplify reasoning about access policies and
+  to allow certain patterns to be expressed efficiently. Since those who have
+  access to modifying the schema can remove unwanted access policies, no
+  additional security is provided by applying access policies to each
+  other's expressions.
 
 
-.. list-table::
-  :class: seealso
+.. _ref_eql_sdl_future:
 
-  * - **See also**
-  * - :ref:`SDL > Future Behavior <ref_eql_sdl_future>`
-  * - :eql:stmt:`DDL > CREATE FUTURE <create future>`
-  * - :eql:stmt:`DDL > DROP FUTURE <drop future>`
+Declaring future flags
+======================
+
+Syntax
+------
+
+Declare that the current schema enables a particular future behavior.
+
+.. sdl:synopsis::
+
+  using future <FutureBehavior> ";"
+
+Description
+^^^^^^^^^^^
+
+Future behavior declaration must be outside any :ref:`module block
+<ref_eql_sdl_modules>` since this behavior affects the entire database and not
+a specific module.
+
+Example
+^^^^^^^
+
+.. code-block:: sdl-invalid
+
+  using future simple_scoping;
+
+
+.. _ref_eql_ddl_future:
+
+DDL commands
+============
+
+This section describes the low-level DDL commands for creating and
+dropping future flags. You typically don't need to use these commands directly,
+but knowing about them is useful for reviewing migrations.
+
+Create future
+-------------
+
+:eql-statement:
+
+Enable a particular future behavior for the current schema.
+
+.. eql:synopsis::
+
+  create future <FutureBehavior> ";"
+
+
+The command ``create future`` enables the specified future behavior for
+the current branch.
+
+Example
+^^^^^^^
+
+.. code-block:: edgeql
+
+  create future simple_scoping;
+
+
+Drop future
+-----------
+
+:eql-statement:
+
+Disable a particular future behavior for the current schema.
+
+.. eql:synopsis::
+
+  drop future <FutureBehavior> ";"
+
+Description
+^^^^^^^^^^^
+
+The command ``drop future`` disables a currently active future behavior for the
+current branch. However, this is only possible for versions of |Gel| when the
+behavior in question is not officially introduced. Once a particular behavior is
+introduced as the standard behavior in a |Gel| release, it cannot be disabled.
+
+Example
+^^^^^^^
+
+.. code-block:: edgeql
+
+  drop future warn_old_scoping;
