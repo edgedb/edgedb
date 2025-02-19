@@ -511,7 +511,7 @@ transform than arrays.
   db> select str_trim(['  hello', 'world  ']);
   error: QueryError: function "str_trim(arg0: array<std::str>)" does not exist
 
-Most :ref:`aggregate <ref_reference_cardinality_aggregate>` operations have
+Some :ref:`aggregate <ref_reference_cardinality_aggregate>` operations have
 analogs that operate on arrays. For instance, the set function
 :eql:func:`count` is analogous to the array function :eql:func:`len`.
 

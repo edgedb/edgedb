@@ -65,9 +65,3 @@ to the previous migration:
         required first_name: str;
         required last_name: str;
     }
-
-.. toctree::
-    :maxdepth: 3
-    :hidden:
-
-    properties
