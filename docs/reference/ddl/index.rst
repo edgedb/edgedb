@@ -11,7 +11,6 @@ DDL
     scalars
     properties
     globals
-    future
     migrations
 
 :edb-alt-title: Data Definition Language
