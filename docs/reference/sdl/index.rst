@@ -73,4 +73,3 @@ to the previous migration:
     objects
     scalars
     properties
-    globals
