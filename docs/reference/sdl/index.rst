@@ -22,40 +22,6 @@ keywords omitted.  The typical SDL structure is to use :ref:`module
 blocks <ref_eql_sdl_modules>` with the rest of the declarations being
 nested in their respective modules.
 
-.. XXX: Move this to some other file.
-
-.. versionadded:: 3.0
-
-    |EdgeDB| 3.0 introduces a new SDL syntax which diverges slightly from DDL.
-    The old SDL syntax is still fully supported, but the new syntax allows for
-    cleaner and less verbose expression of your schemas.
-
-    * Pointers no longer require an arrow (``->``). You may instead use a colon
-      after the name of the link or property.
-    * The ``link`` and ``property`` keywords are now optional for non-computed
-      pointers when the target type is explicitly specified.
-
-    That means that this type definition:
-
-    .. code-block:: sdl
-
-        type User {
-          required property email -> str;
-        }
-
-    could be replaced with this equivalent one in |EdgeDB| 3+ / Gel:
-
-    .. code-block:: sdl
-
-        type User {
-          required email: str;
-        }
-
-    When reading our documentation, the version selection dropdown will update
-    the syntax of most SDL examples to the preferred syntax for the version
-    selected. This is only true for versioned sections of the documentation.
-
-
 Since SDL is declarative in nature, the specific order of
 declarations of module blocks or individual items does not matter.
 
