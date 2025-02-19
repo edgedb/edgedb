@@ -342,10 +342,9 @@ instance-level configuration object.
 Override behavior
 ^^^^^^^^^^^^^^^^^
 
-When specified, the connection parameters (user, password, and
-:versionreplace:`database;5.0:branch`) will *override* the corresponding
-element of a DSN, credentials file, etc. For instance, consider the following
-environment variables:
+When specified, the connection parameters (user, password, and |branch|)
+will *override* the corresponding element of a DSN, credentials file, etc.
+For instance, consider the following environment variables:
 
 .. code-block::
 

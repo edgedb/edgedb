@@ -382,7 +382,7 @@ to finish implicit transaction.
 Restore Flow
 ------------
 
-Restore procedure fills up the :versionreplace:`database;5.0:branch` the
+Restore procedure fills up the |branch| the
 client is connected to with the schema and data from the dump file.
 
 Flow is the following:

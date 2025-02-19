@@ -35,9 +35,9 @@ Description
 -----------
 
 The command ``create module`` defines a new module for the current
-:versionreplace:`database;5.0:branch`. The name of the new module must be
+|branch|. The name of the new module must be
 distinct from any existing module in the current
-:versionreplace:`database;5.0:branch`. Unlike :ref:`SDL module declaration
+branch. Unlike :ref:`SDL module declaration
 <ref_eql_sdl_modules>` the ``create module`` command does not have
 sub-commands, as module contents are created separately.
 
@@ -85,7 +85,7 @@ Description
 -----------
 
 The command ``drop module`` removes an existing empty module from the
-current :versionreplace:`database;5.0:branch`. If the module contains any
+current |branch|. If the module contains any
 schema items, this command will fail.
 
 

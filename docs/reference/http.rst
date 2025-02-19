@@ -25,8 +25,7 @@ Here's how to determine your *local* Gel instance's HTTP server URL:
 To determine the URL of a remote instance you have linked with the CLI, you
 can get both the hostname and port of the instance from the "Port" column
 of the :gelcmd:`instance list` table (formatted as ``<hostname>:<port>``).
-The same guidance on local :versionreplace:`database;5.0:branch` names
-applies to remote instances.
+The same guidance on local |branch| names applies to remote instances.
 
 .. _ref_reference_health_checks:
 
