@@ -10,7 +10,6 @@ Get Started
     :hidden:
 
     quickstart
-    fastapi_gelai_searchbot
     cli
     instances
     projects
