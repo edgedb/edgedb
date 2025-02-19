@@ -31,21 +31,16 @@ Request headers
 Request body
 ------------
 
-.. code-block:: json
-
-    {
-      "model": string,        // Required: Name of the embedding model
-      "inputs": string[],     // Required: Array of texts to embed
-      "dimensions": number,   // Optional: Number of dimensions to truncate to
-      "user": string          // Optional: User identifier
-    }
-
 * ``input`` (array of strings or a single string, required): The text to use as
   the basis for embeddings generation.
 
 * ``model`` (string, required): The name of the embedding model to use. You may
   use any of the supported :ref:`embedding models
   <ref_ai_extai_reference_embedding_models>`.
+
+* ``dimensions`` (number, optional): The number of dimensions to truncate to.
+
+* ``user`` (string, optional): A user identifier for the request.
 
 
 Example request
@@ -124,83 +119,45 @@ Request headers
 Request body
 ------------
 
-.. code-block:: json
-
-    {
-      "context": {
-        "query": string,           // Required: EdgeQL query for context retrieval
-        "variables": object,       // Optional: Query variables
-        "globals": object,         // Optional: Query globals
-        "max_object_count": number // Optional: Max objects to retrieve (default: 5)
-      },
-      "model": string,            // Required: Name of the generation model
-      "query": string,            // Required: User query
-      "stream": boolean,          // Optional: Enable streaming (default: false)
-      "prompt": {
-        "name": string,           // Optional: Name of predefined prompt
-        "id": string,             // Optional: ID of predefined prompt
-        "custom": [               // Optional: Custom prompt messages
-          {
-            "role": string,       // "system"|"user"|"assistant"|"tool"
-            "content": string|object,
-            "tool_call_id": string,
-            "tool_calls": array
-          }
-        ]
-      },
-      "temperature": number,      // Optional: Sampling temperature
-      "top_p": number,           // Optional: Nucleus sampling parameter
-      "max_tokens": number,      // Optional: Maximum tokens to generate
-      "seed": number,            // Optional: Random seed
-      "safe_prompt": boolean,    // Optional: Enable safety features
-      "top_k": number,           // Optional: Top-k sampling parameter
-      "logit_bias": object,      // Optional: Token biasing
-      "logprobs": number,        // Optional: Return token log probabilities
-      "user": string             // Optional: User identifier
-    }
-
+* ``context`` (object, required): Settings that define the context of the query.
+  * ``query`` (string, required): Specifies an expression to determine the relevant objects and index to serve as context for text generation. You may set this to any expression that produces a set of objects, even if it is not a standalone query.
+  * ``variables`` (object, optional): A dictionary of variables for use in the context query.
+  * ``globals`` (object, optional): A dictionary of globals for use in the context query.
+  * ``max_object_count`` (number, optional): Maximum number of objects to retrieve; default is 5.
 
 * ``model`` (string, required): The name of the text generation model to use.
 
+* ``query`` (string, required): The query string used as the basis for text generation.
 
-* ``query`` (string, required): The query string use as the basis for text
-  generation.
+* ``stream`` (boolean, optional): Specifies whether the response should be streamed. Defaults to false.
 
-* ``context`` (object, required): Settings that define the context of the
-  query.
+* ``prompt`` (object, optional): Settings that define a prompt. Omit to use the default prompt.
+  * ``name`` (string, optional): Name of predefined prompt.
+  * ``id`` (string, optional): ID of predefined prompt.
+  * ``custom`` (array of objects, optional): Custom prompt messages, each containing a ``role`` and ``content``. If no ``name`` or ``id`` was provided, the custom messages provided here become the prompt. If one of those was provided, these messages will be added to that existing prompt.
 
-  * ``query`` (string, required): Specifies an expression to determine the
-    relevant objects and index to serve as context for text generation. You may
-    set this to any expression that produces a set of objects, even if it is
-    not a standalone query.
+    * ``role`` (string): "system", "user", "assistant", or "tool".
+    * ``content`` (string|object): Content of the message.
+    * ``tool_call_id`` (string): Identifier for tool call.
+    * ``tool_calls`` (array): Array of tool calls.
 
-  * ``variables`` (object, optional): A dictionary of variables for use in the
-    context query.
+* ``temperature`` (number, optional): Sampling temperature.
 
-  * ``globals`` (object, optional): A dictionary of globals for use in the
-    context query.
+* ``top_p`` (number, optional): Nucleus sampling parameter.
 
-  * ``max_object_count`` (int, optional): Maximum number of objects to return;
-    default is 5.
+* ``max_tokens`` (number, optional): Maximum tokens to generate.
 
-* ``stream`` (boolean, optional): Specifies whether the response should be
-  streamed. Defaults to false.
+* ``seed`` (number, optional): Random seed.
 
-* ``prompt`` (object, optional): Settings that define a prompt. Omit to use the
-  default prompt.
+* ``safe_prompt`` (boolean, optional): Enable safety features.
 
-  You may specify an existing prompt by its ``name`` or ``id``, you may define
-  a custom prompt inline by sending an array of objects, or you may do both to
-  augment an existing prompt with additional custom messages.
+* ``top_k`` (number, optional): Top-k sampling parameter.
 
-  * ``name`` (string, optional) or ``id`` (string, optional): The ``name`` or
-    ``id`` of an existing custom prompt to use. Provide only one of these if
-    you want to use or start from an existing prompt.
+* ``logit_bias`` (object, optional): Token biasing.
 
-  * ``custom`` (array of objects, optional): Custom prompt messages, each
-    containing a ``role`` and ``content``. If no ``name`` or ``id`` was
-    provided, the custom messages provided here become the prompt. If one of
-    those was provided, these messages will be added to that existing prompt.
+* ``logprobs`` (number, optional): Return token log probabilities.
+
+* ``user`` (string, optional): User identifier.
 
 
 Example request
@@ -340,7 +297,7 @@ stream.
 
 **Example SSE response**
 
-.. code-block::
+.. code-block:: text
     :class: collapsible
 
     event: message_start
