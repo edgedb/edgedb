@@ -21,7 +21,7 @@ Connecting to the database
 
     import gel
 
-    client = gel.create_client()
+    client = gel.create_async_client()
 
     result = client.query_single("select 'Hello from Gel!';")
     print(result)
@@ -42,7 +42,7 @@ Connecting to the database
 
       import gel
 
-      client = gel.create_client()
+      client = gel.create_async_client()
 
     - result = client.query_single("select 'Hello from Gel!';")
     - print(result)

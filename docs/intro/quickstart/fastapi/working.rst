@@ -50,7 +50,7 @@ Bulk importing of data
 
     - DATA_DIR = Path(__file__).parent / "data"
     - DECKS_FILE = DATA_DIR / "decks.json"
-    + client = create_client()
+    + client = create_async_client()
 
 
 .. edb:split-section::
