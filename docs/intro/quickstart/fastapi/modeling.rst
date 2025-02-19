@@ -1,4 +1,4 @@
-.. _ref_quickstart_modeling:
+.. _ref_quickstart_fastapi_modeling:
 
 =================
 Modeling the data

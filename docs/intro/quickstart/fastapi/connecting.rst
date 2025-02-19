@@ -1,4 +1,4 @@
-.. _ref_quickstart_connecting:
+.. _ref_quickstart_fastapi_connecting:
 
 ==========================
 Connecting to the database

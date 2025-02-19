@@ -1,4 +1,4 @@
-.. _ref_quickstart_inheritance:
+.. _ref_quickstart_fastapi_inheritance:
 
 ========================
 Adding shared properties

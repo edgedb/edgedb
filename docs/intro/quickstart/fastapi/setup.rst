@@ -1,4 +1,4 @@
-.. _ref_quickstart_setup:
+.. _ref_quickstart_fastapi_setup:
 
 #############################
  Setting up your environment
