@@ -52,7 +52,7 @@ Using the built-in RAG
 
     AI-related features in |Gel| come packaged in the extension called ``ai``.
     Let's enable it by adding the following line on top of the
-    ``dbschema/default.gel`` and running a migration.
+    :dotgel:`dbschema/default` and running a migration.
 
     This does a few things. First, it enables us to use features from the extension by prefixing them with ``ext::ai::``.
 
