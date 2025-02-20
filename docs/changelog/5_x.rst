@@ -683,3 +683,37 @@ Bug fixes
   how long the server will spend recompiling cached queries after a migration.
   The default is one minute.
   (:eql:gh:`#7518`)
+
+5.7
+===
+* Include secrets in config objects when dumping with --include-secrets
+
+* Forbid certain system functions over SQL adapter
+  (:eql:gh:`#7829`)
+
+* Update bundled PostgreSQL to 16.4
+  (:eql:gh:`#7804`)
+
+* Fix PgFunc compiled query cache
+  (:eql:gh:`#7422`)
+
+* Fix SQL connections with errors by dropping send_sync_on_error
+  (:eql:gh:`#7560`)
+
+* func cache: fix dropping extension with scalar type
+  (:eql:gh:`#7564`)
+
+* Fix inconsistent prepared statement in script
+  (:eql:gh:`#7571`)
+
+* Fix pg_get_serial_sequence in SQL adapter
+  (:eql:gh:`#7581`)
+
+* Fix ISE involving UNLESS CONFLICT and WITH interaction
+  (:eql:gh:`#7785`)
+
+* Fix remaining failing scalar type drops due to cache
+  (:eql:gh:`#7607`)
+
+* Drop dependent cache function of tuple type
+  (:eql:gh:`#7616`)
