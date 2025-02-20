@@ -899,7 +899,7 @@ Define a new link.
     [ ... ]
     create [{required | optional}] [{single | multi}]
       link <name>
-      [ extending <base> [, ...] ] -> <type>
+      [ extending <base> [, ...] ]: <type>
       [ "{" <subcommand>; [...] "}" ] ;
     [ ... ]
   "}"
@@ -967,7 +967,7 @@ Examples
 .. code-block:: edgeql
 
   alter type User {
-    create multi link friends -> User
+    create multi link friends: User
   };
 
 .. code-block:: edgeql
@@ -982,11 +982,11 @@ Examples
 .. code-block:: edgeql
 
   create abstract link orderable {
-    create property weight -> std::int64
+    create property weight: std::int64
   };
 
   alter type User {
-    create multi link interests extending orderable -> Interest
+    create multi link interests extending orderable: Interest
   };
 
 
