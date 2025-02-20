@@ -37,15 +37,21 @@ Schema
 |Gel| schemas are declared using **SDL** (Gel's Schema Definition
 Language).
 
-SDL
----
+.. _ref_eql_sdl:
 
-Your schema is defined inside |.gel| files. It's common to define your
-entire schema in a single file called :dotgel:`default`, but you can split it
-across multiple files if you wish.
+Schema Definition Language
+--------------------------
+
+The database schema is defined inside |.gel| files with Gel Schema Definition
+Language, or *SDL* for short. It's common to define the entire schema in
+a single file called :dotgel:`default`, but you can split it across multiple
+files if you wish. Since SDL is declarative in nature, the specific order of
+declarations of module blocks, types, or schema files does not matter.
 
 By convention, your schema files should live in a directory called ``dbschema``
 in the root of your project.
+
+Example:
 
 .. code-block:: sdl
 
