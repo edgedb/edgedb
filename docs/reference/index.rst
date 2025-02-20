@@ -13,7 +13,6 @@ Reference
 
 
     edgeql/index
-    sdl/index
     ddl/index
     connection
     environment
