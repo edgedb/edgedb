@@ -120,7 +120,7 @@ EdgeQL.
   deployment guides for all major cloud hosting platforms, as well as
   instructions for self-hosting with Docker.
 
-.. eql:react-element:: DocsNavTable
+.. .. eql:react-element:: DocsNavTable
 
 |Gel| features:
 
