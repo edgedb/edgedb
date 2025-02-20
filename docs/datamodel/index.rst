@@ -29,6 +29,7 @@ Schema
     inheritance
     linkprops
     extensions
+    migrations
     future
     comparison
     introspection/index
@@ -90,15 +91,9 @@ to *create* and *apply* migrations.
   Applied dbschema/migrations/00001.edgeql
 
 For a full guide on migrations, refer to the :ref:`Creating and applying
-migrations <ref_intro_migrations>` guide.
+migrations <ref_intro_migrations>` guide or the
+:ref:`migrations reference <ref_datamodel_migrations>` section.
 
-.. important::
-
-  A migration consists of a sequence of *imperative* schema-modifying commands
-  like ``create type``, ``alter property``, etc. Collectively these commands
-  are known as :ref:`DDL <ref_eql_ddl>` (*data definition language*). We
-  recommend using SDL and the migration system when building applications,
-  however you're free to use DDL directly if you prefer.
 
 .. _ref_datamodel_terminology:
 

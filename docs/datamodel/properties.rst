@@ -433,7 +433,7 @@ Define a new property.
       [ ... ]
       create [{required | optional}] [{single | multi}]
         property <name>
-        [ extending <base> [, ...] ] -> <type>
+        [ extending <base> [, ...] ] : <type>
         [ "{" <subcommand>; [...] "}" ] ;
       [ ... ]
     "}"
@@ -497,7 +497,7 @@ Define a new link ``address`` on the ``User`` object type:
 .. code-block:: edgeql
 
     alter type User {
-      create property address -> str
+      create property address: str
     };
 
 Define a new :ref:`computed property <ref_datamodel_computed>`
@@ -516,7 +516,7 @@ Define a new abstract link ``orderable`` with ``weight`` property:
 .. code-block:: edgeql
 
     create abstract link orderable {
-      create property weight -> std::int64
+      create property weight: std::int64
     };
 
 
