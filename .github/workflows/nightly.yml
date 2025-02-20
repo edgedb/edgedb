@@ -71,334 +71,532 @@ jobs:
         rev=$(git rev-parse HEAD)
         jq_filter='.packages[] | select(.basename == "gel-server") | select(.architecture == $ARCH) | .version_details.metadata.scm_revision | . as $rev | select(($rev != null) and ($REV | startswith($rev)))'
 
+        key="debian-buster-x86_64"
         val=true
 
 
-        url=https://packages.edgedb.com/apt/.jsonindexes/buster.nightly.json
+        idx_file=buster.nightly.json
+        url=https://packages.edgedb.com/apt/.jsonindexes/$idx_file
 
 
+        tmp_file="/tmp/$idx_file"
 
-        out=$(curl --fail -s "$url" | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter" || true)
-        if [ -n "$out" ]; then
-          echo 'Skip rebuilding existing debian-buster-x86_64'
-          val=false
+        if [ ! -e "$tmp_file" ]; then
+          curl --fail -o $tmp_file -s $url || true
         fi
-        echo if_debian_buster_x86_64="$val" >> $GITHUB_OUTPUT
+        if [ -e "$tmp_file" ]; then
+          out=$(< "$tmp_file" jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
+          if [ -n "$out" ]; then
+            echo "Skip rebuilding existing ${key}"
+            val=false
+          fi
+        fi
+
+        echo if_${key//-/_}="$val" >> $GITHUB_OUTPUT
 
 
+        key="debian-buster-aarch64"
         val=true
 
 
-        url=https://packages.edgedb.com/apt/.jsonindexes/buster.nightly.json
+        idx_file=buster.nightly.json
+        url=https://packages.edgedb.com/apt/.jsonindexes/$idx_file
 
 
+        tmp_file="/tmp/$idx_file"
 
-        out=$(curl --fail -s "$url" | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter" || true)
-        if [ -n "$out" ]; then
-          echo 'Skip rebuilding existing debian-buster-aarch64'
-          val=false
+        if [ ! -e "$tmp_file" ]; then
+          curl --fail -o $tmp_file -s $url || true
         fi
-        echo if_debian_buster_aarch64="$val" >> $GITHUB_OUTPUT
+        if [ -e "$tmp_file" ]; then
+          out=$(< "$tmp_file" jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
+          if [ -n "$out" ]; then
+            echo "Skip rebuilding existing ${key}"
+            val=false
+          fi
+        fi
+
+        echo if_${key//-/_}="$val" >> $GITHUB_OUTPUT
 
 
+        key="debian-bullseye-x86_64"
         val=true
 
 
-        url=https://packages.edgedb.com/apt/.jsonindexes/bullseye.nightly.json
+        idx_file=bullseye.nightly.json
+        url=https://packages.edgedb.com/apt/.jsonindexes/$idx_file
 
 
+        tmp_file="/tmp/$idx_file"
 
-        out=$(curl --fail -s "$url" | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter" || true)
-        if [ -n "$out" ]; then
-          echo 'Skip rebuilding existing debian-bullseye-x86_64'
-          val=false
+        if [ ! -e "$tmp_file" ]; then
+          curl --fail -o $tmp_file -s $url || true
         fi
-        echo if_debian_bullseye_x86_64="$val" >> $GITHUB_OUTPUT
+        if [ -e "$tmp_file" ]; then
+          out=$(< "$tmp_file" jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
+          if [ -n "$out" ]; then
+            echo "Skip rebuilding existing ${key}"
+            val=false
+          fi
+        fi
+
+        echo if_${key//-/_}="$val" >> $GITHUB_OUTPUT
 
 
+        key="debian-bullseye-aarch64"
         val=true
 
 
-        url=https://packages.edgedb.com/apt/.jsonindexes/bullseye.nightly.json
+        idx_file=bullseye.nightly.json
+        url=https://packages.edgedb.com/apt/.jsonindexes/$idx_file
 
 
+        tmp_file="/tmp/$idx_file"
 
-        out=$(curl --fail -s "$url" | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter" || true)
-        if [ -n "$out" ]; then
-          echo 'Skip rebuilding existing debian-bullseye-aarch64'
-          val=false
+        if [ ! -e "$tmp_file" ]; then
+          curl --fail -o $tmp_file -s $url || true
         fi
-        echo if_debian_bullseye_aarch64="$val" >> $GITHUB_OUTPUT
+        if [ -e "$tmp_file" ]; then
+          out=$(< "$tmp_file" jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
+          if [ -n "$out" ]; then
+            echo "Skip rebuilding existing ${key}"
+            val=false
+          fi
+        fi
+
+        echo if_${key//-/_}="$val" >> $GITHUB_OUTPUT
 
 
+        key="debian-bookworm-x86_64"
         val=true
 
 
-        url=https://packages.edgedb.com/apt/.jsonindexes/bookworm.nightly.json
+        idx_file=bookworm.nightly.json
+        url=https://packages.edgedb.com/apt/.jsonindexes/$idx_file
 
 
+        tmp_file="/tmp/$idx_file"
 
-        out=$(curl --fail -s "$url" | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter" || true)
-        if [ -n "$out" ]; then
-          echo 'Skip rebuilding existing debian-bookworm-x86_64'
-          val=false
+        if [ ! -e "$tmp_file" ]; then
+          curl --fail -o $tmp_file -s $url || true
         fi
-        echo if_debian_bookworm_x86_64="$val" >> $GITHUB_OUTPUT
+        if [ -e "$tmp_file" ]; then
+          out=$(< "$tmp_file" jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
+          if [ -n "$out" ]; then
+            echo "Skip rebuilding existing ${key}"
+            val=false
+          fi
+        fi
+
+        echo if_${key//-/_}="$val" >> $GITHUB_OUTPUT
 
 
+        key="debian-bookworm-aarch64"
         val=true
 
 
-        url=https://packages.edgedb.com/apt/.jsonindexes/bookworm.nightly.json
+        idx_file=bookworm.nightly.json
+        url=https://packages.edgedb.com/apt/.jsonindexes/$idx_file
 
 
+        tmp_file="/tmp/$idx_file"
 
-        out=$(curl --fail -s "$url" | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter" || true)
-        if [ -n "$out" ]; then
-          echo 'Skip rebuilding existing debian-bookworm-aarch64'
-          val=false
+        if [ ! -e "$tmp_file" ]; then
+          curl --fail -o $tmp_file -s $url || true
         fi
-        echo if_debian_bookworm_aarch64="$val" >> $GITHUB_OUTPUT
+        if [ -e "$tmp_file" ]; then
+          out=$(< "$tmp_file" jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
+          if [ -n "$out" ]; then
+            echo "Skip rebuilding existing ${key}"
+            val=false
+          fi
+        fi
+
+        echo if_${key//-/_}="$val" >> $GITHUB_OUTPUT
 
 
+        key="ubuntu-focal-x86_64"
         val=true
 
 
-        url=https://packages.edgedb.com/apt/.jsonindexes/focal.nightly.json
+        idx_file=focal.nightly.json
+        url=https://packages.edgedb.com/apt/.jsonindexes/$idx_file
 
 
+        tmp_file="/tmp/$idx_file"
 
-        out=$(curl --fail -s "$url" | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter" || true)
-        if [ -n "$out" ]; then
-          echo 'Skip rebuilding existing ubuntu-focal-x86_64'
-          val=false
+        if [ ! -e "$tmp_file" ]; then
+          curl --fail -o $tmp_file -s $url || true
         fi
-        echo if_ubuntu_focal_x86_64="$val" >> $GITHUB_OUTPUT
+        if [ -e "$tmp_file" ]; then
+          out=$(< "$tmp_file" jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
+          if [ -n "$out" ]; then
+            echo "Skip rebuilding existing ${key}"
+            val=false
+          fi
+        fi
+
+        echo if_${key//-/_}="$val" >> $GITHUB_OUTPUT
 
 
+        key="ubuntu-focal-aarch64"
         val=true
 
 
-        url=https://packages.edgedb.com/apt/.jsonindexes/focal.nightly.json
+        idx_file=focal.nightly.json
+        url=https://packages.edgedb.com/apt/.jsonindexes/$idx_file
 
 
+        tmp_file="/tmp/$idx_file"
 
-        out=$(curl --fail -s "$url" | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter" || true)
-        if [ -n "$out" ]; then
-          echo 'Skip rebuilding existing ubuntu-focal-aarch64'
-          val=false
+        if [ ! -e "$tmp_file" ]; then
+          curl --fail -o $tmp_file -s $url || true
         fi
-        echo if_ubuntu_focal_aarch64="$val" >> $GITHUB_OUTPUT
+        if [ -e "$tmp_file" ]; then
+          out=$(< "$tmp_file" jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
+          if [ -n "$out" ]; then
+            echo "Skip rebuilding existing ${key}"
+            val=false
+          fi
+        fi
+
+        echo if_${key//-/_}="$val" >> $GITHUB_OUTPUT
 
 
+        key="ubuntu-jammy-x86_64"
         val=true
 
 
-        url=https://packages.edgedb.com/apt/.jsonindexes/jammy.nightly.json
+        idx_file=jammy.nightly.json
+        url=https://packages.edgedb.com/apt/.jsonindexes/$idx_file
 
 
+        tmp_file="/tmp/$idx_file"
 
-        out=$(curl --fail -s "$url" | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter" || true)
-        if [ -n "$out" ]; then
-          echo 'Skip rebuilding existing ubuntu-jammy-x86_64'
-          val=false
+        if [ ! -e "$tmp_file" ]; then
+          curl --fail -o $tmp_file -s $url || true
         fi
-        echo if_ubuntu_jammy_x86_64="$val" >> $GITHUB_OUTPUT
+        if [ -e "$tmp_file" ]; then
+          out=$(< "$tmp_file" jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
+          if [ -n "$out" ]; then
+            echo "Skip rebuilding existing ${key}"
+            val=false
+          fi
+        fi
+
+        echo if_${key//-/_}="$val" >> $GITHUB_OUTPUT
 
 
+        key="ubuntu-jammy-aarch64"
         val=true
 
 
-        url=https://packages.edgedb.com/apt/.jsonindexes/jammy.nightly.json
+        idx_file=jammy.nightly.json
+        url=https://packages.edgedb.com/apt/.jsonindexes/$idx_file
 
 
+        tmp_file="/tmp/$idx_file"
 
-        out=$(curl --fail -s "$url" | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter" || true)
-        if [ -n "$out" ]; then
-          echo 'Skip rebuilding existing ubuntu-jammy-aarch64'
-          val=false
+        if [ ! -e "$tmp_file" ]; then
+          curl --fail -o $tmp_file -s $url || true
         fi
-        echo if_ubuntu_jammy_aarch64="$val" >> $GITHUB_OUTPUT
+        if [ -e "$tmp_file" ]; then
+          out=$(< "$tmp_file" jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
+          if [ -n "$out" ]; then
+            echo "Skip rebuilding existing ${key}"
+            val=false
+          fi
+        fi
+
+        echo if_${key//-/_}="$val" >> $GITHUB_OUTPUT
 
 
+        key="ubuntu-noble-x86_64"
         val=true
 
 
-        url=https://packages.edgedb.com/apt/.jsonindexes/noble.nightly.json
+        idx_file=noble.nightly.json
+        url=https://packages.edgedb.com/apt/.jsonindexes/$idx_file
 
 
+        tmp_file="/tmp/$idx_file"
 
-        out=$(curl --fail -s "$url" | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter" || true)
-        if [ -n "$out" ]; then
-          echo 'Skip rebuilding existing ubuntu-noble-x86_64'
-          val=false
+        if [ ! -e "$tmp_file" ]; then
+          curl --fail -o $tmp_file -s $url || true
         fi
-        echo if_ubuntu_noble_x86_64="$val" >> $GITHUB_OUTPUT
+        if [ -e "$tmp_file" ]; then
+          out=$(< "$tmp_file" jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
+          if [ -n "$out" ]; then
+            echo "Skip rebuilding existing ${key}"
+            val=false
+          fi
+        fi
+
+        echo if_${key//-/_}="$val" >> $GITHUB_OUTPUT
 
 
+        key="ubuntu-noble-aarch64"
         val=true
 
 
-        url=https://packages.edgedb.com/apt/.jsonindexes/noble.nightly.json
+        idx_file=noble.nightly.json
+        url=https://packages.edgedb.com/apt/.jsonindexes/$idx_file
 
 
+        tmp_file="/tmp/$idx_file"
 
-        out=$(curl --fail -s "$url" | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter" || true)
-        if [ -n "$out" ]; then
-          echo 'Skip rebuilding existing ubuntu-noble-aarch64'
-          val=false
+        if [ ! -e "$tmp_file" ]; then
+          curl --fail -o $tmp_file -s $url || true
         fi
-        echo if_ubuntu_noble_aarch64="$val" >> $GITHUB_OUTPUT
+        if [ -e "$tmp_file" ]; then
+          out=$(< "$tmp_file" jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
+          if [ -n "$out" ]; then
+            echo "Skip rebuilding existing ${key}"
+            val=false
+          fi
+        fi
+
+        echo if_${key//-/_}="$val" >> $GITHUB_OUTPUT
 
 
+        key="centos-8-x86_64"
         val=true
 
 
-        url=https://packages.edgedb.com/rpm/.jsonindexes/el8.nightly.json
+        idx_file=el8.nightly.json
+        url=https://packages.edgedb.com/rpm/.jsonindexes/$idx_file
 
 
+        tmp_file="/tmp/$idx_file"
 
-        out=$(curl --fail -s "$url" | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter" || true)
-        if [ -n "$out" ]; then
-          echo 'Skip rebuilding existing centos-8-x86_64'
-          val=false
+        if [ ! -e "$tmp_file" ]; then
+          curl --fail -o $tmp_file -s $url || true
         fi
-        echo if_centos_8_x86_64="$val" >> $GITHUB_OUTPUT
+        if [ -e "$tmp_file" ]; then
+          out=$(< "$tmp_file" jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
+          if [ -n "$out" ]; then
+            echo "Skip rebuilding existing ${key}"
+            val=false
+          fi
+        fi
+
+        echo if_${key//-/_}="$val" >> $GITHUB_OUTPUT
 
 
+        key="centos-8-aarch64"
         val=true
 
 
-        url=https://packages.edgedb.com/rpm/.jsonindexes/el8.nightly.json
+        idx_file=el8.nightly.json
+        url=https://packages.edgedb.com/rpm/.jsonindexes/$idx_file
 
 
+        tmp_file="/tmp/$idx_file"
 
-        out=$(curl --fail -s "$url" | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter" || true)
-        if [ -n "$out" ]; then
-          echo 'Skip rebuilding existing centos-8-aarch64'
-          val=false
+        if [ ! -e "$tmp_file" ]; then
+          curl --fail -o $tmp_file -s $url || true
         fi
-        echo if_centos_8_aarch64="$val" >> $GITHUB_OUTPUT
+        if [ -e "$tmp_file" ]; then
+          out=$(< "$tmp_file" jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
+          if [ -n "$out" ]; then
+            echo "Skip rebuilding existing ${key}"
+            val=false
+          fi
+        fi
+
+        echo if_${key//-/_}="$val" >> $GITHUB_OUTPUT
 
 
+        key="rockylinux-9-x86_64"
         val=true
 
 
-        url=https://packages.edgedb.com/rpm/.jsonindexes/el9.nightly.json
+        idx_file=el9.nightly.json
+        url=https://packages.edgedb.com/rpm/.jsonindexes/$idx_file
 
 
+        tmp_file="/tmp/$idx_file"
 
-        out=$(curl --fail -s "$url" | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter" || true)
-        if [ -n "$out" ]; then
-          echo 'Skip rebuilding existing rockylinux-9-x86_64'
-          val=false
+        if [ ! -e "$tmp_file" ]; then
+          curl --fail -o $tmp_file -s $url || true
         fi
-        echo if_rockylinux_9_x86_64="$val" >> $GITHUB_OUTPUT
+        if [ -e "$tmp_file" ]; then
+          out=$(< "$tmp_file" jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
+          if [ -n "$out" ]; then
+            echo "Skip rebuilding existing ${key}"
+            val=false
+          fi
+        fi
+
+        echo if_${key//-/_}="$val" >> $GITHUB_OUTPUT
 
 
+        key="rockylinux-9-aarch64"
         val=true
 
 
-        url=https://packages.edgedb.com/rpm/.jsonindexes/el9.nightly.json
+        idx_file=el9.nightly.json
+        url=https://packages.edgedb.com/rpm/.jsonindexes/$idx_file
 
 
+        tmp_file="/tmp/$idx_file"
 
-        out=$(curl --fail -s "$url" | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter" || true)
-        if [ -n "$out" ]; then
-          echo 'Skip rebuilding existing rockylinux-9-aarch64'
-          val=false
+        if [ ! -e "$tmp_file" ]; then
+          curl --fail -o $tmp_file -s $url || true
         fi
-        echo if_rockylinux_9_aarch64="$val" >> $GITHUB_OUTPUT
+        if [ -e "$tmp_file" ]; then
+          out=$(< "$tmp_file" jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
+          if [ -n "$out" ]; then
+            echo "Skip rebuilding existing ${key}"
+            val=false
+          fi
+        fi
+
+        echo if_${key//-/_}="$val" >> $GITHUB_OUTPUT
 
 
+        key="linux-x86_64"
         val=true
 
 
-        url=https://packages.edgedb.com/archive/.jsonindexes/x86_64-unknown-linux-gnu.nightly.json
+        idx_file=x86_64-unknown-linux-gnu.nightly.json
+        url=https://packages.edgedb.com/archive/.jsonindexes/$idx_file
 
 
+        tmp_file="/tmp/$idx_file"
 
-        out=$(curl --fail -s "$url" | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter" || true)
-        if [ -n "$out" ]; then
-          echo 'Skip rebuilding existing linux-x86_64'
-          val=false
+        if [ ! -e "$tmp_file" ]; then
+          curl --fail -o $tmp_file -s $url || true
         fi
-        echo if_linux_x86_64="$val" >> $GITHUB_OUTPUT
+        if [ -e "$tmp_file" ]; then
+          out=$(< "$tmp_file" jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
+          if [ -n "$out" ]; then
+            echo "Skip rebuilding existing ${key}"
+            val=false
+          fi
+        fi
+
+        echo if_${key//-/_}="$val" >> $GITHUB_OUTPUT
 
 
+        key="linux-aarch64"
         val=true
 
 
-        url=https://packages.edgedb.com/archive/.jsonindexes/aarch64-unknown-linux-gnu.nightly.json
+        idx_file=aarch64-unknown-linux-gnu.nightly.json
+        url=https://packages.edgedb.com/archive/.jsonindexes/$idx_file
 
 
+        tmp_file="/tmp/$idx_file"
 
-        out=$(curl --fail -s "$url" | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter" || true)
-        if [ -n "$out" ]; then
-          echo 'Skip rebuilding existing linux-aarch64'
-          val=false
+        if [ ! -e "$tmp_file" ]; then
+          curl --fail -o $tmp_file -s $url || true
         fi
-        echo if_linux_aarch64="$val" >> $GITHUB_OUTPUT
+        if [ -e "$tmp_file" ]; then
+          out=$(< "$tmp_file" jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
+          if [ -n "$out" ]; then
+            echo "Skip rebuilding existing ${key}"
+            val=false
+          fi
+        fi
+
+        echo if_${key//-/_}="$val" >> $GITHUB_OUTPUT
 
 
+        key="linuxmusl-x86_64"
         val=true
 
 
-        url=https://packages.edgedb.com/archive/.jsonindexes/x86_64-unknown-linux-musl.nightly.json
+        idx_file=x86_64-unknown-linux-musl.nightly.json
+        url=https://packages.edgedb.com/archive/.jsonindexes/$idx_file
 
 
+        tmp_file="/tmp/$idx_file"
 
-        out=$(curl --fail -s "$url" | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter" || true)
-        if [ -n "$out" ]; then
-          echo 'Skip rebuilding existing linuxmusl-x86_64'
-          val=false
+        if [ ! -e "$tmp_file" ]; then
+          curl --fail -o $tmp_file -s $url || true
         fi
-        echo if_linuxmusl_x86_64="$val" >> $GITHUB_OUTPUT
+        if [ -e "$tmp_file" ]; then
+          out=$(< "$tmp_file" jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
+          if [ -n "$out" ]; then
+            echo "Skip rebuilding existing ${key}"
+            val=false
+          fi
+        fi
+
+        echo if_${key//-/_}="$val" >> $GITHUB_OUTPUT
 
 
+        key="linuxmusl-aarch64"
         val=true
 
 
-        url=https://packages.edgedb.com/archive/.jsonindexes/aarch64-unknown-linux-musl.nightly.json
+        idx_file=aarch64-unknown-linux-musl.nightly.json
+        url=https://packages.edgedb.com/archive/.jsonindexes/$idx_file
 
 
+        tmp_file="/tmp/$idx_file"
 
-        out=$(curl --fail -s "$url" | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter" || true)
-        if [ -n "$out" ]; then
-          echo 'Skip rebuilding existing linuxmusl-aarch64'
-          val=false
+        if [ ! -e "$tmp_file" ]; then
+          curl --fail -o $tmp_file -s $url || true
         fi
-        echo if_linuxmusl_aarch64="$val" >> $GITHUB_OUTPUT
+        if [ -e "$tmp_file" ]; then
+          out=$(< "$tmp_file" jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
+          if [ -n "$out" ]; then
+            echo "Skip rebuilding existing ${key}"
+            val=false
+          fi
+        fi
+
+        echo if_${key//-/_}="$val" >> $GITHUB_OUTPUT
 
 
+        key="macos-x86_64"
         val=true
 
 
-        url=https://packages.edgedb.com/archive/.jsonindexes/x86_64-unknown-linux-gnu.nightly.json
+        idx_file=x86_64-unknown-linux-gnu.nightly.json
+        url=https://packages.edgedb.com/archive/.jsonindexes/$idx_file
 
 
+        tmp_file="/tmp/$idx_file"
 
-        out=$(curl --fail -s "$url" | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter" || true)
-        if [ -n "$out" ]; then
-          echo 'Skip rebuilding existing macos-x86_64'
-          val=false
+        if [ ! -e "$tmp_file" ]; then
+          curl --fail -o $tmp_file -s $url || true
         fi
-        echo if_macos_x86_64="$val" >> $GITHUB_OUTPUT
+        if [ -e "$tmp_file" ]; then
+          out=$(< "$tmp_file" jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
+          if [ -n "$out" ]; then
+            echo "Skip rebuilding existing ${key}"
+            val=false
+          fi
+        fi
+
+        echo if_${key//-/_}="$val" >> $GITHUB_OUTPUT
 
 
+        key="macos-aarch64"
         val=true
 
 
-        url=https://packages.edgedb.com/archive/.jsonindexes/aarch64-unknown-linux-gnu.nightly.json
+        idx_file=aarch64-unknown-linux-gnu.nightly.json
+        url=https://packages.edgedb.com/archive/.jsonindexes/$idx_file
 
 
+        tmp_file="/tmp/$idx_file"
 
-        out=$(curl --fail -s "$url" | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter" || true)
-        if [ -n "$out" ]; then
-          echo 'Skip rebuilding existing macos-aarch64'
-          val=false
+        if [ ! -e "$tmp_file" ]; then
+          curl --fail -o $tmp_file -s $url || true
         fi
-        echo if_macos_aarch64="$val" >> $GITHUB_OUTPUT
+        if [ -e "$tmp_file" ]; then
+          out=$(< "$tmp_file" jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
+          if [ -n "$out" ]; then
+            echo "Skip rebuilding existing ${key}"
+            val=false
+          fi
+        fi
+
+        echo if_${key//-/_}="$val" >> $GITHUB_OUTPUT
 
 
 
