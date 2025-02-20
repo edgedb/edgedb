@@ -375,7 +375,7 @@ When creating a new property or link:
 .. eql:synopsis::
 
    {create | alter} type <type-name> "{"
-     create { property | link } <prop-or-link-name> -> <type> "{"
+     create { property | link } <prop-or-link-name>: <type> "{"
        create rewrite {insert | update} [, ...]
          using <expr>
      "}" ;
@@ -426,10 +426,10 @@ property on each update:
 .. code-block:: edgeql
 
    alter type User {
-     create property created -> datetime {
+     create property created: datetime {
        create rewrite insert using (datetime_of_statement());
      };
-     create property modified -> datetime {
+     create property modified: datetime {
        create rewrite update using (datetime_of_statement());
      };
    };
