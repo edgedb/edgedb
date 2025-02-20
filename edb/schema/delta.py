@@ -4214,6 +4214,11 @@ class AlterObjectProperty(Command):
                     schema=schema,
                 )
 
+            elif (
+                isinstance(astnode.value, qlast.StrInterp)
+                and field.allow_interpolation
+            ):
+                new_value = utils.str_interpolation_to_old_style(astnode.value)
             else:
                 new_value = qlcompiler.evaluate_ast_to_python_val(
                     astnode.value, schema=schema) if astnode.value else None

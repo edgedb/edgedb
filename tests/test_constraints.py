@@ -18,6 +18,7 @@
 
 
 import os.path
+import re
 
 import edgedb
 
@@ -962,7 +963,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
                     ON (len(__subject__))
             {
                 SET errmessage :=
-                    '{__subject__} must be no longer than {max} characters.';
+                    '\(__subject__) must be no longer than \(max) characters.';
                 USING (__subject__ <= max);
             };
 
@@ -970,7 +971,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
                     ON (len(__subject__)) EXTENDING std::max_value
             {
                 SET errmessage :=
-                    '{__subject__} must be no longer than {max} characters.';
+                    '\(__subject__) must be no longer than \(max) characters.';
             };
 
             CREATE TYPE ConstraintOnTest1 {
@@ -1239,6 +1240,25 @@ class TestConstraintsDDL(tb.DDLTestCase):
             await self.con.execute(
                 """
                 INSERT ConstraintOnTest4_2 { email := '' };
+                """
+            )
+
+        await self.con.execute(r"""
+            CREATE type ConstraintOnTest4_3 {
+                CREATE required property email -> str {
+                    CREATE constraint min_len_value(4) {
+                        SET errmessage := '\\(min) \\(min)';
+                    };
+                };
+            };
+        """)
+        async with self.assertRaisesRegexTx(
+            edgedb.ConstraintViolationError,
+            re.escape(r'\(min) \(min)'),
+        ):
+            await self.con.execute(
+                """
+                INSERT ConstraintOnTest4_3 { email := '' };
                 """
             )
 
