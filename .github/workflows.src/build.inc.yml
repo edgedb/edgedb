@@ -18,28 +18,40 @@
         rev=$(git rev-parse HEAD)
         jq_filter='.packages[] | select(.basename == "gel-server") | select(.architecture == $ARCH) | .version_details.metadata.scm_revision | . as $rev | select(($rev != null) and ($REV | startswith($rev)))'
 <% for tgt in targets.linux + targets.macos %>
+        key="<< tgt.name >>"
         val=true
 
 <% if tgt.family == "debian" %>
-        url=https://packages.edgedb.com/apt/.jsonindexes/<< tgt.platform_version >>.nightly.json
+        idx_file=<< tgt.platform_version >>.nightly.json
+        url=https://packages.edgedb.com/apt/.jsonindexes/$idx_file
 
 <% elif tgt.family == "redhat" %>
-        url=https://packages.edgedb.com/rpm/.jsonindexes/el<< tgt.platform_version >>.nightly.json
+        idx_file=el<< tgt.platform_version >>.nightly.json
+        url=https://packages.edgedb.com/rpm/.jsonindexes/$idx_file
 
 <% elif tgt.family == "generic" %>
-        url=https://packages.edgedb.com/archive/.jsonindexes/<< tgt.platform_version >>-unknown-linux-<< "{}".format(tgt.platform_libc) if tgt.platform_libc else "gnu" >>.nightly.json
+        idx_file=<< tgt.platform_version >>-unknown-linux-<< "{}".format(tgt.platform_libc) if tgt.platform_libc else "gnu" >>.nightly.json
+        url=https://packages.edgedb.com/archive/.jsonindexes/$idx_file
 
 <% elif tgt.platform == "macos" %>
-        url=https://packages.edgedb.com/archive/.jsonindexes/<< tgt.platform_version >>-apple-darwin.nightly.json
+        idx_file=<< tgt.platform_version >>-apple-darwin.nightly.json
+        url=https://packages.edgedb.com/archive/.jsonindexes/$idx_file
 
 <% endif %>
+        tmp_file="/tmp/$idx_file"
 
-        out=$(curl --fail -s "$url" | jq -r --arg REV "$rev" --arg ARCH "<< tgt.arch >>" "$jq_filter" || true)
-        if [ -n "$out" ]; then
-          echo 'Skip rebuilding existing << tgt.name >>'
-          val=false
+        if [ ! -e "$tmp_file" ]; then
+          curl --fail -o $tmp_file -s $url || true
         fi
-        echo if_<< tgt.name.replace('-', '_') >>="$val" >> $GITHUB_OUTPUT
+        if [ -e "$tmp_file" ]; then
+          out=$(< "$tmp_file" jq -r --arg REV "$rev" --arg ARCH "<< tgt.arch >>" "$jq_filter")
+          if [ -n "$out" ]; then
+            echo "Skip rebuilding existing ${key}"
+            val=false
+          fi
+        fi
+
+        echo if_${key//-/_}="$val" >> $GITHUB_OUTPUT
 
 <% endfor %>
 <% endif %>
