@@ -16,6 +16,7 @@ Welcome to the |Gel| |version| documentation.
     intro/index
     datamodel/index
     ai/index
+    auth/index
     edgeql/index
     guides/index
     stdlib/index

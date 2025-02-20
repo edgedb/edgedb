@@ -18,6 +18,5 @@ guide!
     deployment/index
     datamigrations/index
     tutorials/index
-    auth/index
     migrations/index
     contributing/index
