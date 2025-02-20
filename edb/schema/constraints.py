@@ -175,7 +175,12 @@ class Constraint(
     )
 
     errmessage = so.SchemaField(
-        str, default=None, compcoef=0.971, allow_ddl_set=True)
+        str,
+        default=None,
+        compcoef=0.971,
+        allow_ddl_set=True,
+        allow_interpolation=True,
+    )
 
     is_aggregate = so.SchemaField(
         bool, default=False, compcoef=0.971, allow_ddl_set=False)

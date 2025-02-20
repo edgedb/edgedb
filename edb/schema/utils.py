@@ -1571,3 +1571,41 @@ def try_compile_irast_to_sql_tree(
         raise exception
     except:
         raise
+
+
+def str_interpolation_to_old_style(interp: qlast.StrInterp) -> str:
+    r"""Convert a \(name) string interpolation to {name} style for schema use.
+
+    The {name} style of string interpolation is used (with special
+    handling) for errmessage in constraints, and we want to also
+    support \(name) style.
+
+    We (somewhat unfortunately) implement this by converting the
+    \(name) style *into* the older {name} style.
+
+    It would be somewhat nicer to store the string using \(name)
+    style, but doing that loses the ability to prevent interpolation
+    by doing \\(name). (Since the lexed version is stored in that
+    case, we wouldn't be able to distinguish between the cases.)
+    """
+
+    res = interp.prefix
+    for frag in interp.interpolations:
+        match frag.expr:
+            case qlast.Path(
+                partial=False,
+                steps=[
+                    qlast.Anchor(name=name)
+                    | qlast.ObjectRef(name=name, module=None)
+                ]
+            ):
+                res += '{' + name + '}'
+            case _:
+                raise errors.SchemaDefinitionError(
+                    "only variables are allowed in simple schema "
+                    "interpolations",
+                    span=frag.expr.span,
+                )
+
+        res += frag.suffix
+    return res
