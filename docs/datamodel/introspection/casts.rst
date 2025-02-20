@@ -131,9 +131,9 @@ allowed. For example, consider the following type:
 .. code-block:: sdl
 
     type Example {
-        property p_int16 -> int16;
-        property p_float32 -> float32;
-        property p_json -> json;
+        property p_int16: int16;
+        property p_float32: float32;
+        property p_json: json;
     }
 
 .. code-block:: edgeql-repl

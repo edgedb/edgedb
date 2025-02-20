@@ -777,7 +777,7 @@ constraint:
 
 .. code-block:: edgeql
 
-  alter type User create property score -> int64 {
+  alter type User create property score: int64 {
     create constraint min_value(0)
   };
 
@@ -786,8 +786,8 @@ Create a Vector with a maximum magnitude:
 .. code-block:: edgeql
 
   create type Vector {
-    create required property x -> float64;
-    create required property y -> float64;
+    create required property x: float64;
+    create required property y: float64;
     create constraint expression ON (
       __subject__.x^2 + __subject__.y^2 < 25
     );

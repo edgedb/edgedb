@@ -248,7 +248,7 @@ commands described later:
 
   # Global variable declaration:
   [{required | optional}] [single]
-    global <name> -> <type>
+    global <name>: <type>
     [ "{"
         [ default := <expression> ; ]
         [ <annotation-declarations> ]
@@ -266,7 +266,7 @@ Description
 There are two different forms of ``global`` declarations, as shown in the
 syntax synopsis above:
 
-1. A *settable* global (defined with ``-> <type>``) which can be changed using
+1. A *settable* global (defined with ``: <type>``) which can be changed using
    a session-level :ref:`set <ref_eql_statements_session_set_alias>` command.
 
 2. A *computed* global (defined with ``:= <expression>``), which cannot be
@@ -326,7 +326,7 @@ Declare a new global variable:
 
 .. code-block:: sdl
 
-  global current_user_id -> uuid;
+  global current_user_id: uuid;
   global current_user := (
       select User filter .id = global current_user_id
   );
@@ -376,7 +376,7 @@ Declare a new global variable using DDL.
 
   [ with <with-item> [, ...] ]
   create [{required | optional}] [single]
-    global <name> -> <type>
+    global <name>: <type>
       [ "{" <subcommand>; [...] "}" ] ;
 
   # Computed global variable form:
@@ -420,7 +420,7 @@ Define a new global property ``current_user_id``:
 
 .. code-block:: edgeql
 
-  create global current_user_id -> uuid;
+  create global current_user_id: uuid;
 
 Define a new *computed* global property ``current_user`` based on the
 previously defined ``current_user_id``:

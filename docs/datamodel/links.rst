@@ -445,6 +445,9 @@ the link itself is a distinct concept with its own data. For relations
 like one-to-one or one-to-many, it's often clearer to store data in the
 object type itself instead of in a link property.
 
+Read more about link properties in the :ref:`dedicated link properties article
+<ref_datamodel_linkprops>`.
+
 Inserting and updating link properties
 --------------------------------------
 
@@ -556,7 +559,7 @@ in the shape:
 .. note::
 
   For a full guide on modeling, inserting, updating, and querying link
-  properties, see the :ref:`Using Link Properties <ref_guide_linkprops>`
+  properties, see the :ref:`Using Link Properties <ref_datamodel_linkprops>`
   guide.
 
 
@@ -896,7 +899,7 @@ Define a new link.
     [ ... ]
     create [{required | optional}] [{single | multi}]
       link <name>
-      [ extending <base> [, ...] ] -> <type>
+      [ extending <base> [, ...] ]: <type>
       [ "{" <subcommand>; [...] "}" ] ;
     [ ... ]
   "}"
@@ -964,7 +967,7 @@ Examples
 .. code-block:: edgeql
 
   alter type User {
-    create multi link friends -> User
+    create multi link friends: User
   };
 
 .. code-block:: edgeql
@@ -979,11 +982,11 @@ Examples
 .. code-block:: edgeql
 
   create abstract link orderable {
-    create property weight -> std::int64
+    create property weight: std::int64
   };
 
   alter type User {
-    create multi link interests extending orderable -> Interest
+    create multi link interests extending orderable: Interest
   };
 
 

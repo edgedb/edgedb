@@ -3,13 +3,6 @@
 DDL
 ===
 
-.. toctree::
-    :maxdepth: 3
-    :hidden:
-
-    properties
-    migrations
-
 :edb-alt-title: Data Definition Language
 
 EdgeQL includes a set of *data definition language* (DDL) commands that

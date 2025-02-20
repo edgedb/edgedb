@@ -1,20 +1,131 @@
-.. _ref_eql_ddl_migrations:
+.. _ref_datamodel_migrations:
 
 ==========
 Migrations
 ==========
 
-This section describes the DDL commands pertaining to migrations.
+|Gel's| baked-in migration system lets you painlessly evolve your schema over
+time. Just update the contents of your |.gel| file(s) and use the |Gel| CLI
+to *create* and *apply* migrations.
 
-.. note::
+.. code-block:: bash
 
-    Like all DDL commands, ``start migration`` and other migration
-    commands are considered low-level. Users are encouraged to use the
-    built-in :ref:`migration tools <ref_cli_gel_migration>`
-    instead.
+  $ gel migration create
+  Created dbschema/migrations/00001.edgeql
+
+  $ gel migrate
+  Applied dbschema/migrations/00001.edgeql
+
+Refer to the :ref:`creating and applying migrations <ref_intro_migrations>`
+guide for more information on how to use the migration system.
+
+This document describes how migrations are implemented.
+
+
+The migrations flow
+===================
+
+The migration flow is as follows:
+
+1. The user edits the |.gel| files in the ``dbschema`` directory.
+
+   This makes the schema described in the |.gel| files **different** from the
+   actual schema in the database.
+
+2. The user runs the :gelcmd:`migration create` command to create a new
+   migration (a sequence of low-level DDL commands).
+
+   * The CLI reads the |.gel| files and sends them to the |Gel| server, to
+     analyze the changes.
+
+   * The |Gel| server generates a migration plan and sends it back to the CLI.
+
+   * The migration plan might require clarification from the user.
+
+     If so, the CLI and the |Gel| server will go back and forth presenting
+     the user with a sequence of questions, until the migration plan is
+     clear and approved by the user.
+
+3. The CLI writes the migration plan to a new file in the ``dbschema/migrations``
+   directory.
+
+4. The user runs the :gelcmd:`migrate` command to apply the migration to the
+   database.
+
+5. The user checks in the updated |.gel| files and the new
+   ``dbschema/migrations`` migration file (created by :gelcmd:`migration create`)
+   into version control.
+
+
+Command line tools
+==================
+
+The two most important commands are:
+
+* :gelcmd:`migration create`
+* :gelcmd:`migrate`
+
+
+Automatic migrations
+====================
+
+Sometimes when you're prototyping something new you don't want to spend
+time worrying about migrations. There's no data to lose and not much code
+that depends on the schema just yet.
+
+For this use case you can use the :gelcmd:`watch` command, which will
+monitor your |.gel| files and automatically create and apply migrations
+for you in the background.
+
+
+Data definition language (DDL)
+==============================
+
+The migration plan is a sequence of DDL commands. DDL commands are low-level
+instructions that describe the changes to the schema.
+
+If your schema looks like this:
+
+.. code-block:: sdl
+
+  type User {
+    required name: str;
+  }
+
+then the corresponding DDL might look like this:
+
+.. code-block:: edgeql
+
+  create type User {
+    create required property name: str;
+  }
+
+There are some circumstances where users might want to use DDL directly.
+But in most cases you just need to learn how to read them to understand
+the migration plan. Luckily, the DDL and SDL syntaxes were designed in tandem
+and are very similar.
+
+Most documentation pages on Gel's schema have a section about DDL commands,
+e.g. :ref:`object types DDL <ref_eql_ddl_object_types>`.
+
+
+.. _ref_eql_ddl_migrations:
+
+Migration DDL commands
+======================
+
+Migrations themselves are a sequence of special DDL commands.
+
+Like all DDL commands, ``start migration`` and other migration commands are
+considered low-level. Users are encouraged to use the built-in
+:ref:`migration tools <ref_cli_gel_migration>` instead.
+
+However, if you want to implement your own migration tools, this section
+will give you a good understanding of how Gel migrations work under the hood.
+
 
 Start migration
-===============
+---------------
 
 :eql-statement:
 
@@ -28,14 +139,14 @@ Start a migration block.
     "}" ;
 
 Parameters
-----------
+^^^^^^^^^^
 
 :eql:synopsis:`<sdl-declaration>`
-    Complete schema defined with the declarative :ref:`Gel schema
-    definition language<ref_eql_sdl>`.
+    Complete schema text (content of all |.gel| files) defined with
+    the declarative :ref:`Gel schema definition language <ref_eql_sdl>`.
 
 Description
------------
+^^^^^^^^^^^
 
 The command ``start migration`` defines a migration of the schema to a
 new state. The target schema state is described using :ref:`SDL
@@ -50,7 +161,7 @@ This command also starts a transaction block if not inside a
 transaction already.
 
 While inside a migration block, all issued EdgeQL statements are not executed
-immediately and are instead recorded to be part of the migration script.  Aside
+immediately and are instead recorded to be part of the migration script. Aside
 from normal EdgeQL commands the following special migration commands are
 available:
 
@@ -67,8 +178,8 @@ available:
   migration script statements and recording the migration into the system
   migration log.
 
-Examples
---------
+Example
+^^^^^^^
 
 Create a new migration to a target schema specified by the Gel Schema
 syntax:
@@ -78,15 +189,16 @@ syntax:
     start migration to {
         module default {
             type User {
-                property username -> str;
+                property username: str;
             };
         };
     };
 
+
 .. _ref_eql_ddl_migrations_create:
 
 create migration
-================
+----------------
 
 :eql-statement:
 
@@ -100,22 +212,20 @@ Create a new migration using an explicit EdgeQL script.
     "}" ;
 
 Parameters
-----------
+^^^^^^^^^^
 
 :eql:synopsis:`<edgeql-statement>`
     Any valid EdgeQL statement, except ``database``, ``branch``, ``role``,
     ``configure``, ``migration``, or ``transaction`` statements.
 
-
 Description
------------
+^^^^^^^^^^^
 
 The command ``create migration`` executes all the nested EdgeQL commands
 and records the migration into the system migration log.
 
-
-Examples
---------
+Example
+^^^^^^^
 
 Create a new migration to a target schema specified by the Gel Schema
 syntax:
@@ -124,13 +234,13 @@ syntax:
 
     create migration {
         create type default::User {
-            create property username -> str;
+            create property username: str;
         }
     };
 
 
 Abort migration
-===============
+---------------
 
 :eql-statement:
 
@@ -141,14 +251,14 @@ Abort the current migration block and discard the migration.
     abort migration ;
 
 Description
------------
+^^^^^^^^^^^
 
 The command ``abort migration`` is used to abort a migration block started by
-:eql:stmt:`start migration`.  Issuing ``abort migration`` outside of a
+:eql:stmt:`start migration`. Issuing ``abort migration`` outside of a
 migration block is an error.
 
-Examples
---------
+Example
+^^^^^^^
 
 Start a migration block and then abort it:
 
@@ -164,7 +274,7 @@ Start a migration block and then abort it:
 
 
 Populate migration
-==================
+------------------
 
 :eql-statement:
 
@@ -175,7 +285,7 @@ Populate the current migration with system-generated statements.
     populate migration ;
 
 Description
------------
+^^^^^^^^^^^
 
 The command ``populate migration`` is used within a migration block started by
 :eql:stmt:`start migration` to automatically fill the migration with
@@ -191,8 +301,8 @@ migration`` outside of a migration block is also an error.
     migration using :eql:stmt:`describe current migration` before running
     :eql:stmt:`commit migration`!
 
-Examples
---------
+Example
+^^^^^^^
 
 Start a migration block and populate it with auto-generated statements.
 
@@ -208,7 +318,7 @@ Start a migration block and populate it with auto-generated statements.
 
 
 Describe current migration
-==========================
+--------------------------
 
 :eql-statement:
 
@@ -220,7 +330,7 @@ Describe the migration in the current migration block.
 
 
 Description
------------
+^^^^^^^^^^^
 
 The command ``describe current migration`` generates a description of
 the migration in the current migration block in the specified output
@@ -228,7 +338,7 @@ format:
 
 :eql:synopsis:`as ddl`
     Show a sequence of statements currently recorded as part of the migration
-    using valid :ref:`DDL <ref_eql_ddl>` syntax.  The output will indicate
+    using valid :ref:`DDL <ref_eql_ddl>` syntax. The output will indicate
     if the current migration is fully defined, i.e. the recorded statements
     bring the schema to the state specified by :eql:stmt:`start migration`.
 
@@ -240,7 +350,7 @@ format:
 
         {
           // Name of the parent migration
-          "parent": "<parent-migraiton-name>",
+          "parent": "<parent-migration-name>",
 
           // Whether the confirmed DDL makes the migration complete,
           // i.e. there are no more statements to issue.
@@ -262,7 +372,7 @@ format:
             "required-user-input": [
               {
                 "placeholder": "<placeholder variable>",
-                "prompt": "<statement prompt>",
+                "prompt": "<statement prompt>"
               },
               ...
             ],
@@ -299,7 +409,7 @@ format:
 
 
 Commit migration
-================
+----------------
 
 :eql-statement:
 
@@ -309,9 +419,8 @@ Commit the current migration to the database.
 
     commit migration ;
 
-
 Description
------------
+^^^^^^^^^^^
 
 The command ``commit migration`` executes all the commands defined by
 the current migration and records the migration as the most recent
@@ -320,9 +429,8 @@ migration in the database.
 Issuing ``commit migration`` outside of a migration block initiated
 by :eql:stmt:`start migration` is an error.
 
-
 Example
--------
+^^^^^^^
 
 Create and execute the current migration:
 
@@ -332,7 +440,7 @@ Create and execute the current migration:
 
 
 Reset schema to initial
-=======================
+-----------------------
 
 :eql-statement:
 
@@ -349,12 +457,11 @@ Reset the database schema to its initial state.
     to lose all that instance's data.
 
 
-Migration Rewrites
-==================
+Migration rewrites DDL commands
+===============================
 
 Migration rewrites allow you to change the migration history as long as your
 final schema matches the current database schema.
-
 
 Start migration rewrite
 -----------------------
