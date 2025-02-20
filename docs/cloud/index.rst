@@ -20,16 +20,16 @@ Cloud
     deploy/render
     deploy/railway
 
- 
+
 |Gel| Cloud is a fully managed, effortless cloud database service,
 engineered to let you deploy your database instantly and connect from
 anywhere with near-zero configuration.
- 
+
 Connecting your app
 ===================
 
 Try a guide for connecting your app running on your platform of choice:
-        
+
 .. TODO: render these with icons
 
 * :ref:`Vercel <ref_guide_cloud_deploy_vercel>`
@@ -37,8 +37,7 @@ Try a guide for connecting your app running on your platform of choice:
 * :ref:`Fly.io <ref_guide_cloud_deploy_fly>`
 * :ref:`Render <ref_guide_cloud_deploy_render>`
 * :ref:`Railway <ref_guide_cloud_deploy_railway>`
-        
-  
+
 To connect your apps running on other platforms, generate a dedicated
 secret key for your instance with :gelcmd:`cloud secretkey create` or via the
 web UI's “Secret Keys” pane in your instance dashboard. Create two environment
@@ -46,7 +45,7 @@ variables accessible to your production application:
 
 * :gelenv:`SECRET_KEY` - contains the secret key you generated
 * :gelenv:`INSTANCE` - the name of your |Gel| Cloud instance (``<org-name>/<instance-name>``)
-        
+
 .. edb:youtube-embed:: IG1MggUzzH4
 
 
@@ -90,7 +89,7 @@ clicking on “Create new instance” in the “Instances” tab.
 Complete the following form to configure your instance. You can access
 your instance via the CLI using the name ``<org-name>/<instance-name>`` or via the GUI.
 
-    
+
 Useful Gel Cloud commands
 =========================
 
