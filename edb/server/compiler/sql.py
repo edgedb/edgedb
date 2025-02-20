@@ -54,6 +54,10 @@ FE_SETTINGS_MUTABLE: immutables.Map[str, bool] = immutables.Map(
         'apply_access_policies_pg': True,
         'server_version': False,
         'server_version_num': False,
+        # This is front-end only, because we cannot simply pass it trough,
+        # because queries for "system" views are compiled to "nonsystem" views.
+        # So having it as a FE setting, it is basically ignored.
+        'restrict_nonsystem_relation_kind': True,
     }
 )
 
@@ -246,6 +250,8 @@ def _compile_sql(
             # by default, the query is sent to PostgreSQL unchanged
             query=orig_text,
         )
+
+        stmt = precompile_set_config(stmt)
 
         if isinstance(stmt, (pgast.VariableSetStmt, pgast.VariableResetStmt)):
             if protocol_version != defines.POSTGRES_PROTOCOL:
@@ -690,3 +696,74 @@ def pg_const_to_python(expr: pgast.BaseExpr) -> str | int | float:
             return float(expr.val)
 
     raise NotImplementedError()
+
+
+def precompile_set_config(stmt: pgast.BaseExpr) -> pgast.BaseExpr:
+    '''
+    Turn
+        SELECT set_config('...', ...)
+    and
+        SELECT set_config(name, ...) FROM pg_setting WHERE name = ...
+    into
+        SET ... TO ...
+    '''
+
+    if not (
+        isinstance(stmt, pgast.SelectStmt)
+        and len(stmt.target_list) == 1
+        and isinstance(stmt.target_list[0].val, pgast.FuncCall)
+        and stmt.target_list[0].val.name[-1] == 'set_config'        
+        and len(stmt.target_list[0].val.args) == 3
+        and stmt.limit_count == None
+        and stmt.sort_clause == None
+        and (stmt.ctes == None or len(stmt.ctes) == 0)
+    ):
+        return stmt
+
+    args = stmt.target_list[0].val.args
+    name = args[0]
+    val = args[1]
+    is_local = args[2]
+    if not (
+        isinstance(val, pgast.StringConstant)
+        and isinstance(is_local, pgast.BooleanConstant)
+    ):
+        return stmt
+
+    setting_name: Optional[str] = None
+    if (
+        isinstance(name, pgast.StringConstant)
+        and len(stmt.from_clause) == 0
+        and (stmt.where_clause == None or len(stmt.where_clause) == 0)
+    ):
+        # basic case of SELECT set_config('...', ...)
+        setting_name = name.val
+
+    elif (
+        len(stmt.from_clause) == 1
+        and isinstance(stmt.from_clause[0], pgast.RelRangeVar)
+        and stmt.from_clause[0].relation.name == 'pg_settings'
+        and isinstance(name, pgast.ColumnRef)
+        and tuple(name.name) == ('name',)
+        and isinstance(stmt.where_clause, pgast.Expr)
+        and stmt.where_clause.name == '='
+        and isinstance(stmt.where_clause.lexpr, pgast.ColumnRef)
+        and tuple(stmt.where_clause.lexpr.name) == ('name',)
+        and isinstance(stmt.where_clause.rexpr, pgast.StringConstant)
+    ):
+        # SELECT set_config(name, ...) FROM pg_settings WHERE name = '...'
+        setting_name = stmt.where_clause.rexpr.val
+
+    if setting_name != None:
+        stmt = pgast.VariableSetStmt(
+            name=setting_name,
+            args=pgast.ArgsList(
+                args=[pgast.StringConstant(val=p) for p in val.val.split(', ')]
+            ),
+            scope=(
+                pgast.OptionsScope.TRANSACTION
+                if is_local.val
+                else pgast.OptionsScope.SESSION
+            ),
+        )
+    return stmt
