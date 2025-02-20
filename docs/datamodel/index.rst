@@ -1,4 +1,3 @@
-.. eql:section-intro-page:: datamodel
 .. versioned-section::
 
 .. _ref_datamodel_index:
@@ -11,46 +10,53 @@ Schema
     :maxdepth: 3
     :hidden:
 
-    primitives
     objects
     properties
     links
     computeds
+    primitives
     indexes
     constraints
+    inheritance
     aliases
-    annotations
     globals
     access_policies
-    modules
     functions
     triggers
     mutation_rewrites
-    inheritance
     linkprops
-    extensions
+    modules
     migrations
+    branches
+    extensions
+    annotations
     future
     comparison
     introspection/index
 
 
-|Gel| schemas are declared using **SDL** (Gel's Schema Definition
-Language).
+|Gel| schema is a high-level description of your application's data model.
+In the schema, you define your types, links, access policies, functions,
+triggers, constraints, indexes, and more.
+
+Gel schema is strictly typed and is high-level enough to be mapped directly
+to mainstream programming languages and back.
+
 
 .. _ref_eql_sdl:
 
 Schema Definition Language
---------------------------
+==========================
 
-The database schema is defined inside |.gel| files with Gel Schema Definition
-Language, or *SDL* for short. It's common to define the entire schema in
-a single file called :dotgel:`default`, but you can split it across multiple
-files if you wish. Since SDL is declarative in nature, the specific order of
-declarations of module blocks, types, or schema files does not matter.
+Migrations are sequences of *data definition language* (DDL) commands.
+DDL is a low-level language that tells the database exactly how to change
+the schema. You typically won't need to write any DDL by hand; the Gel server
+will generate it for you.
 
-By convention, your schema files should live in a directory called ``dbschema``
-in the root of your project.
+For a full guide on migrations, refer to the :ref:`Creating and applying
+migrations <ref_intro_migrations>` guide or the
+:ref:`migrations reference <ref_datamodel_migrations>` section.
+
 
 Example:
 
@@ -76,8 +82,8 @@ Example:
   `Atom <https://atom.io/packages/edgedb>`_, and `Vim <https://github.com/
   geldata/edgedb-vim>`_.
 
-Migrations
-----------
+Migrations and DDL
+==================
 
 Gel's baked-in migration system lets you painlessly evolve your schema over
 time. Just update the contents of your |.gel| file(s) and use the |Gel| CLI
@@ -90,46 +96,36 @@ to *create* and *apply* migrations.
   $ gel migrate
   Applied dbschema/migrations/00001.edgeql
 
+Migrations are sequences of *data definition language* (DDL) commands.
+DDL is a low level language that tells the database how exactly to change
+the schema. Don't worry, you won't need to write any DDL directly, the Gel
+server will generate it for you.
+
 For a full guide on migrations, refer to the :ref:`Creating and applying
 migrations <ref_intro_migrations>` guide or the
 :ref:`migrations reference <ref_datamodel_migrations>` section.
 
 
 .. _ref_datamodel_terminology:
-
-Terminology
------------
-
 .. _ref_datamodel_instances:
 
-Instance
-^^^^^^^^
+Instances, branches, and modules
+================================
 
-A |Gel| **instance** is a running Gel process. Instances can be created,
-started, stopped, and destroyed locally with the :ref:`Gel CLI
-<ref_cli_overview>`.
+Gel is like a stack of containers:
 
-.. _ref_datamodel_databases:
-.. _ref_datamodel_branches:
+* The *instance* is the running Gel process. Every instance has one or
+  more |branches|. Instances can be created, started, stopped, and
+  destroyed locally with :ref:`gel project <ref_cli_gel_project>`
+  or low-level :ref:`gel instance <ref_cli_gel_instance>` commands.
 
-Branch
-^^^^^^
+* A *branch* is where your schema and data live. Branches map to PostgreSQL
+  databases. Like instances, branches can be conveniently created, removed,
+  and switched with the :ref:`gel branch <ref_cli_gel_branch>` commands.
+  Read more about branches in the
+  :ref:`branches reference <ref_datamodel_branches>`.
 
-.. versionadded:: 5.0
-
-Prior to |EdgeDB| 5 and Gel, *branches* were called "databases"
-(and "databases" is what Gel branches map to in PostgreSQL).
-
-Instances can be branched when working on new features, similar to branches in
-your VCS. Each branch has its own schema and data.
-
-
-Module
-^^^^^^
-
-Each |branch| has a schema consisting of several
-**modules**, each with a unique name. Modules can be used to organize large
-schemas into logical units. In practice, though, most users put their entire
-schema inside a single module called ``default``.
-
-Read more about modules in the :ref:`modules <ref_datamodel_modules>` section.
+* A *module* is a collection of types, functions, and other definitions.
+  The default module is called ``default``. Modules are used to organize
+  your schema logically. Read more about modules in the
+  :ref:`modules reference <ref_datamodel_modules>`.

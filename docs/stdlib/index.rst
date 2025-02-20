@@ -1,4 +1,3 @@
-.. eql:section-intro-page:: stdlib
 .. versioned-section::
 
 .. _ref_std:

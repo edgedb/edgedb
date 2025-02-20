@@ -245,16 +245,6 @@ are declared independent of a source or target, can contain :ref:`annotations
       };
     }
 
-
-Link properties
-===============
-
-.. index:: linkprops, relations, link table
-
-Properties can also be defined on **links**. For a full guide, refer to
-:ref:`the dedicated page <ref_datamodel_linkprops>`.
-
-
 Overloading properties
 ======================
 

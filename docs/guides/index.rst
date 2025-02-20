@@ -1,5 +1,3 @@
-.. eql:section-intro-page:: guides
-
 .. _ref_guides:
 
 ======
@@ -20,6 +18,5 @@ guide!
     deployment/index
     datamigrations/index
     tutorials/index
-    auth/index
     migrations/index
     contributing/index

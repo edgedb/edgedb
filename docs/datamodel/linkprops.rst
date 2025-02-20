@@ -4,7 +4,7 @@
 Link properties
 ===============
 
-:index: property, link property
+.. index:: property, link property, linkprops, link table, relations, @
 
 
 Links, like objects, can also contain **properties**. These are used to store metadata about the link. Due to how they're persisted under the hood,
