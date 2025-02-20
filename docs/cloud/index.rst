@@ -21,7 +21,7 @@ Cloud
     deploy/railway
 
  
-Gel Cloud is a fully managed, effortless cloud database service,
+|Gel| Cloud is a fully managed, effortless cloud database service,
 engineered to let you deploy your database instantly and connect from
 anywhere with near-zero configuration.
  
@@ -40,12 +40,12 @@ Try a guide for connecting your app running on your platform of choice:
         
   
 To connect your apps running on other platforms, generate a dedicated
-secret key for your instance with ``gel cloud secretkey create`` or via the
+secret key for your instance with :gelcmd:`cloud secretkey create` or via the
 web UI's “Secret Keys” pane in your instance dashboard. Create two environment
 variables accessible to your production application:
 
-* ``GEL_SECRET_KEY`` - contains the secret key you generated
-* ``GEL_INSTANCE`` - the name of your Gel Cloud instance (``<org-name>/<instance-name>``)
+* :gelenv:`SECRET_KEY` - contains the secret key you generated
+* :gelenv:`INSTANCE` - the name of your |Gel| Cloud instance (``<org-name>/<instance-name>``)
         
 .. edb:youtube-embed:: IG1MggUzzH4
 
@@ -56,7 +56,7 @@ Two ways to use Gel Cloud
 1. CLI
 ^^^^^^
 
-Log in to Gel Cloud via the CLI:
+Log in to |Gel| Cloud via the CLI:
 
 .. code-block:: bash
 
@@ -64,7 +64,7 @@ Log in to Gel Cloud via the CLI:
 
 
 This will open a browser window and allow you to log in via GitHub.
-Now, create your Gel Cloud instance the same way you would create a
+Now, create your |Gel| Cloud instance the same way you would create a
 local instance:
 
 .. code-block:: bash
@@ -147,7 +147,7 @@ Full restore
 Questions? Problems? Bugs?
 ==========================
 
-Thank you for helping us make the best way to host your Gel instances even
+Thank you for helping us make the best way to host your |Gel| instances even
 better!
 
 * Please join us on `our Discord <https://discord.gg/umUueND6ag>`_  to ask

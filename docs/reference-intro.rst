@@ -2,10 +2,10 @@
 Reference
 =========
 
-Learn three components, and you know Gel: how to work with
+Learn three components, and you know |Gel|: how to work with
 :ref:`schema <ref_datamodel_index>`, how to write queries with
 :ref:`EdgeQL <ref_edgeql>`, and what's available to you in our
-:ref:`standard library <ref_std>`. Start in those sections if you're new to Gel.
+:ref:`standard library <ref_std>`. Start in those sections if you're new to |Gel|.
 Move over to our :ref:`reference <ref_reference_index>` when you're ready to
 dive deep into the internals, syntax, and other advanced topics.
 
@@ -13,7 +13,7 @@ dive deep into the internals, syntax, and other advanced topics.
 Schema
 ------
 
-Gel schemas are declared using our schema definition language (SDL).
+|Gel| schemas are declared using our schema definition language (SDL).
 
 .. code-block:: sdl
 
@@ -74,7 +74,7 @@ shape with a link on an object as shown above.
 Standard library
 ----------------
 
-Gel comes with a rigorously defined type system consisting of scalar
+|Gel| comes with a rigorously defined type system consisting of scalar
 types, collection types (like arrays and tuples), and object types. It
 also includes a library of built-in functions and operators for working
 with each datatype, alongside some additional utilities and extensions.
@@ -121,7 +121,7 @@ with each datatype, alongside some additional utilities and extensions.
 Cheatsheets
 -----------
 
-Learn to do various common tasks using the many tools included with Gel.
+Learn to do various common tasks using the many tools included with |Gel|.
 
 Querying
 ^^^^^^^^
