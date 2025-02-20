@@ -1,4 +1,3 @@
-.. eql:section-intro-page:: changelog
 
 =========
 Changelog
