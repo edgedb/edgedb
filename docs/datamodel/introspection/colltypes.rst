@@ -45,8 +45,8 @@ For a type with an :eql:type:`array` property, consider the following:
 .. code-block:: sdl
 
     type User {
-        required property name -> str;
-        property favorites -> array<str>;
+        required property name: str;
+        property favorites: array<str>;
     }
 
 Introspection of the ``User`` with emphasis on properties:

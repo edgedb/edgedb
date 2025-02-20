@@ -39,14 +39,14 @@ Consider the following schema:
 .. code-block:: sdl
 
     abstract type Addressable {
-        property address -> str;
+        property address: str;
     }
 
     type User extending Addressable {
         # define some properties and a link
-        required property name -> str;
+        required property name: str;
 
-        multi link friends -> User;
+        multi link friends: User;
 
         # define an index for User based on name
         index on (.name);
