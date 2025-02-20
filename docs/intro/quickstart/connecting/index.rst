@@ -1,11 +1,12 @@
 .. edb:env-switcher::
 
-==========
-Connecting
-==========
+==========================
+Connecting to the database
+==========================
 
 .. toctree::
   :maxdepth: 3
   :hidden:
 
   nextjs
+  fastapi
