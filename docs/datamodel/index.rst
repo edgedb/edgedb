@@ -76,8 +76,8 @@ Example:
   `Atom <https://atom.io/packages/edgedb>`_, and `Vim <https://github.com/
   geldata/edgedb-vim>`_.
 
-Migrations
-----------
+Migrations and DDL
+------------------
 
 Gel's baked-in migration system lets you painlessly evolve your schema over
 time. Just update the contents of your |.gel| file(s) and use the |Gel| CLI
@@ -89,6 +89,11 @@ to *create* and *apply* migrations.
   Created dbschema/migrations/00001.edgeql
   $ gel migrate
   Applied dbschema/migrations/00001.edgeql
+
+Migrations are sequences of *data definition language* (DDL) commands.
+DDL is a low level language that tells the database how exactly to change
+the schema. Don't worry, you won't need to write any DDL directly, the Gel
+server will generate it for you.
 
 For a full guide on migrations, refer to the :ref:`Creating and applying
 migrations <ref_intro_migrations>` guide or the

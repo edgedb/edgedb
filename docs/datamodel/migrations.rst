@@ -77,12 +77,18 @@ For this use case you can use the :gelcmd:`watch` command, which will
 monitor your |.gel| files and automatically create and apply migrations
 for you in the background.
 
+.. _ref_eql_ddl:
 
 Data definition language (DDL)
 ==============================
 
 The migration plan is a sequence of DDL commands. DDL commands are low-level
 instructions that describe the changes to the schema.
+
+SDL and your |.gel| files are like a 3D printer: you design the final shape,
+and the system puts a database together for you. Using DDL is like building a
+house the traditional way: to add a window, you first need a frame; to have a
+frame, you need a wall; and so on.
 
 If your schema looks like this:
 

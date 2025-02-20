@@ -13,7 +13,6 @@ Reference
 
 
     edgeql/index
-    ddl/index
     connection
     environment
     projects
