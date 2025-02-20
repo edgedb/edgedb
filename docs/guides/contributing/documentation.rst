@@ -870,6 +870,31 @@ renders as :eql:kw:`the "detached" keyword <detached>`.
 Documenting the EdgeQL CLI
 ==========================
 
+"gelcmd" role
+-------------
+
+.. lint-off
+
+Use ``:gelcmd:`` role to document or refer to CLI commands, use ``|gelcmd|`` to
+render just ``gel`` in the text.
+
+.. lint-on
+
+**Example**
+
+.. code-block::
+
+    Use |gelcmd| to cook yourself a delicious meal. Use :gelcmd:`eat` to
+    eat it.
+
+**Rendered**
+
+Use |gelcmd| to cook yourself a delicious meal. Use :gelcmd:`eat` to
+eat it.
+
+cli:synopsis
+------------
+
 Document a CLI command using the ``cli:synopsis`` directive like this:
 
 **Example**
@@ -904,6 +929,69 @@ You can then document arguments and options using the ``:cli:synopsis:`` role.
 :cli:synopsis:`<path>`
     The name of the file to backup the database into.
 
+
+Substitutions
+=============
+
+There's a few substitutions and ReST toles that are useful when documenting
+certain terms and concepts:
+
+.. lint-off
+
+.. list-table::
+
+    * - **ReST markup**
+      - **Description**
+
+    * - ``|gelcmd|`` and ``:gelcmd:`blah```
+      - Renders to ``$ gel`` and ``$ gel blah``, with a context
+        tooltip explaining that the CLI command used to be called ``edgedb``.
+
+    * - ``|geluri|`` and ``:geluri:`u:p@h:p/b```
+      - Renders to ``gel://`` and ``gel://u:p@h:p/b``,
+        with a context tooltip explaining that the URI used to be ``edgedb://``.
+
+    * - ``|Gel|`` and ``|Gel's|``
+      - Renders to "Gel" and "Gel's", with a context tooltip explaining that
+        the Gel used to be called "EdgeDB".
+
+    * - ``|branch|`` and ``|branches|``
+      - Renders to "branch" and "branches", with a context tooltip explaining
+        that the term used to be called "database" in EdgeDB < 5.
+
+    * - ``|EdgeDB|``
+      - Renders to "EdgeDB", with a context tooltip explaining that
+        EdgeDB was renamed to Gel.
+
+    * - ``|.gel|``
+      - Renders to ``.gel``, with a context tooltip explaining that the file
+        extension used to be ``.esdl``.
+
+    * - ``:dotgel:`foo```
+      - Renders to ``foo.gel``, with a context tooltip explaining that the file
+        extension used to be ``.esdl``.
+
+    * - ``:gelenv:`BLAH```
+      - Renders to ``GEL_BLAH``, with a context tooltip explaining that this
+        environment variable used to be ``EDGEDB_BLAH``.
+
+    * - ``|gel.toml|``
+      - Renders to ``gel.toml``, with a context tooltip explaining that this
+        file used to be called ``edgedb.toml``.
+
+    * - ``|gel-server|``
+      - Renders to ``$ gel-server``, with a context tooltip explaining that
+        this command used to be called ``edgedb-server``.
+
+    * - ``|admin|``
+      - Renders to ``admin``, with a context tooltip explaining that this
+        username used to be called ``edgedb``.
+
+    * - ``|main|``
+      - Renders to ``main``, with a context tooltip explaining that this
+        branch used to be called ``edgedb``.
+
+.. lint-on
 
 Documentation Versioning
 ========================
