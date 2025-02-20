@@ -35,7 +35,6 @@ Administrative commands for managing Gel:
     :maxdepth: 3
     :hidden:
 
-    branches
     configure
     databases
     roles
