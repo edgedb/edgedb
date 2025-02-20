@@ -1,11 +1,12 @@
 .. edb:env-switcher::
 
-========
-Overview
-========
+==========
+Quickstart
+==========
 
 .. toctree::
   :maxdepth: 3
   :hidden:
 
   nextjs
+  fastapi
