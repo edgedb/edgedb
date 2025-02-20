@@ -27,12 +27,11 @@ Schema
       required name: str;
     }
   }
-   
+
 The example schema above defines two types: Book and Person, each with
 a property or two. Book also contains a link to the author, which is a
 link to objects of the Person type. Learn more about how to define
 your schema using SDL in the :ref:`schema <ref_datamodel_index>` section.
-     
 
 EdgeQL
 ------
