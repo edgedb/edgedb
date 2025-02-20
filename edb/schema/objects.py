@@ -498,8 +498,8 @@ class Field(struct.ProtoField, Generic[T]):
 
 class SchemaField(Field[Type_T]):
 
-    __slots__ = ('default', 'hashable', 'allow_ddl_set', 'index',
-                 'get_default_specialized')
+    __slots__ = ('default', 'hashable', 'allow_ddl_set', 'allow_interpolation',
+                 'index', 'get_default_specialized')
 
     #: The default value to use for the field.
     default: Any
@@ -507,6 +507,10 @@ class SchemaField(Field[Type_T]):
     hashable: bool
     #: Whether it's possible to set the field in DDL.
     allow_ddl_set: bool
+    #: Whether, when setting the field in DDL, we allow \(expr)
+    #: string interpolation (and transform it into {field}
+    #: style interpolation).
+    allow_interpolation: bool
     #: Field index within the object data tuple
     index: int
     #: Specialized get_default function
@@ -519,12 +523,14 @@ class SchemaField(Field[Type_T]):
         default: Any = NoDefault,
         hashable: bool = True,
         allow_ddl_set: bool = False,
+        allow_interpolation: bool = False,
         **kwargs: Any,
     ) -> None:
         super().__init__(type, **kwargs)
         self.default = default
         self.hashable = hashable
         self.allow_ddl_set = allow_ddl_set
+        self.allow_interpolation = allow_interpolation
         self.index = -1
         # Use this instead of get_default if you can; get_default has to
         # be a method because it comes from the parent
