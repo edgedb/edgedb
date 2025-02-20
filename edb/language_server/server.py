@@ -107,15 +107,22 @@ def compile(
 
 def _convert_error(error: errors.EdgeDBError) -> lsp_types.Diagnostic:
     return lsp_types.Diagnostic(
-        range=lsp_types.Range(
-            start=lsp_types.Position(
-                line=error.line - 1,
-                character=error.col - 1,
-            ),
-            end=lsp_types.Position(
-                line=error.line_end - 1,
-                character=error.col_end - 1,
-            ),
+        range=(
+            lsp_types.Range(
+                start=lsp_types.Position(
+                    line=error.line - 1,
+                    character=error.col - 1,
+                ),
+                end=lsp_types.Position(
+                    line=error.line_end - 1,
+                    character=error.col_end - 1,
+                ),
+            )
+            if error.line >= 0
+            else lsp_types.Range(
+                start=lsp_types.Position(line=0, character=0),
+                end=lsp_types.Position(line=0, character=0),
+            )
         ),
         severity=lsp_types.DiagnosticSeverity.Error,
         message=error.args[0],
@@ -234,7 +241,7 @@ def _compile_schema(
             do = ls.state.schema_docs[0]
 
         # convert error
-        diagnostics.by_doc[doc].append(_convert_error(error))
+        diagnostics.by_doc[do].append(_convert_error(error))
 
     ls.state.schema = schema
     return (schema, diagnostics)
