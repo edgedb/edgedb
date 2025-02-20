@@ -1,4 +1,4 @@
-.. _ref_quickstart_modeling:
+.. _ref_quickstart_fastapi_modeling:
 
 =================
 Modeling the data
@@ -8,20 +8,26 @@ Modeling the data
 
   The flashcards application has a simple data model, but it's interesting enough to utilize many unique features of the |Gel| schema language.
 
-  Looking at the mock data in the example JSON file ``./deck-edgeql.json``, you can see this structure in the JSON. There is a ``Card`` type that describes a single flashcard, which contains two required string properties: ``front`` and ``back``. Each ``Deck`` object has zero or more ``Card`` objects in an array.
+  Looking at the mock data in the example JSON file ``./deck-edgeql.json``, you can see this structure in the JSON. There is a ``Card`` class that describes a single flashcard, which contains two required string properties: ``front`` and ``back``. Each ``Deck`` object has zero or more ``Card`` objects in a list.
 
-  .. code-block:: typescript
+  .. code-block:: python
 
-    interface Card {
-      front: string;
-      back: string;
-    }
+    from pydantic import BaseModel
 
-    interface Deck {
-      name: string;
-      description: string | null;
-      cards: Card[];
-    }
+    class CardBase(BaseModel):
+      front: str
+      back: str
+
+    class Card(CardBase):
+      id: str
+
+    class DeckBase(BaseModel):
+      name: str
+      description: Optional[str] = None
+
+    class Deck(DeckBase):
+      id: str
+      cards: List[Card]
 
 .. edb:split-section::
 
@@ -65,34 +71,14 @@ Modeling the data
 
   2. **Apply the migration**: This executes the migration file on the database, instructing |Gel| to implement the recorded changes in the database. Essentially, this step updates the database structure to match your defined schema, ensuring that the ``Deck`` and ``Card`` types are created and ready for use.
 
-     .. note::
-
-       Notice that after the migration is applied, the CLI will automatically run the script to generate the query builder. This is a convenience feature that is enabled by the ``schema.update.after`` hook in the ``gel.toml`` file.
-
   .. code-block:: sh
 
-    $ npx gel migration create
+    $ uvx gel migration create
     Created ./dbschema/migrations/00001-m125ajr.edgeql, id: m125ajrbqp7ov36s7aniefxc376ofxdlketzspy4yddd3hrh4lxmla
-    $ npx gel migrate
+    $ uvx gel migrate
     Applying m125ajrbqp7ov36s7aniefxc376ofxdlketzspy4yddd3hrh4lxmla (00001-m125ajr.edgeql)
     ... parsed
     ... applied
-    Generating query builder...
-    Detected tsconfig.json, generating TypeScript files.
-      To override this, use the --target flag.
-      Run `npx @gel/generate --help` for full options.
-    Introspecting database schema...
-    Generating runtime spec...
-    Generating cast maps...
-    Generating scalars...
-    Generating object types...
-    Generating function types...
-    Generating operators...
-    Generating set impl...
-    Generating globals...
-    Generating index...
-    Writing files to ./dbschema/edgeql-js
-    Generation complete! 🤘
 
 
 .. edb:split-section::
@@ -103,6 +89,6 @@ Modeling the data
 
   .. code-block:: sh
 
-    $ npx gel ui
+    $ uvx gel ui
 
   .. image:: images/schema-ui.png
