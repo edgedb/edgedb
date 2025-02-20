@@ -9,3 +9,4 @@ Connecting
   :hidden:
 
   nextjs
+  fastapi

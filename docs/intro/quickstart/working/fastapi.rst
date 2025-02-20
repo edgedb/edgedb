@@ -344,68 +344,68 @@ Updating data
 Adding linked data
 ==================
 
-Now, update the card operations to use |Gel| to add cards to a deck:
-
 .. edb:split-section::
 
-.. code-block:: python-diff
-    :caption: main.py
+  Now, update the card operations to use |Gel| to add cards to a deck:
 
-      @app.post("/decks/{deck_id}/cards", response_model=Card)
-      async def add_card(deck_id: UUID, card: CardBase):
-    -     decks = read_decks()
-    -     deck = next((deck for deck in decks if deck.id == deck_id), None)
-    -     if not deck:
-    -         raise HTTPException(status_code=404, detail="Deck not found")
-    -
-    -     new_card = Card(id=str(uuid.uuid4()), **card.model_dump())
-    -     deck.cards.append(new_card)
-    -     write_decks(decks)
-    -     return new_card
-    +     # Get max order and increment
-    +     deck = await client.query_single("""
-    +         select max(.cards.order)
-    +         from Deck
-    +         filter .id = <uuid>$id
-    +     """, id=deck_id)
-    +
-    +     new_order = (deck.max_order or -1) + 1
-    +
-    +     new_card = await client.query_single("""
-    +         insert Card {
-    +             front := <str>$front,
-    +             back := <str>$back,
-    +             order := <int64>$order,
-    +         }
-    +     """, front=card.front, back=card.back,
-    +          order=new_order, deck_id=deck_id)
-    +
-    +     new_deck = await client.query_single(
-    +         """
-    +         select(
-    +             update Deck
-    +             filter .id = <uuid>$id
-    +             set {
-    +                 cards += (select Card { id, front, back } filter .id = <uuid>$card_id)
-    +             }
-    +         ) { ** }
-    +         """,
-    +         id=deck_id,
-    +         card_id=new_card.id,
-    +     )
-    +
-    +     if not new_card:
-    +         raise HTTPException(status_code=404, detail="Deck not found")
-    +
-    +     return new_card
+  .. code-block:: python-diff
+      :caption: main.py
+
+        @app.post("/decks/{deck_id}/cards", response_model=Card)
+        async def add_card(deck_id: UUID, card: CardBase):
+      -     decks = read_decks()
+      -     deck = next((deck for deck in decks if deck.id == deck_id), None)
+      -     if not deck:
+      -         raise HTTPException(status_code=404, detail="Deck not found")
+      -
+      -     new_card = Card(id=str(uuid.uuid4()), **card.model_dump())
+      -     deck.cards.append(new_card)
+      -     write_decks(decks)
+      -     return new_card
+      +     # Get max order and increment
+      +     deck = await client.query_single("""
+      +         select max(.cards.order)
+      +         from Deck
+      +         filter .id = <uuid>$id
+      +     """, id=deck_id)
+      +
+      +     new_order = (deck.max_order or -1) + 1
+      +
+      +     new_card = await client.query_single("""
+      +         insert Card {
+      +             front := <str>$front,
+      +             back := <str>$back,
+      +             order := <int64>$order,
+      +         }
+      +     """, front=card.front, back=card.back,
+      +          order=new_order, deck_id=deck_id)
+      +
+      +     new_deck = await client.query_single(
+      +         """
+      +         select(
+      +             update Deck
+      +             filter .id = <uuid>$id
+      +             set {
+      +                 cards += (select Card { id, front, back } filter .id = <uuid>$card_id)
+      +             }
+      +         ) { ** }
+      +         """,
+      +         id=deck_id,
+      +         card_id=new_card.id,
+      +     )
+      +
+      +     if not new_card:
+      +         raise HTTPException(status_code=404, detail="Deck not found")
+      +
+      +     return new_card
 
 
 Deleting linked data
 ====================
 
-As the next step, update the card deletion operation to use |Gel| to remove a card from a deck:
-
 .. edb:split-section::
+
+  As the next step, update the card deletion operation to use |Gel| to remove a card from a deck:
 
   .. code-block:: python-diff
     :caption: main.py
@@ -431,10 +431,10 @@ As the next step, update the card deletion operation to use |Gel| to remove a ca
     +
     +     return "Card deleted"
 
-.. edb:split-section::
-
 Querying data
 =============
+
+.. edb:split-section::
 
   Finally, update the query endpoints to fetch data from |Gel|:
 

@@ -9,3 +9,4 @@ Overview
   :hidden:
 
   nextjs
+  fastapi

@@ -9,7 +9,6 @@ Get Started
     :maxdepth: 3
     :hidden:
 
-    quickstart/fastapi/index
     quickstart/index
     cli
     instances

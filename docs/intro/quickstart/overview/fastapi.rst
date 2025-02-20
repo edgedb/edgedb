@@ -1,18 +1,8 @@
 .. _ref_quickstart_fastapi:
 
-############
- Quickstart
-############
-
-.. toctree::
-   :maxdepth: 1
-   :hidden:
-
-   setup
-   modeling
-   connecting
-   working
-   inheritance
+==========
+Quickstart
+==========
 
 Welcome to the quickstart tutorial! In this tutorial, you will update a FastAPI
 backend for a Flashcards application to use Gel as your data layer. The

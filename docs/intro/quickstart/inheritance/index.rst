@@ -9,4 +9,5 @@ Inheritance
   :hidden:
 
   nextjs
+  fastapi
 

@@ -9,5 +9,4 @@ Modeling
   :hidden:
 
   nextjs
-
-
+  fastapi

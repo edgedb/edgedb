@@ -9,3 +9,4 @@ Setup
   :hidden:
 
   nextjs
+  fastapi

@@ -9,6 +9,4 @@ Working
   :hidden:
 
   nextjs
-
-
-
+  fastapi
