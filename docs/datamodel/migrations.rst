@@ -189,7 +189,7 @@ syntax:
     start migration to {
         module default {
             type User {
-                property username -> str;
+                property username: str;
             };
         };
     };
@@ -234,7 +234,7 @@ syntax:
 
     create migration {
         create type default::User {
-            create property username -> str;
+            create property username: str;
         }
     };
 

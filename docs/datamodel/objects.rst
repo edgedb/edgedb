@@ -324,7 +324,7 @@ Create an object type ``User``:
 .. code-block:: edgeql
 
    create type User {
-       create property name -> str;
+       create property name: str;
    };
 
 
