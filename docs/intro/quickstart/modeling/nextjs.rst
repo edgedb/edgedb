@@ -8,7 +8,7 @@ Modeling the data
 
   The flashcards application has a simple data model, but it's interesting enough to utilize many unique features of the |Gel| schema language.
 
-  Looking at the mock data in our example JSON file ``./deck-edgeql.json``, you can see this structure in the JSON. There is a ``Card`` type that describes a single flashcard, which contains two required string properties: ``front`` and ``back``. Each ``Deck`` object has a link to zero or more ``Card`` objects in an array.
+  Looking at the mock data in the example JSON file ``./deck-edgeql.json``, you can see this structure in the JSON. There is a ``Card`` type that describes a single flashcard, which contains two required string properties: ``front`` and ``back``. Each ``Deck`` object has zero or more ``Card`` objects in an array.
 
   .. code-block:: typescript
 

@@ -1,8 +1,8 @@
 .. edb:env-switcher::
 
-===========
-Inheritance
-===========
+========================
+Adding shared properties
+========================
 
 .. toctree::
   :maxdepth: 3

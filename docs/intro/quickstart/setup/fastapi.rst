@@ -1,12 +1,12 @@
 .. _ref_quickstart_fastapi_setup:
 
-#############################
- Setting up your environment
-#############################
+===========================
+Setting up your environment
+===========================
 
 .. edb:split-section::
 
-  Use git to clone the Next.js starter template into a new directory called ``flashcards``. This will create a fully configured Next.js project and a local Gel instance with an empty schema. You will see the database instance being installed and the project being initialized. You are now ready to start building the application.
+  Use git to clone the `FastAPI starter template <https://github.com/geldata/quickstart-fastapi>`_ into a new directory called ``flashcards``. This will create a fully configured FastAPI project and a local |Gel| instance with an empty schema. You will see the database instance being created and the project being initialized. You are now ready to start building the application.
 
   .. code-block:: sh
 
@@ -17,23 +17,7 @@
     $ python -m venv venv
     $ source venv/bin/activate # or venv\Scripts\activate on Windows
     $ pip install -r requirements.txt
-
-.. edb:split-section::
-
-  Next, you need to install the Gel CLI. The Gel CLI is a tool that helps you manage your Gel project. You will use it to run migrations, generate code, and interact with the database.
-
-  .. code-block:: sh
-
-    $ curl --proto '=https' --tlsv1.2 -sSf https://sh.edgedb.com | sh
-
-.. edb:split-section::
-
-  Once you've installed the Gel CLI, you can initialize the project by running the following command from the project root. This will create a new Gel project instance in the current directory.
-
-
-  .. code-block:: sh
-
-    $ gel project init
+    $ uvx gel project init
 
 .. edb:split-section::
 
@@ -41,7 +25,7 @@
 
   .. code-block:: sh
 
-    $ gel
+    $ uvx gel
 
 .. edb:split-section::
 
@@ -73,12 +57,26 @@
 
 .. edb:split-section::
 
-  Fun! You will create a proper data model for the application in the next step, but for now, take a look around the project we have. Here are the new files that integrate Gel:
+  Fun! You will create a proper data model for the application in the next step, but for now, take a look around the project we have. Here are the files that integrate |Gel|:
 
-  - ``gel.toml``: The configuration file for the Gel project instance.
+  - ``gel.toml``: The configuration file for the |Gel| project instance. Notice that we have a ``hooks.migration.apply.after`` hook that will run ``uvx gel-py`` after migrations are applied. This will run the code generator that you will use later to get fully type-safe queries you can run from your FastAPI backend. More details on that to come!
   - ``dbschema/``: This directory contains the schema for the database, and later supporting files like migrations, and generated code.
   - :dotgel:`dbschema/default`: The default schema file that you'll use to define your data model. It is empty for now, but you'll add your data model to this file in the next step.
 
-  .. code-block:: sh
+  .. tabs::
 
-    $ tree
+    .. code-tab:: toml
+      :caption: gel.toml
+
+      [instance]
+      server-version = 6.0
+
+      [hooks]
+      schema.update.after = "uvx gel-py"
+
+    .. code-tab:: sdl
+      :caption: dbschema/default.gel
+
+      module default {
+
+      }

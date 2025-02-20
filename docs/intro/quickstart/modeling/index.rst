@@ -1,8 +1,8 @@
 .. edb:env-switcher::
 
-========
-Modeling
-========
+=================
+Modeling the data
+=================
 
 .. toctree::
   :maxdepth: 3

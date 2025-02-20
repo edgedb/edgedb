@@ -10,9 +10,7 @@ Connecting to the database
 
   .. note::
 
-    Notice that the ``create_client`` function isn't being passed any connection details. How does Gel know how to connect to the database you set up earlier? When we ran ``gel project init`` earlier, the CLI created credentials for the local database and stored them in a well-known location. When you initialize your client with ``create_client()``, Gel will check the places it knows about for connection details.
-
-    With Gel, you do not need to come up with your own scheme for how to build the correct database connection credentials and worry about leaking them into your code. You simply use Gel "projects" for local development, and set the appropriate environment variables when you're ready to deploy, and the client knows what to do!
+    Notice that the ``create_async_client`` function isn't being passed any connection details. With |Gel|, you do not need to come up with your own scheme for how to build the correct database connection credentials and worry about leaking them into your code. You simply use |Gel| "projects" for local development, and set the appropriate environment variables in your deployment environments, and the ``create_async_client`` function knows what to do!
 
   .. edb:split-point::
 
@@ -20,11 +18,14 @@ Connecting to the database
     :caption: ./test.py
 
     import gel
+    import asyncio
 
-    client = gel.create_async_client()
+    async def main():
+        client = gel.create_async_client()
+        result = await client.query_single("select 'Hello from Gel!';")
+        print(result)
 
-    result = client.query_single("select 'Hello from Gel!';")
-    print(result)
+    asyncio.run(main())
 
   .. code-block:: sh
 
@@ -41,31 +42,33 @@ Connecting to the database
     :caption: ./test.py
 
       import gel
+      import asyncio
 
-      client = gel.create_async_client()
+      async def main():
+          client = gel.create_async_client()
+    -     result = await client.query_single("select 'Hello from Gel!';")
+    -     print(result)
+    +     await client.query("""
+    +         insert Deck { name := "I am one" }
+    +     """)
+    +
+    +     await client.query("""
+    +         insert Deck { name := "I am two" }
+    +     """)
+    +
+    +     decks = await client.query("""
+    +         select Deck {
+    +             id,
+    +             name
+    +         }
+    +     """)
+    +
+    +     for deck in decks:
+    +         print(f"ID: {deck.id}, Name: {deck.name}")
+    +
+    +     await client.query("delete Deck")
 
-    - result = client.query_single("select 'Hello from Gel!';")
-    - print(result)
-    + client.query("""
-    +     insert Deck { name := "I am one" }
-    + """)
-    +
-    + client.query("""
-    +     insert Deck { name := "I am two" }
-    + """)
-    +
-    + decks = client.query("""
-    +     select Deck {
-    +         id,
-    +         name
-    +     }
-    + """)
-    +
-    + for deck in decks:
-    +     print(f"ID: {deck.id}, Name: {deck.name}")
-    +
-    + client.query("delete Deck")
-
+      asyncio.run(main())
 
   .. code-block:: sh
 

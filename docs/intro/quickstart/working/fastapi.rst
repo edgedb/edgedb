@@ -11,7 +11,7 @@ Bulk importing of data
 
 .. edb:split-section::
 
-  First, you need to update the imports and Pydantic models to use UUID instead of string for ID fields, since this is what |Gel| returns. You also need to initialize the |Gel| client and import the asyncio module to work with async functions.
+  First, update the imports and Pydantic models to use UUID instead of string for ID fields, since this is what |Gel| returns. You also need to initialize the |Gel| client and import the asyncio module to work with async functions.
 
   .. code-block:: python-diff
     :caption: main.py
@@ -138,7 +138,7 @@ Bulk importing of data
     +                 description := <optional str>$description,
     +                 cards := (
     +                     select Card
-    +                     filter .id IN array_unpack(<array<uuid>>$card_ids)
+    +                     filter contains(<array<uuid>>$card_ids, .id)
     +                 )
     +             }
     +         ) { ** }
@@ -149,77 +149,57 @@ Bulk importing of data
 
 .. edb:split-section::
 
-  The above works but isn't atomic - if creating a card fails, you could end up with partial data. Let's wrap it in a transaction:
+  The above works but isn't atomic - if any single query fails, you could end up with partial data. Let's wrap it in a transaction:
 
   .. code-block:: python-diff
     :caption: main.py
 
       @app.post("/decks/import", response_model=Deck)
       async def import_deck(deck: DeckCreate):
-    -     card_ids = []
-    -     for i, card in enumerate(deck.cards):
-    -         created_card = await client.query_single("""
-    -             insert Card {
-    -                 front := <str>$front,
-    -                 back := <str>$back,
-    -                 order := <int64>$order
-    -             }
-    -         """, front=card.front, back=card.back, order=i)
-    -         card_ids.append(created_card.id)
-    -
-    -     new_deck = await client.query_single("""
-    -         select(
-    -             insert Deck {
-    -                 name := <str>$name,
-    -                 description := <optional str>$description,
-    -                 cards := (
-    -                     select Card
-    -                     filter .id IN array_unpack(<array<uuid>>$card_ids)
-    -                 )
-    -             }
-    -         ) { ** }
-    -     """, name=deck.name, description=deck.description,
-    -          card_ids=card_ids)
     +     async for tx in client.transaction():
     +         async with tx:
-    +         card_ids = []
-    +         for i, card in enumerate(deck.cards):
+              card_ids = []
+              for i, card in enumerate(deck.cards):
+    -              created_card = await client.query_single(
     +              created_card = await tx.query_single(
-    +                  """
-    +                  insert Card {
-    +                      front := <str>$front,
-    +                      back := <str>$back,
-    +                      order := <int64>$order
-    +                  }
-    +                  """,
-    +                  front=card.front,
-    +                  back=card.back,
-    +                  order=i,
-    +              )
-    +              card_ids.append(created_card.id)
-    +
-    +         new_deck = await client.query_single("""
-    +             select(
-    +                 insert Deck {
-    +                     name := <str>$name,
-    +                     description := <optional str>$description,
-    +                     cards := (
-    +                         select Card
-    +                         filter .id IN array_unpack(<array<uuid>>$card_ids)
-    +                     )
-    +                 }
-    +             ) { ** }
-    +             """,
-    +             name=deck.name,
-    +             description=deck.description,
-    +             card_ids=card_ids,
-    +         )
+                       """
+                       insert Card {
+                           front := <str>$front,
+                           back := <str>$back,
+                           order := <int64>$order
+                       }
+                       """,
+                       front=card.front,
+                       back=card.back,
+                       order=i,
+                   )
+                   card_ids.append(created_card.id)
+
+    -         new_deck = await client.query_single("""
+    +         new_deck = await tx.query_single("""
+                  select(
+                      insert Deck {
+                          name := <str>$name,
+                          description := <optional str>$description,
+                          cards := (
+                              select Card
+                              filter .id IN array_unpack(<array<uuid>>$card_ids)
+                          )
+                      }
+                  ) { ** }
+                  """,
+                  name=deck.name,
+                  description=deck.description,
+                  card_ids=card_ids,
+              )
 
           return new_deck
 
 .. edb:split-section::
 
-  We can make this even more efficient by doing everything in a single query:
+  One of the most powerful features of EdgeQL is the ability to compose complex queries in a way that is both readable and efficient. Use this super-power to create a single query that inserts the deck and cards, along with their links, in one efficient query.
+
+  This new query uses a ``for`` expression to iterate over the set of cards, and sets the ``Deck.cards`` link to the result of inserting each card. This is logically equivalent to the previous approach, but is more efficient since it inserts the deck and cards in a single query.
 
   .. code-block:: python-diff
     :caption: main.py
@@ -270,13 +250,11 @@ Bulk importing of data
     +                 description := <optional str>$description,
     +                 cards := (
     +                     for card in array_unpack(cards)
-    +                     union (
-    +                         insert Card {
-    +                             front := card.0,
-    +                             back := card.1,
-    +                             order := card.2
-    +                         }
-    +                     )
+    +                     insert Card {
+    +                         front := card.0,
+    +                         back := card.1,
+    +                         order := card.2
+    +                     }
     +                 )
     +             }
     +         ) { ** }
@@ -322,21 +300,16 @@ Updating data
     +         return await get_deck(deck_id)
     +
     +     updated_deck = await client.query(f"""
-    +         UPDATE Deck
-    +         FILTER .id = <uuid>$id
-    +         SET {{ {', '.join(sets)} }}
+    +         with updated := (
+    +             update Deck
+    +             filter .id = <uuid>$id
+    +             set {{ {', '.join(sets)} }}
+    +         )
+    +         select updated { ** }
     +     """, **params)
     +
     +     if not updated_deck:
     +         raise HTTPException(status_code=404, detail="Deck not found")
-    +
-    +     query = """
-    +         select(
-    +             update Deck
-    +             filter .id = <uuid>$id
-    +             set { %s }
-    +         ) { ** }
-    +     """ % ", ".join(sets)
     +
     +     return updated_deck
 
@@ -346,7 +319,9 @@ Adding linked data
 
 .. edb:split-section::
 
-  Now, update the card operations to use |Gel| to add cards to a deck:
+  Now, update the add card operation to use |Gel|. This operation will insert a new ``Card`` object and update the ``Deck.cards`` set to include the new ``Card`` object. Notice that the ``order`` property is set by selecting the maximum ``order`` property of this ``Deck.cards`` set and incrementing it by 1.
+
+  The syntax for adding an object to a set of links is ``{ "+=": object }``. You can think of this as a shortcut for setting the link set to the current set plus the new object.
 
   .. code-block:: python-diff
       :caption: main.py
@@ -362,36 +337,29 @@ Adding linked data
       -     deck.cards.append(new_card)
       -     write_decks(decks)
       -     return new_card
-      +     # Get max order and increment
-      +     deck = await client.query_single("""
-      +         select max(.cards.order)
-      +         from Deck
-      +         filter .id = <uuid>$id
-      +     """, id=deck_id)
-      +
-      +     new_order = (deck.max_order or -1) + 1
-      +
-      +     new_card = await client.query_single("""
-      +         insert Card {
-      +             front := <str>$front,
-      +             back := <str>$back,
-      +             order := <int64>$order,
-      +         }
-      +     """, front=card.front, back=card.back,
-      +          order=new_order, deck_id=deck_id)
-      +
-      +     new_deck = await client.query_single(
+      +     new_card = await client.query_single(
       +         """
-      +         select(
-      +             update Deck
-      +             filter .id = <uuid>$id
-      +             set {
-      +                 cards += (select Card { id, front, back } filter .id = <uuid>$card_id)
-      +             }
-      +         ) { ** }
+      +         with
+      +             deck := (select Deck filter .id = <uuid>$id),
+      +             order := (max(deck.cards.order) + 1),
+      +             new_card := (
+      +                 insert Card {
+      +                     front := <str>$front,
+      +                     back := <str>$back,
+      +                     order := order,
+      +                 }
+      +             ),
+      +             updated := (
+      +                 update deck
+      +                 set {
+      +                     cards += new_card
+      +                 }
+      +             ),
+      +         select new_card { ** }
       +         """,
       +         id=deck_id,
-      +         card_id=new_card.id,
+      +         front=card.front,
+      +         back=card.back,
       +     )
       +
       +     if not new_card:
@@ -419,17 +387,14 @@ Deleting linked data
     -
     -     deck.cards = [card for card in deck.cards if card.id != card_id]
     -     write_decks(decks)
-    -     return {"message": "Card deleted"}
-    +     deleted = await client.query("""
-    +         delete Card
-    +         filter
-    +             .id = <uuid>$card_id
+    +     deleted = await client.query_single("""
+    +         delete Card filter .id = <uuid>$card_id
     +     """, card_id=card_id)
     +
     +     if not deleted:
     +         raise HTTPException(status_code=404, detail="Card not found")
     +
-    +     return "Card deleted"
+          return {"message": "Card deleted"}
 
 Querying data
 =============
@@ -455,7 +420,7 @@ Querying data
     +                     front,
     +                     back
     +                 }
-    +                 order BY .order
+    +                 order by .order
     +             )
     +         }
     +     """)
@@ -479,10 +444,10 @@ Querying data
     +                     front,
     +                     back
     +                 }
-    +                 order BY .order
+    +                 order by .order
     +             )
     +         }
-    +         FILTER .id = <uuid>$id
+    +         filter .id = <uuid>$id
     +     """, id=deck_id)
     +
     +     if not deck:
@@ -505,4 +470,4 @@ Querying data
 
   The API documentation will be available at http://localhost:8000/docs. You can use this interface to test your endpoints and import the sample flashcard deck.
 
-  .. image:: https://github.com/user-attachments/assets/707ba9e3-4c58-40a4-b5e9-7bb95d9d9d6e
+  .. image:: images/flashcards-api.png

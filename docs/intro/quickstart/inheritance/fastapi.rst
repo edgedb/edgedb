@@ -85,6 +85,6 @@ Adding shared properties
                       order by .order
                   )
               }
-    +         order by .updated_at DESC
+    +         order by .updated_at desc
           """)
           return decks

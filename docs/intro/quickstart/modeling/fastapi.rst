@@ -6,16 +6,15 @@ Modeling the data
 
 .. edb:split-section::
 
-  The flashcards application has a simple data model, but it's interesting enough to get a taste of many of the features of the Gel schema language. You have a ``Card`` class that extends the ``CardBase`` class describing a single flashcard, which for now contains two required string properties: ``front`` and ``back``. Each ``Card`` belongs to a ``Deck``, and there is an explicit ordering to the cards in a given deck.
+  The flashcards application has a simple data model, but it's interesting enough to utilize many unique features of the |Gel| schema language.
 
-  Looking at the mock data, you can see this structure in the JSON.
+  Looking at the mock data in the example JSON file ``./deck-edgeql.json``, you can see this structure in the JSON. There is a ``Card`` class that describes a single flashcard, which contains two required string properties: ``front`` and ``back``. Each ``Deck`` object has zero or more ``Card`` objects in a list.
 
-  .. code-block:: typescript
+  .. code-block:: python
 
     from pydantic import BaseModel
 
     class CardBase(BaseModel):
-      order: int
       front: str
       back: str
 
@@ -62,30 +61,34 @@ Modeling the data
 
   Congratulations! This first version of the data model's schema is *stored in a file on disk*. Now you need to signal the database to actually create types for ``Deck`` and ``Card`` in the database.
 
-  To make Gel do that, you need to do two quick steps:
+  To make |Gel| do that, you need to do two quick steps:
 
-  * **Create a migration**: a file with a list of low-level instructions.
+  1. **Create a migration**: a "migration" is a file containing a set of low level instructions that define how the database schema should change. It records any additions, modifications, or deletions to your schema in a way that the database can understand.
 
-    .. note::
+     .. note::
 
-      When you are changing existing schema, the CLI migration tool might ask questions to ensure that it understands your changes exactly. Since the existing schema was empty, the CLI will skip asking any questions and simply create the migration file.
+       When you are changing existing schema, the CLI migration tool might ask questions to ensure that it understands your changes exactly. Since the existing schema was empty, the CLI will skip asking any questions and simply create the migration file.
 
-  * **Apply the migration**: basically, tell Gel "I want you to use these instructions and get my types ready for action."
+  2. **Apply the migration**: This executes the migration file on the database, instructing |Gel| to implement the recorded changes in the database. Essentially, this step updates the database structure to match your defined schema, ensuring that the ``Deck`` and ``Card`` types are created and ready for use.
 
   .. code-block:: sh
 
-      $ gel migration create
-      Created ./dbschema/migrations/00001-m125ajr.edgeql, id: m125ajrbqp7ov36s7aniefxc376ofxdlketzspy4yddd3hrh4lxmla
-      $ gel migrate
-      Applying m125ajrbqp7ov36s7aniefxc376ofxdlketzspy4yddd3hrh4lxmla (00001-m125ajr.edgeql)
-      ... parsed
-      ... applied
+    $ uvx gel migration create
+    Created ./dbschema/migrations/00001-m125ajr.edgeql, id: m125ajrbqp7ov36s7aniefxc376ofxdlketzspy4yddd3hrh4lxmla
+    $ uvx gel migrate
+    Applying m125ajrbqp7ov36s7aniefxc376ofxdlketzspy4yddd3hrh4lxmla (00001-m125ajr.edgeql)
+    ... parsed
+    ... applied
 
 
 .. edb:split-section::
 
   Take a look at the schema you've generated in the built-in database UI. Use this tool to visualize your data model and see the object types and links you've defined.
 
+  .. edb:split-point::
+
   .. code-block:: sh
 
-      $ gel ui
+    $ uvx gel ui
+
+  .. image:: images/schema-ui.png

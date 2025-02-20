@@ -58,10 +58,10 @@ Setting up your environment
 
   Fun! You will create a proper data model for the application in the next step, but for now, take a look around the project you've just created. Most of the project files will be familiar if you've worked with Next.js before. Here are the files that integrate |Gel|:
 
-  - ``gel.toml``: The configuration file for the Gel project instance. Notice that we have a ``hooks.migration.apply.after`` hook that will run ``npx @gel/generate edgeql-js`` after migrations are applied. This will generate the query builder code that you'll use to interact with the database. More details on that to come!
+  - ``gel.toml``: The configuration file for the |Gel| project instance. Notice that we have a ``hooks.migration.apply.after`` hook that will run ``npx @gel/generate edgeql-js`` after migrations are applied. This will generate the query builder code that you'll use to interact with the database. More details on that to come!
   - ``dbschema/``: This directory contains the schema for the database, and later supporting files like migrations, and generated code.
   - :dotgel:`dbschema/default`: The default schema file that you'll use to define your data model. It is empty for now, but you'll add your data model to this file in the next step.
-  - ``lib/gel.ts``: A utility module that exports the Gel client, which you'll use to interact with the database.
+  - ``lib/gel.ts``: A utility module that exports the |Gel| client, which you'll use to interact with the database.
 
   .. tabs::
 

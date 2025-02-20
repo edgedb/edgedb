@@ -1,8 +1,8 @@
 .. edb:env-switcher::
 
-=====
-Setup
-=====
+===========================
+Setting up your environment
+===========================
 
 .. toctree::
   :maxdepth: 3

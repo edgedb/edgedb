@@ -1,8 +1,8 @@
 .. edb:env-switcher::
 
-==========
-Connecting
-==========
+==========================
+Connecting to the database
+==========================
 
 .. toctree::
   :maxdepth: 3
