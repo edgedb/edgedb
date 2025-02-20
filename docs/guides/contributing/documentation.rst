@@ -44,10 +44,6 @@ Guidelines
 Style
 =====
 
-- **Lines should be no longer than 79 characters.** This is enforced by linters
-  as part of our CI process. Linting :ref:`can be disabled
-  <ref_guide_contributing_documentation_linter_toggle>`, but this should not be
-  used unless it's necessary and only for as long as it is necessary.
 - **Remove trailing whitespace or whitespace on empty lines.**
 - **Surround references to parameter named with asterisks.** You may be tempted
   to surround parameter names with double backticks (````param````). We avoid
@@ -78,12 +74,6 @@ Where to Find It
 Most of our documentation (including this guide) lives in `the geldata
 repository <https://github.com/geldata/gel/>`_ in `the docs directory
 <https://github.com/geldata/gel/tree/master/docs>`_.
-
-Documentation for some of our client libraries lives inside the client's repo.
-If you don't find it in the geldata repo at ``docs/clients``, you'll probably
-find it alongside the client itself. These clients will also have documentation
-stubs inside the geldata repository directing you to the documentation's
-location.
 
 
 How to Build It
@@ -1023,9 +1013,6 @@ Use the ``versionchanged`` directive to mark content related to a change in
 existing functionality across |Gel| versions. Provide the applicable version
 as an argument by placing it just after the directive on the same line.
 
-Unlike ``versionadded``, ``versionchanged`` is always used with content to show
-or hide that content based on the user's selection in the version dropdown.
-
 **Example**
 
 .. lint-off
@@ -1060,45 +1047,6 @@ or hide that content based on the user's selection in the version dropdown.
 Other Useful Tricks
 ===================
 
-.. _ref_guide_contributing_documentation_linter_toggle:
-
-Temporarily Disabling Linting
------------------------------
-
-``.. lint-off`` and ``.. lint-on`` toggle linting off or on. In general,
-linting should stay on except in cases where it's impossible to keep it on.
-This might be when code or a URL must exceed the maximum line length of 79
-characters.
-
-You would typically use this by toggling linting off with ``.. lint-off`` just
-before the offending block and back on with ``.. lint-on`` after the block.
-
-**Example**
-
-.. lint-off
-
-.. code-block::
-
-    .. lint-off
-
-    .. code-block::
-
-        GET http://localhost:<port>/branch/main/edgeql?query=insert%20Person%20%7B%20name%20%3A%3D%20%3Cstr%3E$name%20%7D%3B&variables=%7B%22name%22%3A%20%22Pat%22%7D
-
-    .. lint-on
-
-.. lint-on
-
-.. note::
-
-    This is actually a comment our linter pays attention to rather than a
-    directive. As a result, it does not end with a colon (``:``) like a
-    directive would.
-
-.. note::
-
-    This does not render any visible output.
-
 Embedding a YouTube Video
 -------------------------
 
@@ -1108,30 +1056,3 @@ Embed only videos from `the Gel YouTube channel
 .. code-block::
 
     .. edb:youtube-embed:: OZ_UURzDkow
-
-
-Displaying Illustrations
-------------------------
-
-Using the ``.. eql:section-intro-page::`` directive, you can display one of
-several illustrations. Pass the name of the illustration to the directive by
-placing it after the directive on the same line.
-
-**Example**
-
-.. code-block::
-
-    .. eql:section-intro-page:: edgeql
-
-**Rendered**
-
-.. eql:section-intro-page:: edgeql
-
-.. lint-off
-
-See `the list of illustration names
-<https://github.com/geldata/website/blob/master/components/docs/introIllustration/introIllustration.module.scss#L3>`_
-and `view the images they map to
-<https://github.com/geldata/website/tree/main/images/doc_illustrations>`_.
-
-.. lint-on

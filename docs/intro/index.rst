@@ -1,5 +1,3 @@
-.. eql:section-intro-page:: introduction
-
 .. _ref_intro:
 
 Get Started
