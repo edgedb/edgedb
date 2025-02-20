@@ -25,3 +25,6 @@ Welcome to the |Gel| |version| documentation.
     cheatsheets/index
     changelog/index
     cloud/index
+    
+    reference-intro
+    resources-intro
