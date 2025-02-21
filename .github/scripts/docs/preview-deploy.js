@@ -1,7 +1,7 @@
 const DOCS_SITE_REPO = {
   org: "edgedb",
   repo: "edgedb.com",
-  ref: "new-new-docs",
+  ref: "master",
 };
 
 module.exports = async ({ github, context }) => {
