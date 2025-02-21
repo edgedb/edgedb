@@ -1,14 +1,20 @@
-.. _ref_ai_guide_edgeql:
+.. _ref_ai_guide_python:
 
-=========================
-Guide to Gel AI in EdgeQL
-=========================
+================
+Gel AI in Python
+================
 
-:edb-alt-title: How to set up Gel AI in EdgeQL
+:edb-alt-title: How to set up Gel AI in Python
 
+.. edb:split-section::
 
-|Gel| AI brings vector search capabilities and retrieval-augmented generation
-directly into the database.
+    |Gel| AI brings vector search capabilities and retrieval-augmented
+    generation directly into the database. It's integrated into the |Gel|
+    Python binding via the ``gel.ai`` module.
+
+    .. code-block:: bash
+
+      $ pip install 'gel[ai]'
 
 
 Enable and configure the extension
@@ -16,7 +22,7 @@ Enable and configure the extension
 
 .. edb:split-section::
 
-    AI is a |Gel| extension. To enable it, we will need to add the extension
+    AI is an |Gel| extension. To enable it, we will need to add the extension
     to the app’s schema:
 
     .. code-block:: sdl
@@ -26,9 +32,9 @@ Enable and configure the extension
 
 .. edb:split-section::
 
-    |Gel| AI uses external APIs in order to get vectors and LLM completions. For it
-    to work, we need to configure an API provider and specify their API key. Let's
-    open EdgeQL REPL and run the following query:
+    |Gel| AI uses external APIs in order to get vectors and LLM completions.
+    For it to work, we need to configure an API provider and specify their API
+    key. Let's open EdgeQL REPL and run the following query:
 
     .. code-block:: edgeql
 
@@ -54,8 +60,8 @@ capabilities.
    model use.
 
 
-Add vectors and perform similarity search
-=========================================
+Add vectors
+===========
 
 .. edb:split-section::
 
@@ -126,12 +132,12 @@ Add vectors and perform similarity search
 
 .. edb:split-section::
 
-    In order to get |Gel| to produce embedding vectors, we need to create a special
-    ``deferred index`` on the type we would like to perform similarity search on.
-    More specifically, we need to specify an EdgeQL expression that produces a
-    string that we're going to create an embedding vector for. This is how we would
-    set up an index if we wanted to perform similarity search on
-    ``Friend.summary``:
+    In order to get |Gel| to produce embedding vectors, we need to create a
+    special ``deferred index`` on the type we would like to perform similarity
+    search on. More specifically, we need to specify an EdgeQL expression that
+    produces a string that we're going to create an embedding vector for. This
+    is how we would set up an index if we wanted to perform similarity search
+    on ``Friend.summary``:
 
     .. code-block:: sdl-diff
 
@@ -192,66 +198,136 @@ Add vectors and perform similarity search
         $ gel migrate
 
 
-.. edb:split-section::
+That's it! |Gel| will make necessary API requests in the background and create an
+index that will enable us to perform efficient similarity search.
 
-    That's it! |Gel| will make necessary API requests in the background and create an
-    index that will enable us to perform efficient similarity search like this:
 
-    .. code-block:: edgeql
-
-        select ext::ai::search(Friend, query_vector);
-
+Perform similarity search in Python
+===================================
 
 .. edb:split-section::
 
-    Note that this function accepts an embedding vector as the second argument, not
-    a text string. This means that in order to similarity search for a string, we
-    need to create a vector embedding for it using the same model as we used to
-    create the index. |Gel| offers an HTTP endpoint ``/ai/embeddings`` that can
-    handle it for us. All we need to do is to pass the vector it produces into the
-    search query:
+    In order to run queries against the index we just created, we need to create a
+    |Gel| client and pass it to a |Gel| AI instance.
 
-    .. note::
+    .. code-block:: python
 
-        Note that we're passing our login and password in order to autheticate the
-        request. We can find those using the CLI: :gelcmd:`instance credentials
-        --json`. Learn about all the other ways you can authenticate a request
-        :ref:`here <ref_http_auth>`.
+        import gel
+        import gel.ai
 
-    .. code-block:: bash
+        gel_client = gel.create_client()
+        gel_ai = gel.ai.create_rag_client(client)
 
-        $ curl --user user:password \
-          --json '{"input": "Who helps Komi make friends?", "model": "text-embedding-3-small"}' \
-          http://localhost:<port>/branch/main/ai/embeddings \
-          | jq -r '.data[0].embedding' \                                                    # extract the embedding out of the JSON
-          | tr -d '\n' \                                                                    # remove newlines
-          | sed 's/^\[//;s/\]$//' \                                                         # remove square brackets
-          | awk '{print "select ext::ai::search(Friend, <array<float32>>[" $0 "]);"}' \     # assemble the query
-          | gel query --file -  # pass the query into Gel CLI
+        text = "Who helps Komi make friends?"
+        vector = gel_ai.generate_embeddings(
+            text,
+            "text-embedding-3-small",
+        )
 
+        gel_client.query(
+            "select ext::ai::search(Friend, <array<float32>>$embedding_vector",
+            embedding_vector=vector,
+        )
+
+
+.. edb:split-section::
+
+    We are going to execute a query that calls a single function:
+    ``ext::ai::search(<type>, <search_vector>)``. That function accepts an
+    embedding vector as the second argument, not a text string. This means that in
+    order to similarity search for a string, we need to create a vector embedding
+    for it using the same model as we used to create the index. The |Gel| AI binding
+    in Python comes with a ``generate_embeddings`` function that does exactly that:
+
+
+    .. code-block:: python-diff
+
+          import gel
+          import gel.ai
+
+          gel_client = gel.create_client()
+          gel_ai = gel.ai.create_rag_client(client)
+
+        + text = "Who helps Komi make friends?"
+        + vector = gel_ai.generate_embeddings(
+        +     text,
+        +     "text-embedding-3-small",
+        + )
+
+
+.. edb:split-section::
+
+    Now we can plug that vector directly into our query to get similarity search
+    results:
+
+
+    .. code-block:: python-diff
+
+          import gel
+          import gel.ai
+
+          gel_client = gel.create_client()
+          gel_ai = gel.ai.create_rag_client(client)
+
+          text = "Who helps Komi make friends?"
+          vector = gel_ai.generate_embeddings(
+              text,
+              "text-embedding-3-small",
+          )
+
+        + gel_client.query(
+        +     "select ext::ai::search(Friend, <array<float32>>$embedding_vector",
+        +     embedding_vector=vector,
+        + )
 
 
 Use the built-in RAG
 ====================
 
-One more feature |Gel| AI offers is built-in retrieval-augmented generation, also
-known as RAG.
+One more feature |Gel| AI offers is built-in retrieval-augmented generation,
+also known as RAG.
 
 .. edb:split-section::
 
     |Gel| comes preconfigured to be able to process our text query, perform
-    similarity search across the index we just created, pass the results to an LLM
-    and return a response. We can access the built-in RAG using the ``/ai/rag``
-    HTTP endpoint:
+    similarity search across the index we just created, pass the results to an
+    LLM and return a response. In order to access the built-in RAG, we need to
+    start by selecting an LLM and passing its name to the |Gel| AI instance
+    constructor:
 
 
-    .. code-block:: bash
+    .. code-block:: python-diff
 
-        $ curl --user user:password --json '{
-            "query": "Who helps Komi make friends?",
-            "model": "gpt-4-turbo-preview",
-            "context": {"query":"select Friend"}
-          }' http://localhost:<port>/branch/main/ai/rag
+          import gel
+          import gel.ai
+
+          gel_client = gel.create_client()
+          gel_ai = gel.ai.create_rag_client(
+              client,
+        +     model="gpt-4-turbo-preview"
+          )
+
+
+.. edb:split-section::
+
+    Now we can access the RAG using the ``query_rag`` function like this:
+
+
+    .. code-block:: python-diff
+
+          import gel
+          import gel.ai
+
+          gel_client = gel.create_client()
+          gel_ai = gel.ai.create_rag_client(
+              client,
+              model="gpt-4-turbo-preview"
+          )
+
+        + gel_ai.query_rag(
+        +     "Who helps Komi make friends?",
+        +     context="Friend",
+        + )
 
 
 .. edb:split-section::
@@ -259,14 +335,22 @@ known as RAG.
     We can also stream the response like this:
 
 
-    .. code-block:: bash-diff
+    .. code-block:: python-diff
 
-          $ curl --user user:password --json '{
-              "query": "Who helps Komi make friends?",
-              "model": "gpt-4-turbo-preview",
-              "context": {"query":"select Friend"},
-        +     "stream": true,
-            }' http://localhost:<port>/branch/main/ai/rag
+          import gel
+          import gel.ai
+
+          gel_client = gel.create_client()
+          gel_ai = gel.ai.create_rag_client(
+              client,
+              model="gpt-4-turbo-preview"
+          )
+
+        - gel_ai.query_rag(
+        + gel_ai.stream_rag(
+              "Who helps Komi make friends?",
+              context="Friend",
+          )
 
 
 Keep going!
@@ -277,10 +361,9 @@ You are now sufficiently equipped to use |Gel| AI in your applications.
 If you'd like to build something on your own, make sure to check out the
 :ref:`Reference manual <ref_ai_extai_reference>` in order to learn the details
 about using different APIs and models, configuring prompts or using the UI.
-Make sure to also check out the |Gel| AI bindings in Python and JavaScript if
-those languages are relevant to you.
 
 And if you would like more guidance for how |Gel| AI can be fit into an
 application, take a look at the FastAPI Gel AI Tutorial, where we're building a
 search bot using features you learned about above.
+
 

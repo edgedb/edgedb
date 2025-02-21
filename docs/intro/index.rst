@@ -8,6 +8,8 @@ Get Started
     :hidden:
 
     quickstart/index
+    tutorials/index
+    guides/index
     cli
     instances
     projects

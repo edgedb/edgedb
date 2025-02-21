@@ -1,10 +1,8 @@
 .. _ref_ai_python_reference:
 
-=============
-AI Python API
-=============
-
-:edb-alt-title: AI Extension Python API
+==========
+Python API
+==========
 
 The ``gel.ai`` package is an optional binding of the AI extension in |Gel|.
 

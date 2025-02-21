@@ -1,8 +1,8 @@
 .. _ref_guide_fastapi_gelai_searchbot:
 
-===================
-FastAPI (Searchbot)
-===================
+===============================
+Build a Search Bot with FastAPI
+===============================
 
 :edb-alt-title: Building a search bot with memory using FastAPI and Gel AI
 
