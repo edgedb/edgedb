@@ -1,8 +1,10 @@
 .. _ref_ai_overview:
 
-======
-Gel AI
-======
+==
+AI
+==
+
+:edb-alt-title: Using Gel AI
 
 .. toctree::
     :hidden:
@@ -15,10 +17,8 @@ Gel AI
     extvectorstore
     vectorstore_python
 
-:edb-alt-title: Using Gel AI
-
 |Gel| AI is a set of tools designed to enable you to ship AI-enabled apps with
-practically no effort. This is what comes in the box:
+practically no effort.
 
 1. ``ext::ai``: this Gel extension automatically generates embeddings for your
    data. Works with OpenAI, Mistral AI, Anthropic, and any other provider with a
@@ -32,7 +32,5 @@ practically no effort. This is what comes in the box:
 3. Python library: ``gel.ai``. Access all Gel AI features straight from your
    Python application.
 
-4. JavaScript library: ``@gel/ai``.
-
-
-
+4. JavaScript library: ``@gel/ai``. Access all Gel AI features right from your
+   JavaScript backend application.
