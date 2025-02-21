@@ -25,6 +25,7 @@ Reference
     protocol/index
     bindings/index
     admin/index
+    postgis
 
 
 This section contains comprehensive reference documentation on the internals of
