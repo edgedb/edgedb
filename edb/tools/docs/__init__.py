@@ -113,7 +113,28 @@ class VersionedReplaceRole:
         return nodes, []
 
 
+def patch_docutils_node_to_dom_node():
+    # https://github.com/sphinx-doc/sphinx/issues/11123
+
+    from docutils.nodes import serial_escape
+    from docutils.nodes import Element
+
+    def __dom_node(self, domroot):
+        element = domroot.createElement(self.tagname)
+        for attribute, value in self.attlist():
+            if isinstance(value, (list, tuple)):  # allow list or tuple
+                value = ' '.join([serial_escape('%s' % (v,)) for v in value])
+            element.setAttribute(attribute, '%s' % value)
+        for child in self.children:
+            element.appendChild(child._dom_node(domroot))
+        return element
+
+    Element._dom_node = __dom_node
+
+
 def setup(app):
+    patch_docutils_node_to_dom_node()
+
     edb.setup_domain(app)
     cli.setup_domain(app)
     eql.setup_domain(app)
