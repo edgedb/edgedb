@@ -1,11 +1,10 @@
 .. _ref_ai_extai_reference:
 
-============
-AI Extension
-============
+=======
+ext::ai
+=======
 
-This reference documents the |Gel| AI extension's components, configuration
-options, and APIs.
+This reference documents the |Gel| ``ext::ai`` extension components, configuration options, and database APIs.
 
 
 Enabling the Extension
@@ -43,7 +42,8 @@ Reset configuration:
 
 .. code-block:: edgeql
 
-    configure current branch reset ext::ai::Config::indexer_naptime;
+    configure current branch
+    reset ext::ai::Config::indexer_naptime;
 
 
 .. _ref_ai_extai_reference_ui:
@@ -93,10 +93,13 @@ Enables management of API configurations for AI API providers.
     :width: 100%
 
 
+Built-in resources
+==================
+
 .. _ref_ai_extai_reference_index:
 
 Index
-=====
+-----
 
 The ``ext::ai::index`` creates a deferred semantic similarity index of an
 expression on a type.
@@ -133,9 +136,6 @@ Parameters:
 * ``dimensions``: int64 (Optional) - Embedding dimensions
 * ``truncate_to_max``: bool (Default: False)
 
-
-Built-in resources
-==================
 
 .. _ref_ai_extai_reference_embedding_models:
 
