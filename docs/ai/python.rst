@@ -4,7 +4,8 @@
 Python API
 ==========
 
-The ``gel.ai`` package is an optional binding of the AI extension in |Gel|.
+The ``gel.ai`` package is an optional binding of the :ref:`AI extension
+<ref_ai_extai_reference>` in |Gel|.
 
 .. code-block:: bash
 

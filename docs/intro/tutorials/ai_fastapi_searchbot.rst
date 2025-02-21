@@ -20,12 +20,6 @@ human-friendly answer. After that, we'll use Gel to implement chat history so
 that the bot remembers previous interactions with the user. We'll finish it off
 with semantic search-based cross-chat memory.
 
-The end result is going to look something like this:
-
-.. image::
-    /docs/tutorials/placeholder.png
-    :alt: Placeholder
-    :width: 100%
 
 1. Initialize the project
 =========================

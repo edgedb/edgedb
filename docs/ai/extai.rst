@@ -1,11 +1,10 @@
 .. _ref_ai_extai_reference:
 
-============
-AI Extension
-============
+=======
+ext::ai
+=======
 
-This reference documents the |Gel| AI extension's components, configuration
-options, and APIs.
+This reference documents the |Gel| ``ext::ai`` extension components, configuration options, and database APIs.
 
 
 Enabling the Extension
@@ -43,7 +42,8 @@ Reset configuration:
 
 .. code-block:: edgeql
 
-    configure current branch reset ext::ai::Config::indexer_naptime;
+    configure current branch
+    reset ext::ai::Config::indexer_naptime;
 
 
 .. _ref_ai_extai_reference_ui:
@@ -93,6 +93,7 @@ Enables management of API configurations for AI API providers.
     :width: 100%
 
 
+
 .. _ref_ai_extai_reference_index:
 
 Index
@@ -132,48 +133,6 @@ Parameters:
 
 * ``dimensions``: int64 (Optional) - Embedding dimensions
 * ``truncate_to_max``: bool (Default: False)
-
-
-Built-in resources
-==================
-
-.. _ref_ai_extai_reference_embedding_models:
-
-Embedding models
-----------------
-
-OpenAI (`documentation <https://platform.openai.com/docs/guides/embeddings/embedding-models>`__)
-
-* ``text-embedding-3-small``
-* ``text-embedding-3-large``
-* ``text-embedding-ada-002``
-
-Mistral (`documentation <https://docs.mistral.ai/capabilities/embeddings/#mistral-embeddings-api>`__)
-
-* ``mistral-embed``
-
-
-.. _ref_ai_extai_reference_text_generation_models:
-
-Text generation models
-----------------------
-
-OpenAI (`documentation <https://platform.openai.com/docs/guides/text-generation>`__)
-
-* ``gpt-3.5-turbo``
-* ``gpt-4-turbo-preview``
-
-Mistral (`documentation <https://docs.mistral.ai/getting-started/models/>`__)
-
-* ``mistral-small-latest``
-* ``mistral-medium-latest``
-* ``mistral-large-latest``
-
-Anthropic (`documentation <https://docs.anthropic.com/claude/docs/models-overview>`__)
-
-* ``claude-3-haiku-20240307``
-* ``claude-3-sonnet-20240229``
-* ``claude-3-opus-20240229``
 
 
 Functions
@@ -272,8 +231,8 @@ Functions
         }
 
 
-Types
-=====
+Scalar and Object Types
+=======================
 
 Provider Configuration Types
 ----------------------------
@@ -350,6 +309,45 @@ Example provider configuration:
 Model Types
 -----------
 
+.. _ref_ai_extai_reference_embedding_models:
+
+Embedding models
+^^^^^^^^^^^^^^^^
+
+OpenAI (`documentation <https://platform.openai.com/docs/guides/embeddings/embedding-models>`__)
+
+* ``text-embedding-3-small``
+* ``text-embedding-3-large``
+* ``text-embedding-ada-002``
+
+Mistral (`documentation <https://docs.mistral.ai/capabilities/embeddings/#mistral-embeddings-api>`__)
+
+* ``mistral-embed``
+
+
+.. _ref_ai_extai_reference_text_generation_models:
+
+Text generation models
+^^^^^^^^^^^^^^^^^^^^^^
+
+OpenAI (`documentation <https://platform.openai.com/docs/guides/text-generation>`__)
+
+* ``gpt-3.5-turbo``
+* ``gpt-4-turbo-preview``
+
+Mistral (`documentation <https://docs.mistral.ai/getting-started/models/>`__)
+
+* ``mistral-small-latest``
+* ``mistral-medium-latest``
+* ``mistral-large-latest``
+
+Anthropic (`documentation <https://docs.anthropic.com/claude/docs/models-overview>`__)
+
+* ``claude-3-haiku-20240307``
+* ``claude-3-sonnet-20240229``
+* ``claude-3-opus-20240229``
+
+
 .. list-table::
     :class: funcoptable
 
@@ -383,6 +381,7 @@ Model Types
     * ``embedding_model_max_batch_tokens`` - Maximum tokens per batch
     * ``embedding_model_max_output_dimensions`` - Maximum embedding dimensions
     * ``embedding_model_supports_shortening`` - Input shortening support flag
+
 
 
 ---------
