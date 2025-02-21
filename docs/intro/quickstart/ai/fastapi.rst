@@ -6,12 +6,16 @@ Using the built-in RAG
 
 .. edb:split-section::
 
-    In this section we'll use |Gel|'s built-in vector search and
-    retrieval-augmented generation capabilities to decorate our flashcard app
-    with a couple AI features. We're going to create a ``/fetch_similar``
-    endpoint that's going to look up flashcards similar to a text search query,
-    as well as a ``/fetch_rag`` endpoint that's going to enable us to talk to
-    an LLM about the content of our flashcard deck.
+    In this section we'll learn about |Gel's| built-in vector search and
+    retrieval-augmented generation capabilities. We'll be continuing from where
+    we left off in the :ref:`main quickstart <ref_quickstart>`. Feel free to browse the
+    complete flascards app code in this `repo
+    <https://github.com/edgedb/quickstart-fastapi>`_.
+
+    In this tutorial we'll focus on creating a ``/fetch_similar`` endpoint for
+    looking up flashcards similar to a text search query, as well as a
+    ``/fetch_rag`` endpoint that's going to enable us to talk to an LLM about
+    the content of our flashcard deck.
 
     We're going to start with the same schema we left off with in the primary
     quickstart.
@@ -33,17 +37,17 @@ Using the built-in RAG
             type Deck extending Timestamped {
                 required name: str;
                 description: str;
-                cards := (
-                    select .<deck[is Card]
-                    order by .order
-                );
+
+                multi cards: Card {
+                    constraint exclusive;
+                    on target delete allow;
+                };
             };
 
             type Card extending Timestamped {
                 required order: int64;
                 required front: str;
                 required back: str;
-                required deck: Deck;
             }
         }
 
@@ -75,17 +79,17 @@ Using the built-in RAG
               type Deck extending Timestamped {
                   required name: str;
                   description: str;
-                  cards := (
-                      select .<deck[is Card]
-                      order by .order
-                  );
+
+                  multi cards: Card {
+                      constraint exclusive;
+                      on target delete allow;
+                  };
               };
 
               type Card extending Timestamped {
                   required order: int64;
                   required front: str;
                   required back: str;
-                  required deck: Deck;
               }
           }
 
@@ -198,17 +202,17 @@ Using the built-in RAG
               type Deck extending Timestamped {
                   required name: str;
                   description: str;
-                  cards := (
-                      select .<deck[is Card]
-                      order by .order
-                  );
+
+                  multi cards: Card {
+                      constraint exclusive;
+                      on target delete allow;
+                  };
               };
 
               type Card extending Timestamped {
                   required order: int64;
                   required front: str;
                   required back: str;
-                  required deck: Deck;
 
         +         deferred index ext::ai::index(embedding_model := 'text-embedding-3-small')
         +             on (.front ++ ' ' ++ .back);
@@ -342,5 +346,7 @@ Using the built-in RAG
 
     Congratulations! We've now implemented AI features in our flashcards app.
     Of course, there's more to learn when it comes to using the AI extension.
-    Make sure to check out the Reference manual, or build an LLM-powered search
-    bot from the ground up with the FastAPI Gel AI tutorial.
+    Make sure to check out the :ref:`Reference manual
+    <ref_ai_python_reference>`, or build an LLM-powered search bot from the
+    ground up with the :ref:`FastAPI Gel AI tutorial
+    <ref_guide_fastapi_gelai_searchbot>`.
