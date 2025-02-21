@@ -277,10 +277,12 @@ You are now sufficiently equipped to use |Gel| AI in your applications.
 If you'd like to build something on your own, make sure to check out the
 :ref:`Reference manual <ref_ai_extai_reference>` in order to learn the details
 about using different APIs and models, configuring prompts or using the UI.
-Make sure to also check out the |Gel| AI bindings in Python and JavaScript if
-those languages are relevant to you.
+Make sure to also check out the |Gel| AI bindings in :ref:`Python
+<ref_ai_python_reference>` and :ref:`JavaScript <ref_ai_javascript_reference>`
+if those languages are relevant to you.
 
 And if you would like more guidance for how |Gel| AI can be fit into an
-application, take a look at the FastAPI Gel AI Tutorial, where we're building a
-search bot using features you learned about above.
+application, take a look at the :ref:`FastAPI Gel AI Tutorial
+<ref_guide_fastapi_gelai_searchbot>`, where we're building a search bot using
+features you learned about above.
 
