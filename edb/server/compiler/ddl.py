@@ -1230,6 +1230,7 @@ _FEATURE_NAMES: dict[type[s_obj.Object], str] = {
     s_func.Function: 'function',
     s_indexes.Index: 'index',
     s_scalars.ScalarType: 'scalar',
+    s_migrations.Migration: 'migration',
 }
 
 
@@ -1302,6 +1303,11 @@ def produce_feature_used_metrics(
             and len(obj.get_bases(schema).objects(schema)) > 1
         ):
             _track('multiple_inheritance')
+        elif (
+            isinstance(obj, s_objtypes.ObjectType)
+            and obj.is_material_object_type(schema)
+        ):
+            _track('object_type')
         elif (
             isinstance(obj, s_scalars.ScalarType)
             and obj.is_enum(schema)
