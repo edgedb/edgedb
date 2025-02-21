@@ -1,8 +1,8 @@
 .. edb:env-switcher::
 
-==========
-Quickstart
-==========
+========
+Overview
+========
 
 .. toctree::
   :maxdepth: 3

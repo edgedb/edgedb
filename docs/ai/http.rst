@@ -1,10 +1,8 @@
 .. _ref_ai_http_reference:
 
-=====================
-AI HTTP API Reference
-=====================
-
-:edb-alt-title: AI Extension HTTP API
+========
+HTTP API
+========
 
 .. note::
 
@@ -48,9 +46,9 @@ Example request
 
 .. code-block:: bash
 
-    curl --user <username>:<password> --json '{
-      "input": "What color is the sky on Mars?",
-      "model": "text-embedding-3-small"
+  $ curl --user <username>:<password> --json '{\
+      "input": "What color is the sky on Mars?",\
+      "model": "text-embedding-3-small"\
     }' http://localhost:10931/branch/main/ai/embeddings
 
 
@@ -162,12 +160,12 @@ Request body
 Example request
 ---------------
 
-.. code-block::
+.. code-block:: bash
 
-    curl --user <username>:<password> --json '{
-      "query": "What color is the sky on Mars?",
-      "model": "gpt-4-turbo-preview",
-      "context": {"query":"Knowledge"}
+  $ curl --user <username>:<password> --json '{\
+      "query": "What color is the sky on Mars?",\
+      "model": "gpt-4-turbo-preview",\
+      "context": {"query":"Knowledge"}\
     }' http://<gel-host>:<port>/branch/main/ai/rag
 
 

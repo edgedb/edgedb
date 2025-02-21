@@ -1,20 +1,29 @@
 .. _ref_ai_javascript:
 
-==========
-JavaScript
-==========
-
-:edb-alt-title: Gel AI's JavaScript package
+==============
+JavaScript API
+==============
 
 ``@gel/ai`` offers a convenient wrapper around ``ext::ai``. Install it with
 npm or via your package manager of choice:
 
-.. code-block:: bash
+.. tabs::
 
-    $ npm install @gel/ai # or
-    $ yarn add @gel/ai # or
-    $ pnpm add @gel/ai # or
-    $ bun add @gel/ai
+    .. code-tab:: bash
+
+        $ npm install @gel/ai
+
+    .. code-tab:: bash
+
+        $ yarn add @gel/ai
+
+    .. code-tab:: bash
+
+        $ pnpm add @gel/ai
+
+    .. code-tab:: bash
+
+        $ bun add @gel/ai
 
 
 Usage
