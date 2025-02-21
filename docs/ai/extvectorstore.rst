@@ -1,13 +1,13 @@
 .. _ref_extvectorstore_reference:
 
-=====================
-Vectorstore Extension
-=====================
+================
+ext::vectorstore
+================
 
 
-The ``vectorstore`` extension package provides simplified vectorstore workflows
-for |Gel|, built on top of the pgvector integration. It includes predefined
-vector dimensions and a base schema for vector storage records.
+The ``ext::vectorstore`` extension package provides simplified vectorstore
+workflows for |Gel|, built on top of the pgvector integration. It includes
+predefined vector dimensions and a base schema for vector storage records.
 
 
 Enabling the extension
@@ -30,7 +30,8 @@ mechanism:
 
 
 The Vectorstore extension is designed to be used in combination with the
-Vectostore Python binding or other integraions, rather than on its own.
+:ref:`Vectostore Python binding <ref_ai_vectorstore_python>` or other
+integrations, rather than on its own.
 
 
 Types
