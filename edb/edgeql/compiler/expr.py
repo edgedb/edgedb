@@ -229,7 +229,7 @@ def compile_Set(expr: qlast.Set, *, ctx: context.ContextLevel) -> irast.Set:
             )
             res = dispatch.compile(bigunion, ctx=ctx)
             if cres := try_constant_set(res):
-                res = setgen.ensure_set(cres, ctx=ctx)
+                res = setgen.ensure_set(cres, span=res.span, ctx=ctx)
             return res
     else:
         return setgen.new_empty_set(
