@@ -128,7 +128,7 @@ cdef class SQLParamsSource:
         return self._cached_key
 
     def text(self):
-        return '<unknown>'
+        return ''
 
     def serialize(self):
         if self._serialized is not None:
