@@ -40,12 +40,12 @@ The AI package is built on top of the regular |Gel| client objects.
 .. code-block:: typescript
 
     import { createClient } from "gel";
-    import { createAI } from "@gel/ai";
+    import { createRAGClient } from "@gel/ai";
 
 
     const client = createClient();
 
-    const gpt4Ai = createAI(client, {
+    const gpt4Ai = createRAGClient(client, {
       model: "gpt-4-turbo-preview",
     });
 
@@ -61,12 +61,12 @@ The AI package is built on top of the regular |Gel| client objects.
 Factory functions
 =================
 
-.. js:function:: createAI( \
+.. js:function:: createRAGClient( \
                    client: Client, \
-                   options: Partial<AIOptions> = {} \
-                 ): GelAI
+                   options: Partial<RAGOptions> = {} \
+                 ): RAGClient
 
-    Creates an instance of ``GelAI`` with the specified client and options.
+    Creates an instance of ``RAGClient`` with the specified client and options.
 
     :param client:
         A |Gel| client instance.
@@ -86,16 +86,16 @@ Core classes
 ============
 
 
-.. js:class:: GelAI
+.. js:class:: RAGClient
 
-    Instances of ``GelAI`` offer methods for client configuration and utilizing RAG.
+    Instances of ``RAGClient`` offer methods for client configuration and utilizing RAG.
 
     :ivar client:
         An instance of |Gel| client.
 
-.. js:method:: withConfig(options: Partial<AIOptions>): GelAI
+.. js:method:: withConfig(options: Partial<RAGOptions>): RAGClient
 
-    Returns a new ``GelAI`` instance with updated configuration options.
+    Returns a new ``RAGClient`` instance with updated configuration options.
 
     :param string options.model:
         Required. Specifies the AI model to use. This could be a version of GPT
@@ -107,9 +107,9 @@ Core classes
         structure that includes roles and content for more complex
         interactions. The default is the built-in system prompt.
 
-.. js:method:: withContext(context: Partial<QueryContext>): GelAI
+.. js:method:: withContext(context: Partial<QueryContext>): RAGClient
 
-    Returns a new ``GelAI`` instance with an updated query context.
+    Returns a new ``RAGClient`` instance with an updated query context.
 
     :param string context.query:
         Required. Specifies an expression to determine the relevant objects and
