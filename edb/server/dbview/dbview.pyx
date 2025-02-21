@@ -129,6 +129,7 @@ cdef class CompiledQuery:
         data = {}
         if self.tag:
             data['tag'] = self.tag
+        # maintenance reminder: please also update _amend_typedesc_in_sql()
         if data:
             data_bytes = json.dumps(data).encode(defines.EDGEDB_ENCODING)
             return b''.join([b'-- ', data_bytes, b'\n'])
@@ -1311,6 +1312,7 @@ cdef class DatabaseConnectionView:
         use_metrics: bint = True,
         allow_capabilities: uint64_t = <uint64_t>compiler.Capability.ALL,
         pgcon: pgcon.PGConnection | None = None,
+        tag: str | None = None,
     ) -> CompiledQuery:
         query_unit_group = None
         if self._query_cache_enabled:
@@ -1410,6 +1412,7 @@ cdef class DatabaseConnectionView:
                     query_req,
                     query_unit_group,
                     pgcon,
+                    tag,
                 )
 
             if self._query_cache_enabled and query_unit_group.cacheable:
@@ -1486,6 +1489,7 @@ cdef class DatabaseConnectionView:
         query_req: rpc.CompilationRequest,
         qug: dbstate.QueryUnitGroup,
         pgcon: pgcon.PGConnection,
+        tag: str | None,
     ) -> None:
         # The SQL QueryUnitGroup as initially returned from the compiler
         # is missing the input/output type descriptors because we currently
@@ -1516,6 +1520,15 @@ cdef class DatabaseConnectionView:
             intro_sql = query_unit.introspection_sql
             if intro_sql is None:
                 intro_sql = query_unit.sql
+            if tag is not None:
+                # maintenance reminder: please also update make_query_prefix()
+                tag_json = json.dumps({"tag": tag})
+                intro_sql = b''.join([
+                    b'-- ',
+                    tag_json.encode(defines.EDGEDB_ENCODING),
+                    b'\n',
+                    intro_sql,
+                ])
             try:
                 param_desc, result_desc = await pgcon.sql_describe(
                     intro_sql, all_type_oids)

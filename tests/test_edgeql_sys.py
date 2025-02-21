@@ -44,8 +44,11 @@ class TestQueryStatsMixin:
                 "can't run query stats test when extension isn't present"
             )
 
-    async def _test_sys_query_stats(self):
-        stats_query = f'''
+    def make_stats_query(self, tag: str | None = None) -> str:
+        tag_filter = ''
+        if tag is not None:
+            tag_filter = f'and .tag = {common.quote_literal(tag)}'
+        return f'''
             with stats := (
                 select
                     sys::QueryStats
@@ -53,9 +56,13 @@ class TestQueryStatsMixin:
                     .query like '%{self.stats_magic_word}%'
                     and .query not like '%sys::%'
                     and .query_type = <sys::QueryType>$0
+                    {tag_filter}
             )
             select sum(stats.calls)
         '''
+
+    async def _test_sys_query_stats(self):
+        stats_query = self.make_stats_query()
 
         # Take the initial tracking number of executions
         calls = await self.con.query_single(stats_query, self.stats_type)
@@ -104,13 +111,29 @@ class TestQueryStatsMixin:
         )
 
         # Turn cfg::Config.track_query_stats back on again
-        if self.stats_type == 'SQL':
-            # FIXME: don't return after fixing #8147
-            return
         await self._configure_track('All')
         await self._query_for_stats()
         self.assertEqual(
             await self.con.query_single(stats_query, self.stats_type),
+            1,
+        )
+
+    async def _test_sys_query_stats_with_tag(self):
+        # Test tags are correctly set
+        tag = 'test_tag'
+        self.con = self.con.with_annotation('tag', tag)
+        self.stats_magic_word += "Tagged"
+        self.assertEqual(
+            await self.con.query_single(
+                self.make_stats_query(tag=tag), self.stats_type
+            ),
+            0,
+        )
+        await self._query_for_stats()
+        self.assertEqual(
+            await self.con.query_single(
+                self.make_stats_query(tag=tag), self.stats_type
+            ),
             1,
         )
 
@@ -184,6 +207,7 @@ class TestEdgeQLSys(tb.QueryTestCase, TestQueryStatsMixin):
             self.con = await sd.connect()
             try:
                 await self._test_sys_query_stats()
+                await self._test_sys_query_stats_with_tag()
             finally:
                 await self.con.aclose()
                 self.con = old_con
@@ -208,9 +232,8 @@ class TestSQLSys(tb.SQLQueryTestCase, TestQueryStatsMixin):
     async def _configure_track(self, option: str):
         # XXX: we should probably translate the config name in the compiler,
         # so that we can use the frontend name (track_query_stats) here instead
-        # FIXME: drop lower() after fixing #8147
         await self.scon.execute(f'''
-            set "edb_stat_statements.track" TO '{option.lower()}';
+            set "edb_stat_statements.track" TO '{option}';
         ''')
 
     async def _bad_query_for_stats(self):
@@ -235,3 +258,43 @@ class TestSQLSys(tb.SQLQueryTestCase, TestQueryStatsMixin):
                 await self.scon.close()
                 await self.con.aclose()
                 self.con, self.scon = old_cons
+
+
+class TestQueryStatsSQLoverBianry(tb.QueryTestCase, TestQueryStatsMixin):
+    stats_magic_word = 'TestEdgeQLSysSQL'
+    stats_type = 'SQL'
+
+    async def _query_for_stats(self):
+        self.counter += 1
+        ident = self.stats_magic_word + str(self.counter)
+        records = await self.con.query_sql(
+            f"select {self.counter} as {common.quote_ident(ident)}"
+        )
+        self.assertEqual(len(records), 1)
+        self.assertEqual(records[0].as_dict(), {ident: self.counter})
+
+    async def _configure_track(self, option: str):
+        await self.con.query(f'''
+            configure session set track_query_stats :=
+                <cfg::QueryStatsOption>{common.quote_literal(option)};
+        ''')
+
+    async def _bad_query_for_stats(self):
+        async with self.assertRaisesRegexTx(
+            edgedb.QueryError, 'does not exist'
+        ):
+            await self.con.query_sql(
+                f'select {self.stats_magic_word}_NoSuchType'
+            )
+
+    async def test_edgeql_sys_query_stats_sql(self):
+        self._before_test_sys_query_stats()
+        async with tb.start_edgedb_server() as sd:
+            old_con = self.con
+            self.con = await sd.connect()
+            try:
+                await self._test_sys_query_stats()
+                await self._test_sys_query_stats_with_tag()
+            finally:
+                await self.con.aclose()
+                self.con = old_con
