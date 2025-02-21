@@ -717,3 +717,50 @@ Bug fixes
 
 * Drop dependent cache function of tuple type
   (:eql:gh:`#7616`)
+
+5.8
+===
+* Some more cleanup of implicit limits
+  (:eql:gh:`#7517`)
+
+* Fix email button background
+  (:eql:gh:`#7974`)
+
+* Fix schema ordering issue with Trigger when clauses
+  (:eql:gh:`#8060`)
+
+* Fix config bugs with env vars and default checking
+  (:eql:gh:`#8078`)
+
+* Fix static evaluation TypeCast str->bool bug
+  (:eql:gh:`#8113`)
+
+* Add some more functions to list of allowed postgres admin functions
+  (:eql:gh:`#8139`, :eql:gh:`#8298`)
+
+* Fix strchrnul build failures on recent glibc
+  (:eql:gh:`#8154`)
+
+* Fix NULLs in re_match/re_match_all returns
+  (:eql:gh:`#8069`)
+
+* Send ``identity_id`` on require_verification
+  (:eql:gh:`#8170`)
+
+* Monitor open FDs
+  (:eql:gh:`#8217`)
+
+* Fix dump and MIGRATION REWRITE when there are many (>1000) migrations
+  (:eql:gh:`#8240`)
+
+* multitenant: retry adding tenants more eagerly
+  (:eql:gh:`#8236`)
+
+* Allow dropping isolation level to REPEATABLE READ in a READ ONLY tx
+  (:eql:gh:`#8237`)
+
+* Use better histogram buckets for metrics
+  (:eql:gh:`#8263`)
+
+* Use sys_pgcon for long-term advisory locks
+  (:eql:gh:`#8320`)
