@@ -12,6 +12,8 @@ Gel AI
     http
     python
     javascript
+    extvectorstore
+    vectorstore_python
 
 :edb-alt-title: Using Gel AI
 
