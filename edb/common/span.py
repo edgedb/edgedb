@@ -89,8 +89,13 @@ class Span(markup.MarkupExceptionContext):
         return dic
 
     def _calc_points(self):
+        # HACK: If we don't have an actual buffer (probably because we
+        # are recompiling after a schema change), just fake something
+        # long enough. Line numbers will be wrong but positions will
+        # still be right...
+        buffer = self.buffer.encode('utf-8') if self.buffer else b' ' * self.end
         self._points = ql_parser.SourcePoint.from_offsets(
-            self.buffer.encode('utf-8'),
+            buffer,
             [self.start, self.end]
         )
 

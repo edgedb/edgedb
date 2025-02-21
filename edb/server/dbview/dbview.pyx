@@ -513,7 +513,7 @@ cdef class Database:
             try:
                 query_req = rpc.CompilationRequest.deserialize(
                     in_data,
-                    "<unknown>",
+                    "",
                     self.server.compilation_config_serializer,
                 )
 
