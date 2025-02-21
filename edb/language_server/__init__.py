@@ -24,7 +24,11 @@ T = TypeVar('T', covariant=True)
 E = TypeVar('E', covariant=True)
 
 
-@dataclasses.dataclass(kw_only=True, slots=True)
+@dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
 class Result(Generic[T, E]):
     ok: Optional[T] = None
     err: Optional[E] = None
+
+
+def is_schema_file(path: str) -> bool:
+    return path.endswith(('.esdl', '.gel'))

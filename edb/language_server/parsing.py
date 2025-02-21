@@ -29,17 +29,13 @@ from edb.edgeql import parser as qlparser
 from edb.edgeql.parser.grammar import tokens as qltokens
 import edb._edgeql_parser as rust_parser
 
-from . import Result
+from . import Result, is_schema_file
 
 
 def parse(
     doc: TextDocument, ls: LanguageServer
 ) -> Result[List[qlast.Base] | qlast.Schema, List[lsp_types.Diagnostic]]:
-    sdl = (
-        doc.filename.endswith('.esdl') or doc.filename.endswith('.gel')
-        if doc.filename
-        else False
-    )
+    sdl = is_schema_file(doc.filename) if doc.filename else False
 
     source, result, productions = _parse_inner(doc.source, sdl)
 

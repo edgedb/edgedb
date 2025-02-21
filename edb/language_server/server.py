@@ -38,6 +38,7 @@ from edb.schema import ddl as s_ddl
 import pygls.workspace
 
 from . import parsing as ls_parsing
+from . import is_schema_file
 
 
 @dataclasses.dataclass(kw_only=True, slots=True)
@@ -188,7 +189,7 @@ def _load_schema_docs(ls: GelLanguageServer):
 
     # read .esdl files
     for entry in os.listdir(workspace_path / schema_dir):
-        if not (entry.endswith('.esdl') or entry.endswith('.gel')):
+        if not is_schema_file(entry):
             continue
         doc = ls.workspace.get_text_document(
             str(workspace_path / schema_dir / entry)

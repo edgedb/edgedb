@@ -26,6 +26,7 @@ from edb.edgeql import parser as qlparser
 
 from . import parsing as ls_parsing
 from . import server as ls_server
+from . import is_schema_file
 
 
 @click.command()
@@ -92,7 +93,7 @@ def document_updated(ls: ls_server.GelLanguageServer, doc_uri: str):
     diagnostic_set: ls_server.DiagnosticsSet
 
     try:
-        if doc_uri.endswith('.esdl') or doc_uri.endswith('.gel'):
+        if is_schema_file(doc_uri):
             # schema file
 
             ls_server.update_schema_doc(ls, document)
