@@ -1,47 +1,47 @@
-.. _ref_ai_javascript:
+.. _ref_ai_javascript_reference:
 
 ==============
 JavaScript API
 ==============
 
-``@gel/ai`` offers a convenient wrapper around ``ext::ai``. Install it with
-npm or via your package manager of choice:
+``@gel/ai`` is a wrapper around the :ref:`AI extension
+<ref_ai_extai_reference>` in |Gel|.
 
 .. tabs::
 
     .. code-tab:: bash
+        :caption: npm
 
         $ npm install @gel/ai
 
     .. code-tab:: bash
+        :caption: yarn
 
         $ yarn add @gel/ai
 
     .. code-tab:: bash
+        :caption: pnpm
 
         $ pnpm add @gel/ai
 
     .. code-tab:: bash
+        :caption: bun
 
         $ bun add @gel/ai
 
 
-Usage
-=====
+Overview
+========
 
-Start by importing ``createClient`` from ``gel`` and ``createAI`` from
-``@gel/ai``:
+The AI package is built on top of the regular |Gel| client objects.
+
+**Example**:
 
 .. code-block:: typescript
 
     import { createClient } from "gel";
     import { createAI } from "@gel/ai";
 
-Create a |Gel| client. Create an instance of the AI client by passing in the
-Gel client and any options for the AI provider (like the text generation
-model):
-
-.. code-block:: typescript
 
     const client = createClient();
 
@@ -49,55 +49,17 @@ model):
       model: "gpt-4-turbo-preview",
     });
 
-You may use any of the supported :ref:`text generation models
-<ref_ai_extai_reference_text_generation_models>`. Add your query as context:
-
-.. code-block:: typescript
-
     const astronomyAi = gpt4Ai.withContext({
       query: "Astronomy"
     });
-
-This "query" property doesn't have to be a proper query at all. It can be any
-expression that produces a set of objects, like ``Astronomy`` in the example
-above which will return all objects of that type. On the other hand, if you
-want to narrow the field more, you can give it a query like ``select Astronomy
-filter .topic = "Mars"``.
-
-The default text generation prompt will ask your selected provider to limit
-answer to information provided in the context and will pass the queried
-objects' AI index as context along with that prompt.
-
-Call your AI client's ``queryRag`` method, passing in a text query.
-
-.. code-block:: typescript
 
     console.log(
       await astronomyAi.queryRag("What color is the sky on Mars?")
     );
 
-You can chain additional calls of ``withContext`` or ``withConfig`` to create
-additional AI clients, identical except for the newly specified values.
 
-.. code-block:: typescript
-
-    const fastAstronomyAi = astronomyAi.withConfig({
-      model: "gpt-3.5-turbo",
-    });
-    console.log(
-      await fastAstronomyAi.queryRag("What color is the sky on Mars?")
-    );
-
-    const fastChemistryAi = fastAstronomyAi.withContext({
-      query: "Chemistry"
-    });
-    console.log(
-      await fastChemistryAi.queryRag("What is the atomic number of gold?")
-    );
-
-
-API Reference
-=============
+Factory functions
+=================
 
 .. js:function:: createAI( \
                    client: Client, \
@@ -120,14 +82,16 @@ API Reference
         interactions. The default is the built-in system prompt.
 
 
-GelAI
------
+Core classes
+============
 
-Instances of ``GelAI`` offer methods for client configuration and utilizing
-RAG.
 
-Public methods
-^^^^^^^^^^^^^^
+.. js:class:: GelAI
+
+    Instances of ``GelAI`` offer methods for client configuration and utilizing RAG.
+
+    :ivar client:
+        An instance of |Gel| client.
 
 .. js:method:: withConfig(options: Partial<AIOptions>): GelAI
 
