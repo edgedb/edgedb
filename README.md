@@ -1,8 +1,8 @@
-<p align="center">
+<!--<p align="center">
   <a href="https://www.geldata.com">
     <img src="https://www.geldata.com/github_banner.png">
   </a>
-</p>
+</p>-->
 
 <div align="center">
   <h1>Gel</h1>
