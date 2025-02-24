@@ -455,8 +455,11 @@ class TestSchema(tb.BaseSchemaLoadTest):
             };
         """
 
-    @tb.must_fail(errors.QueryError,
-                  "could not resolve partial path")
+    @tb.must_fail(
+        errors.QueryError,
+        "could not resolve partial path",
+        hint="Did you mean __source__.name?"
+    )
     def test_schema_partial_path_in_default_of_link_prop_01(self):
         """
             module default {
@@ -472,6 +475,21 @@ class TestSchema(tb.BaseSchemaLoadTest):
                     }
 
                 }
+            }
+        """
+
+    @tb.must_fail(
+        errors.QueryError,
+        "could not resolve partial path",
+        hint="Did you mean __new__.wow?"
+    )
+    def test_schema_partial_path_in_trigger_01(self):
+        """
+            type Foo {
+                property wow: bool;
+                trigger prohibit_queue after insert for each do (
+                    select assert(.wow, message := "wow!")
+                );
             }
         """
 

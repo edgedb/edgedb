@@ -319,9 +319,35 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
         if ctx.partial_path_prefix is not None:
             path_tip = ctx.partial_path_prefix
         else:
+            hint = None
+
+            # If there are anchors, suggest one
+            if anchors:
+                anchor_names: list[str] = [
+                    key if isinstance(key, str) else key.name
+                    for key in anchors
+                ]
+
+                import edb.edgeql.codegen
+                suggestion = (
+                    f'{anchor_names[0]}'
+                    f'{edb.edgeql.codegen.generate_source(expr)}'
+                )
+
+                if len(anchor_names) == 1:
+                    hint = (
+                        f'Did you mean {suggestion}?'
+                    )
+                else:
+                    hint = (
+                        f'Did you mean to use one of: {anchor_names}? '
+                        f'eg. {suggestion}'
+                    )
+
             raise errors.QueryError(
                 'could not resolve partial path ',
-                span=expr.span
+                span=expr.span,
+                hint=hint
             )
 
     computables: list[irast.Set] = []

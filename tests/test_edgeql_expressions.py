@@ -2609,7 +2609,10 @@ class TestExpressions(tb.QueryTestCase):
         # syntactically legal (see test_edgeql_syntax_constants_09),
         # but will fail to resolve to anything.
         with self.assertRaisesRegex(
-                edgedb.QueryError, r'could not resolve partial path'):
+            edgedb.QueryError,
+            r'could not resolve partial path',
+            _hint=None
+        ):
             await self.con.execute(r"""
                 SELECT .1;
             """)
