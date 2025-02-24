@@ -26,6 +26,7 @@ from edb.edgeql import parser as qlparser
 
 from . import parsing as ls_parsing
 from . import server as ls_server
+from . import is_schema_file
 
 
 @click.command()
@@ -37,7 +38,7 @@ from . import server as ls_server
 )
 def main(*, version: bool, stdio: bool):
     if version:
-        print(f"edgedb-ls, version {buildmeta.get_version()}")
+        print(f"gel-ls, version {buildmeta.get_version()}")
         sys.exit(0)
 
     ls = init()
@@ -48,8 +49,8 @@ def main(*, version: bool, stdio: bool):
         print("Error: no LSP transport enabled. Use --stdio.")
 
 
-def init() -> ls_server.EdgeDBLanguageServer:
-    ls = ls_server.EdgeDBLanguageServer()
+def init() -> ls_server.GelLanguageServer:
+    ls = ls_server.GelLanguageServer()
 
     @ls.feature(
         lsp_types.INITIALIZE,
@@ -84,29 +85,46 @@ def init() -> ls_server.EdgeDBLanguageServer:
     return ls
 
 
-def document_updated(ls: ls_server.EdgeDBLanguageServer, doc_uri: str):
+def document_updated(ls: ls_server.GelLanguageServer, doc_uri: str):
     # each call to this function should yield in exactly one publish_diagnostics
     # for this document
 
     document = ls.workspace.get_text_document(doc_uri)
-    ql_ast = ls_parsing.parse(document, ls)
-    if diagnostics := ql_ast.error:
-        ls.publish_diagnostics(document.uri, diagnostics, document.version)
-        return
-    assert ql_ast.ok
+    diagnostic_set: ls_server.DiagnosticsSet
 
     try:
-        if isinstance(ql_ast.ok, list):
-            diagnostics = ls_server.compile(ls, ql_ast.ok)
-            ls.publish_diagnostics(document.uri, diagnostics, document.version)
+        if is_schema_file(doc_uri):
+            # schema file
+
+            ls_server.update_schema_doc(ls, document)
+
+            # recompile schema
+            ls.state.schema = None
+            _schema, diagnostic_set = ls_server.get_schema(ls)
         else:
-            ls.publish_diagnostics(document.uri, [], document.version)
+            # query file
+            ql_ast_res = ls_parsing.parse(document, ls)
+            if diag := ql_ast_res.err:
+                ls.publish_diagnostics(document.uri, diag, document.version)
+                return
+            assert ql_ast_res.ok
+            ql_ast = ql_ast_res.ok
+
+            if isinstance(ql_ast, list):
+                diagnostic_set = ls_server.compile(ls, document, ql_ast)
+            else:
+                # SDL in query files?
+                ls.publish_diagnostics(document.uri, [], document.version)
+                diagnostic_set = ls_server.DiagnosticsSet()
+
+        for doc, diags in diagnostic_set.by_doc.items():
+            ls.publish_diagnostics(doc.uri, diags, doc.version)
     except BaseException as e:
         send_internal_error(ls, e)
         ls.publish_diagnostics(document.uri, [], document.version)
 
 
-def send_internal_error(ls: ls_server.EdgeDBLanguageServer, e: BaseException):
+def send_internal_error(ls: ls_server.GelLanguageServer, e: BaseException):
     text = edb_traceback.format_exception(e)
     ls.show_message_log(f'Internal error: {text}')
 

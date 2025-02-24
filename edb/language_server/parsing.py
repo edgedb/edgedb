@@ -16,8 +16,7 @@
 # limitations under the License.
 #
 
-from typing import Any, List, Tuple, Optional, TypeVar, Generic
-from dataclasses import dataclass
+from typing import Any, List, Tuple, Optional
 
 from pygls.server import LanguageServer
 from pygls.workspace import TextDocument
@@ -30,21 +29,13 @@ from edb.edgeql import parser as qlparser
 from edb.edgeql.parser.grammar import tokens as qltokens
 import edb._edgeql_parser as rust_parser
 
-
-T = TypeVar('T', covariant=True)
-E = TypeVar('E', covariant=True)
-
-
-@dataclass(kw_only=True, slots=True)
-class Result(Generic[T, E]):
-    ok: Optional[T] = None
-    error: Optional[E] = None
+from . import Result, is_schema_file
 
 
 def parse(
     doc: TextDocument, ls: LanguageServer
 ) -> Result[List[qlast.Base] | qlast.Schema, List[lsp_types.Diagnostic]]:
-    sdl = doc.filename.endswith('.esdl') if doc.filename else False
+    sdl = is_schema_file(doc.filename) if doc.filename else False
 
     source, result, productions = _parse_inner(doc.source, sdl)
 
@@ -77,7 +68,7 @@ def parse(
                 )
             )
 
-        return Result(error=diagnostics)
+        return Result(err=diagnostics)
 
     # parsing successful
     assert isinstance(result.out, rust_parser.CSTNode)

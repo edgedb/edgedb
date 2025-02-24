@@ -15,3 +15,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+
+import dataclasses
+from typing import Generic, Optional, TypeVar
+
+
+T = TypeVar('T', covariant=True)
+E = TypeVar('E', covariant=True)
+
+
+@dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
+class Result(Generic[T, E]):
+    ok: Optional[T] = None
+    err: Optional[E] = None
+
+
+def is_schema_file(path: str) -> bool:
+    return path.endswith(('.esdl', '.gel'))
