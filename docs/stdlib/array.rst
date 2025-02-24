@@ -387,6 +387,8 @@ Reference
                                  val: anytype) \
                   -> array<anytype>
 
+    .. versionadded:: 6.0
+
     Returns an array with an value at a specific index replaced by another.
 
     Return an array where the value at the index indicated by *idx* is
@@ -407,6 +409,8 @@ Reference
                                     idx: int64, \
                                     val: anytype) \
                   -> array<anytype>
+
+    .. versionadded:: 6.0
 
     Returns an array with an value inserted at a specific.
 
