@@ -125,6 +125,8 @@ properties.
    };
 
 
+.. _ref_eql_params_optional:
+
 Optional parameters
 -------------------
 

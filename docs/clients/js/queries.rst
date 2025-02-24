@@ -271,11 +271,9 @@ To exclude the generated files, add the following lines to your ``.gitignore`` f
 Writing Queries with Parameters
 -------------------------------
 
-To inject external values into your EdgeQL queries, you can use `parameters </docs/edgeql/parameters>`__.
+To inject external values into your EdgeQL queries, you can use :ref:`parameters <ref_eql_params>`.
 
 When using the queries generator, you may be tempted to declare the same parameter in multiple places.
-However, it's better practice to declare it once by assigning it to a variable in a `with block </docs/edgeql/with#query-parameters>`__
+However, it's better practice to declare it once by assigning it to a variable in a :ref:`with block <ref_eql_with_params>`
 and reference that variable in the rest of your query. This way you avoid mismatched types in your declarations,
-such as forgetting to mark them all as `optional </docs/edgeql/parameters#optional-parameters>`__.
-
-Check out the `EdgeQL docs </docs/edgeql/index>`__ to learn more about writing queries.
+such as forgetting to mark them all as :ref:`optional <ref_eql_params_optional>`.
