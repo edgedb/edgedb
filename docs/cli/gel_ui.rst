@@ -47,8 +47,3 @@ connection target see :ref:`connection options <ref_cli_gel_connopts>`.
     Skip probing the UI endpoint of the server instance. The endpoint probe is
     in place to provide a friendly error if you try to connect to a UI on a
     remote instance that does not have the UI enabled.
-
-Media
-=====
-
-.. edb:youtube-embed:: iwnP_6tkKgc
