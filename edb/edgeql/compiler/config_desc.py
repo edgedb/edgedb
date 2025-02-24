@@ -51,7 +51,9 @@ def compile_describe_config(
         ctx.env.schema, scope, ctx.env.options.testmode)
     config_ast = qlparser.parse_fragment(config_edgeql)
 
-    return dispatch.compile(config_ast, ctx=ctx)
+    with ctx.new() as subctx:
+        subctx.allow_factoring()
+        return dispatch.compile(config_ast, ctx=subctx)
 
 
 def _describe_config(

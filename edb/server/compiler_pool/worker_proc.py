@@ -116,7 +116,7 @@ def main(get_handler):
     parser.add_argument("--version-serial", type=int)
     args = parser.parse_args()
 
-    sys.setrecursionlimit(10000)
+    sys.setrecursionlimit(2000)
 
     ql_parser.preload_spec()
     gc.freeze()
