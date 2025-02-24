@@ -53,6 +53,6 @@ Need Help?
 
 If you run into issues while following this tutorial:
 
--  Check the `|Gel| documentation <https://docs.geldata.com>`_
+-  Check the `Gel documentation <https://docs.geldata.com>`_
 -  Visit our `community Discord <https://discord.gg/gel>`_
 -  File an issue on `GitHub <https://github.com/geldata/gel>`_

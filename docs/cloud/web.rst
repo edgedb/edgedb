@@ -6,7 +6,7 @@ Web GUI
 
 :edb-alt-title: Using Gel Cloud via the web GUI
 
-If you'd prefer, you can also manage your account via `the |Gel| Cloud
+If you'd prefer, you can also manage your account via `the Gel Cloud
 web-based GUI <https://cloud.geldata.com/>`_.
 
 The first time you access the web UI, you will be prompted to log in. Once you
