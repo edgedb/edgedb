@@ -447,6 +447,13 @@ class TestEdgeQLUserDDL(tb.DDLTestCase):
             COMMIT MIGRATION;
         """)
 
+        await self.con.query("""
+            describe current database config as ddl
+        """)
+        await self.con.query("""
+            describe instance config as ddl
+        """)
+
         await self.con.execute(f"""
             START MIGRATION TO {{
                 {ext_commands}
