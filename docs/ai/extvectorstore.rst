@@ -1,3 +1,5 @@
+:orphan:
+
 .. _ref_extvectorstore_reference:
 
 ================

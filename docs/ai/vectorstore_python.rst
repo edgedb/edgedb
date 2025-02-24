@@ -1,3 +1,5 @@
+:orphan:
+
 .. _ref_ai_vectorstore_python:
 
 ======================
