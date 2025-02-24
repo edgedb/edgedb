@@ -20,11 +20,6 @@ We'll build a simple event management system where you'll be able to fetch,
 create, update, and delete *events* and *event hosts* via RESTful API
 endpoints.
 
-Watch our video tour of this example project to get a preview of what you'll be
-building in this guide:
-
-.. edb:youtube-embed:: OZ_UURzDkow
-
 Prerequisites
 =============
 

@@ -27,8 +27,3 @@ To learn about our recommended development migration workflow using
     If you want to apply a migration in the same manner as ``watch`` but
     without the long-running process, use :gelcmd:`migrate --dev-mode`. See
     :ref:`ref_cli_gel_migration_apply` for more details.
-
-Demo
-====
-
-.. edb:youtube-embed:: _IUSPBm2xEA

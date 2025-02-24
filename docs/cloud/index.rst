@@ -46,8 +46,6 @@ variables accessible to your production application:
 * :gelenv:`SECRET_KEY` - contains the secret key you generated
 * :gelenv:`INSTANCE` - the name of your |Gel| Cloud instance (``<org-name>/<instance-name>``)
 
-.. edb:youtube-embed:: IG1MggUzzH4
-
 
 Two ways to use Gel Cloud
 =========================
