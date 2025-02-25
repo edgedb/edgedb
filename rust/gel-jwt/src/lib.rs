@@ -369,7 +369,7 @@ mod tests {
         // With no claim validation, the token should be valid
         let res = registry.validate(&token, &validation_ctx);
         assert!(
-            matches!(res, Ok(_)),
+            res.is_ok(),
             "{}",
             res.unwrap_err().error_string_not_for_user()
         );

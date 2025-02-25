@@ -134,7 +134,7 @@ class Pool(typing.Generic[C]):
 
         self._loop = asyncio.get_running_loop()
         self._channel = rust_async_channel.RustAsyncChannel(
-            self._pool,
+            self._pool._channel,
             self._process_message,
         )
 

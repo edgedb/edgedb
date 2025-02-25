@@ -304,7 +304,7 @@ mod tests {
         );
 
         let (state, body) = cache.get_cache_body(&uri).unwrap();
-        assert_eq!(state, true);
+        assert!(state);
         assert_eq!(body, "contents!".as_bytes());
 
         let (method, uri, headers, body) = get_google();
@@ -334,7 +334,7 @@ mod tests {
         );
 
         let (state, body) = cache.get_cache_body(&uri).unwrap();
-        assert_eq!(state, true);
+        assert!(state);
         assert_eq!(body, "contents!".as_bytes());
     }
 }

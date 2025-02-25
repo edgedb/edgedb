@@ -309,7 +309,7 @@ class HttpClient:
         logger.info(f"HTTP client initialized, user_agent={self._user_agent}")
         try:
             channel = rust_async_channel.RustAsyncChannel(
-                client, self._process_message
+                client._channel, self._process_message
             )
             try:
                 await channel.run()
