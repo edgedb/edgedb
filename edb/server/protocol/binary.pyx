@@ -507,6 +507,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         self,
         rpc.CompilationRequest query_req,
         uint64_t allow_capabilities,
+        tag=None,
     ) -> dbview.CompiledQuery:
         cdef dbview.DatabaseConnectionView dbv
         dbv = self.get_dbview()
@@ -546,6 +547,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
                             query_req,
                             allow_capabilities=allow_capabilities,
                             pgcon=pg_conn,
+                            tag=tag,
                         )
                 else:
                     return await dbv.parse(
@@ -957,7 +959,9 @@ cdef class EdgeConnection(frontend.FrontendConnection):
                 if self.debug:
                     self.debug_print('EXECUTE /CACHE MISS', query_req.source.text())
 
-                compiled = await self._parse(query_req, allow_capabilities)
+                compiled = await self._parse(
+                    query_req, allow_capabilities, tag
+                )
                 query_unit_group = compiled.query_unit_group
                 if self._cancelled:
                     raise ConnectionAbortedError

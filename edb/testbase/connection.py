@@ -367,6 +367,9 @@ class Connection(options._OptionsMixin, abstract.AsyncIOExecutor):
     def _get_state(self):
         return self._options.state
 
+    def _get_annotations(self) -> typing.Dict[str, str]:
+        return self._options.annotations
+
     def _warning_handler(self, warnings, res):
         if self._capture_warnings is not None:
             self._capture_warnings.extend(warnings)
