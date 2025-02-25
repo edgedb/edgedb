@@ -530,7 +530,7 @@ def _compile_cli(build_base, build_temp):
     args = [
         'cargo', 'install',
         '--verbose', '--verbose',
-        '--bin', 'edgedb',
+        '--bin', 'gel',
         '--root', rust_root,
         '--features=dev_mode',
         '--locked',
@@ -564,7 +564,7 @@ def _compile_cli(build_base, build_temp):
             pass
 
         shutil.copy(
-            rust_root / 'bin' / 'edgedb',
+            rust_root / 'bin' / 'gel',
             cli_dest,
         )
 
