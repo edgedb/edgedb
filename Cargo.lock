@@ -1066,9 +1066,9 @@ dependencies = [
 
 [[package]]
 name = "gel-auth"
-version = "0.1.0"
+version = "0.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7dd0d18b7a38096ec70d954de1182efe4beffadb204db20a26945a1692a23af5"
+checksum = "88768ad83c06b9d2b350b2e62b4000666ffccfe768275b47772dee218af3a8e8"
 dependencies = [
  "base64 0.22.1",
  "constant_time_eq",
@@ -1145,9 +1145,9 @@ dependencies = [
 
 [[package]]
 name = "gel-stream"
-version = "0.1.0"
+version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0be15b92af666ec067a3dd68cf500f10f1d349a80945d0cb4c0877e36decb185"
+checksum = "db7358591cd63ecab3dd9b84297e0b0e78dc611eb90d91db5ab6651d085c426a"
 dependencies = [
  "derive_more",
  "futures",
