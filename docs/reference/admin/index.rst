@@ -26,13 +26,17 @@ Administrative commands for managing Gel:
 
       Create, remove, or alter a branch.
 
-    * :ref:`administer statistics_update() <ref_admin_statistics_update>`
-
-      Update internal statistics about data.
-
     * :ref:`administer vacuum() <ref_admin_vacuum>`
 
       Reclaim storage space.
+
+.. versionadded:: 6.0
+
+    Another administrative command was added in |Gel| 6 release:
+
+    * :ref:`administer statistics_update() <ref_admin_statistics_update>`
+
+      Update internal statistics about data.
 
 
 .. toctree::

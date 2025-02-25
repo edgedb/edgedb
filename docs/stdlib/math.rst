@@ -203,6 +203,8 @@ Math
 
     :index: trigonometry
 
+    .. versionadded:: 6.0
+
     Returns the value of pi.
 
     .. code-block:: edgeql-repl
@@ -217,6 +219,8 @@ Math
 .. eql:function:: math::acos(x: float64) -> float64
 
     :index: trigonometry
+
+    .. versionadded:: 6.0
 
     Returns the arc cosine of the input.
 
@@ -237,6 +241,8 @@ Math
 
     :index: trigonometry
 
+    .. versionadded:: 6.0
+
     Returns the arc sine of the input.
 
     .. code-block:: edgeql-repl
@@ -256,6 +262,8 @@ Math
 
     :index: trigonometry
 
+    .. versionadded:: 6.0
+
     Returns the arc tangent of the input.
 
     .. code-block:: edgeql-repl
@@ -274,6 +282,8 @@ Math
 .. eql:function:: math::atan2(y: float64, x: float64) -> float64
 
     :index: trigonometry
+
+    .. versionadded:: 6.0
 
     Returns the arc tangent of ``y / x``.
 
@@ -298,6 +308,8 @@ Math
 
     :index: trigonometry
 
+    .. versionadded:: 6.0
+
     Returns the cosine of the input.
 
     .. code-block:: edgeql-repl
@@ -319,6 +331,8 @@ Math
 
     :index: trigonometry
 
+    .. versionadded:: 6.0
+
     Returns the cotangent of the input.
 
     .. code-block:: edgeql-repl
@@ -337,6 +351,8 @@ Math
 .. eql:function:: math::sin(x: float64) -> float64
 
     :index: trigonometry
+
+    .. versionadded:: 6.0
 
     Returns the sinine of the input.
 
@@ -358,6 +374,8 @@ Math
 .. eql:function:: math::tan(x: float64) -> float64
 
     :index: trigonometry
+
+    .. versionadded:: 6.0
 
     Returns the tanangent of the input.
 

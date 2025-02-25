@@ -324,6 +324,8 @@ Client
 
     .. js:method:: executeSQL(query: string, args?: unknown[]): Promise<void>
 
+        .. versionadded:: 6.0
+
         Execute a SQL command.
 
         :param query: SQL query text.
@@ -339,6 +341,8 @@ Client
             `)
 
     .. js:method:: querySQL<T>(query: string, args?: unknown[]): Promise<T[]>
+
+        .. versionadded:: 6.0
 
         Run a SQL query and return the results as an array.
         This method **always** returns an array.
