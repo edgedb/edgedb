@@ -237,6 +237,11 @@ class MultiTenantServer(server.BaseServer):
             "edgedb.server_version": buildmeta.get_version_json(),
         })
 
+        if self._jws_key is None:
+            raise server.StartupError(
+                "No secret key"
+            )
+
         tenant = edbtenant.Tenant(
             cluster,
             instance_name=conf["instance-name"],
@@ -252,7 +257,7 @@ class MultiTenantServer(server.BaseServer):
             config_file=config_file,
         )
         tenant.set_server(self)
-        tenant.load_jwcrypto()
+        tenant.load_jwcrypto(self._jws_key)
         if config_file:
             await tenant.load_config_file(self.get_compiler_pool())
         try:

@@ -29,7 +29,7 @@ from edgedb import scram
 
 from edb.common import debug
 from edb.common import markup
-from edb.common import secretkey
+from edb.server import auth
 
 if TYPE_CHECKING:
     from edb.server import tenant as edbtenant
@@ -89,7 +89,8 @@ def handle_request(
         response.close_connection = True
         return
 
-    if not server.get_jws_key().has_private:  # type: ignore[union-attr]
+    jws = server.get_jws_key()
+    if jws is None or not jws.has_private_keys():
         response.body = b"Server doesn't support HTTP SCRAM authentication"
         response.status = http.HTTPStatus.FORBIDDEN
         response.close_connection = True
@@ -268,9 +269,8 @@ def handle_request(
         ).decode("ascii")
 
         try:
-            response.body = secretkey.generate_secret_key(
-                server.get_jws_key(),
-                roles=[username],
+            response.body = auth.generate_gel_token(
+                jws, roles=[username],
             ).encode("ascii")
         except ValueError as ex:
             if debug.flags.server:

@@ -18,15 +18,19 @@
 
 import uuid
 import urllib.parse
-import json
 import enum
+import logging
 
 from typing import Any, Callable
-from jwcrypto import jwt, jwk
 from datetime import datetime
 
 from . import data, errors
 from edb.server.http import HttpClient
+from edb.server import auth as jwt_auth
+from edb.server.protocol.auth_ext import util as auth_util
+from edb.server import metrics
+
+logger = logging.getLogger("edb.server.ext.auth")
 
 
 class BaseProvider:
@@ -145,28 +149,49 @@ class OpenIDConnectProvider(BaseProvider):
             )
         id_token = token_response.id_token
 
-        # Retrieve JWK Set
+        # Retrieve JWK Set, potentially from the cache
         oidc_config = await self._get_oidc_config()
-        jwks_uri = urllib.parse.urlparse(oidc_config.jwks_uri)
-        async with self.http_factory(
-            base_url=f"{jwks_uri.scheme}://{jwks_uri.netloc}"
-        ) as client:
-            r = await client.get(jwks_uri.path, cache=True)
-
-        # Load the token as a JWT object and verify it directly
         try:
-            jwk_set = jwk.JWKSet.from_json(r.text)
-            id_token_verified = jwt.JWT(key=jwk_set, jwt=id_token)
-            payload = json.loads(id_token_verified.claims)
+            async def fetcher(url: str) -> jwt_auth.JWKSet:
+                jwks_uri = urllib.parse.urlparse(url)
+                async with self.http_factory(
+                    base_url=f"{jwks_uri.scheme}://{jwks_uri.netloc}"
+                ) as client:
+                    r = await client.get(jwks_uri.path, cache=True)
+                    jwk_set = jwt_auth.JWKSet()
+                    jwk_set.load_json(r.text)
+                    jwk_set.default_validation_context.allow(
+                        "aud", [self.client_id]
+                    )
+                    jwk_set.default_validation_context.require_expiry()
+                    metrics.auth_provider_jwkset_fetch_success.inc(
+                        1.0, self.name
+                    )
+                    return jwk_set
+
+            jwk_set = await auth_util.get_remote_jwtset(
+                oidc_config.jwks_uri, fetcher
+            )
         except Exception as e:
+            metrics.auth_provider_jwkset_fetch_errors.inc(1.0, self.name)
+            logger.exception(
+                f"Failed to fetch JWK Set from provider {oidc_config.jwks_uri}"
+            )
+            raise errors.MisconfiguredProvider(
+                f"Failed to fetch JWK Set from provider {oidc_config.jwks_uri}"
+            ) from e
+
+        # Load the token as a JWT object and verify it directly. This will
+        # validate the audience and expiry.
+        try:
+            payload = jwk_set.validate(id_token)
+        except Exception as e:
+            metrics.auth_provider_token_validation_errors.inc(1.0, self.name)
             raise errors.MisconfiguredProvider(
                 "Failed to parse ID token with provider keyset"
             ) from e
-        if payload.get("aud") != self.client_id:
-            raise errors.InvalidData(
-                "Invalid value for aud in id_token: "
-                f"{payload.get('aud')} != {self.client_id}"
-            )
+
+        metrics.auth_provider_token_validation_success.inc(1.0, self.name)
 
         return data.UserInfo(
             sub=str(payload["sub"]),

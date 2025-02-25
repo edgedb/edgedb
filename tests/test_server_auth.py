@@ -27,15 +27,13 @@ import unittest
 import urllib.error
 import urllib.request
 
-import jwcrypto.jwk
-
 import edgedb
 
 from edb import errors
 from edb import protocol
-from edb.common import secretkey
 from edb.server import args
 from edb.server import cluster as edbcluster
+from edb.server.auth import JWKSet, generate_gel_token, load_secret_key
 from edb.schema import defines as s_def
 from edb.testbase import server as tb
 
@@ -374,15 +372,16 @@ class TestServerAuth(tb.ConnectedTestCase):
     async def test_server_auth_jwt_1(self):
         jwk_fd, jwk_file = tempfile.mkstemp()
 
-        key = jwcrypto.jwk.JWK(generate='EC')
+        jws = JWKSet()
+        jws.generate(kid=None, kty="ES256")
         with open(jwk_fd, "wb") as f:
-            f.write(key.export_to_pem(private_key=True, password=None))
-        jwk = secretkey.load_secret_key(pathlib.Path(jwk_file))
+            f.write(jws.export_pem())
+
         async with tb.start_edgedb_server(
             jws_key_file=pathlib.Path(jwk_file),
             default_auth_method=args.ServerAuthMethod.JWT,
         ) as sd:
-            base_sk = secretkey.generate_secret_key(jwk)
+            base_sk = generate_gel_token(jws)
             conn = await sd.connect(secret_key=base_sk)
             await conn.execute('''
                 CREATE SUPERUSER ROLE foo {
@@ -419,7 +418,7 @@ class TestServerAuth(tb.ConnectedTestCase):
             ):
                 await sd.connect(secret_key='wrong')
 
-            sk = secretkey.generate_secret_key(jwk)
+            sk = generate_gel_token(jws)
             corrupt_sk = sk[:50] + "0" + sk[51:]
 
             with self.assertRaisesRegex(
@@ -467,7 +466,7 @@ class TestServerAuth(tb.ConnectedTestCase):
             for params in good_keys:
                 params_dict = dict(params)
                 with self.subTest(**params_dict):
-                    sk = secretkey.generate_secret_key(jwk, **params_dict)
+                    sk = generate_gel_token(jws, **params_dict)
                     conn = await sd.connect(secret_key=sk)
                     await conn.aclose()
 
@@ -491,7 +490,7 @@ class TestServerAuth(tb.ConnectedTestCase):
             for params, msg in bad_keys.items():
                 params_dict = dict(params)
                 with self.subTest(**params_dict):
-                    sk = secretkey.generate_secret_key(jwk, **params_dict)
+                    sk = generate_gel_token(jws, **params_dict)
                     with self.assertRaisesRegex(
                         edgedb.AuthenticationError,
                         "authentication failed: " + msg,
@@ -510,9 +509,10 @@ class TestServerAuth(tb.ConnectedTestCase):
     async def test_server_auth_jwt_2(self):
         jwk_fd, jwk_file = tempfile.mkstemp()
 
-        key = jwcrypto.jwk.JWK(generate='EC')
+        jws = JWKSet()
+        jws.generate(kid=None, kty="ES256")
         with open(jwk_fd, "wb") as f:
-            f.write(key.export_to_pem(private_key=True, password=None))
+            f.write(jws.export_pem())
 
         allowlist_fd, allowlist_file = tempfile.mkstemp()
         os.close(allowlist_fd)
@@ -539,7 +539,7 @@ class TestServerAuth(tb.ConnectedTestCase):
             jwt_revocation_list_file=revokelist_file,
         ) as sd:
 
-            jwk = secretkey.load_secret_key(pathlib.Path(jwk_file))
+            jwk = load_secret_key(pathlib.Path(jwk_file))
 
             # enable JWT
             conn = await sd.connect()
@@ -555,14 +555,14 @@ class TestServerAuth(tb.ConnectedTestCase):
             await conn.aclose()
 
             # Try connecting with "test" not being in the allowlist.
-            sk = secretkey.generate_secret_key(
+            sk = generate_gel_token(
                 jwk,
-                subject=subject,
-                key_id=key_id,
+                sub=subject,
+                jti=key_id,
             )
             with self.assertRaisesRegex(
                 edgedb.AuthenticationError,
-                'authentication failed: unauthorized subject',
+                'authentication failed: Verification failed',
             ):
                 await sd.connect(secret_key=sk)
 
@@ -585,7 +585,7 @@ class TestServerAuth(tb.ConnectedTestCase):
 
             with self.assertRaisesRegex(
                 edgedb.AuthenticationError,
-                'authentication failed: revoked key',
+                'authentication failed: Verification failed',
             ):
                 await sd.connect(secret_key=sk)
 
@@ -596,10 +596,11 @@ class TestServerAuth(tb.ConnectedTestCase):
     async def test_server_auth_multiple_methods(self):
         jwk_fd, jwk_file = tempfile.mkstemp()
 
-        key = jwcrypto.jwk.JWK(generate='EC')
+        jws = JWKSet()
+        jws.generate(kid=None, kty="ES256")
         with open(jwk_fd, "wb") as f:
-            f.write(key.export_to_pem(private_key=True, password=None))
-        jwk = secretkey.load_secret_key(pathlib.Path(jwk_file))
+            f.write(jws.export_pem())
+        jwk = load_secret_key(pathlib.Path(jwk_file))
         async with tb.start_edgedb_server(
             jws_key_file=pathlib.Path(jwk_file),
             default_auth_method=args.ServerAuthMethods({
@@ -613,7 +614,7 @@ class TestServerAuth(tb.ConnectedTestCase):
                 ],
             }),
         ) as sd:
-            base_sk = secretkey.generate_secret_key(jwk)
+            base_sk = generate_gel_token(jwk)
             conn = await sd.connect(secret_key=base_sk)
             await conn.execute('''
                 CREATE EXTENSION edgeql_http;
@@ -633,7 +634,7 @@ class TestServerAuth(tb.ConnectedTestCase):
             c1 = await sd.connect(secret_key='wrong')
             await c1.aclose()
 
-            sk = secretkey.generate_secret_key(jwk)
+            sk = generate_gel_token(jwk)
 
             body, _, code = await self._jwt_http_request(sd, sk=sk)
             self.assertEqual(code, 200, f"Wrong result: {body}")

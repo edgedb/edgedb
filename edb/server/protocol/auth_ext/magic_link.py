@@ -27,19 +27,27 @@ from edb import errors as edb_errors
 from edb.common import debug
 from edb.server.protocol import execute
 
-from . import config, data, errors, util, local, email as auth_emails
+from . import config, data, errors, jwt, util, local, email as auth_emails
 
 
 logger = logging.getLogger('edb.server')
 
 
 class Client(local.Client):
-    def __init__(self, db: Any, tenant: Any, test_mode: bool, issuer: str):
+    def __init__(
+        self,
+        db: Any,
+        tenant: Any,
+        test_mode: bool,
+        issuer: str,
+        signing_key: jwt.SigningKey,
+    ):
         super().__init__(db)
         self.tenant = tenant
         self.test_mode = test_mode
         self.issuer = issuer
         self.provider = self._get_provider()
+        self.signing_key = signing_key
 
     def _get_provider(self) -> config.MagicLinkProviderConfig:
         provider_name = "builtin::local_magic_link"
@@ -103,17 +111,12 @@ select email_factor { ** };""",
         callback_url: str,
         challenge: str,
     ) -> str:
-        initial_key_material = self._get_signing_key()
-        signing_key = util.derive_key(initial_key_material, "magic_link")
-        return util.make_token(
-            signing_key=signing_key,
-            issuer=self.issuer,
+        return jwt.MagicLinkToken(
             subject=identity_id,
-            additional_claims={
-                "challenge": challenge,
-                "callback_url": callback_url,
-            },
-            include_issued_at=True,
+            callback_url=callback_url,
+            challenge=challenge,
+        ).sign(
+            self.signing_key,
             expires_in=self.provider.token_time_to_live.to_timedelta(),
         )
 
