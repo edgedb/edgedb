@@ -2145,8 +2145,8 @@ jobs:
     steps:
     - uses: actions/checkout@v4
       with:
-        repository: edgedb/edgedb-docker
-        ref: master
+        repository: geldata/gel-docker
+        ref: edgedb
         path: dockerfile
 
     - env:
