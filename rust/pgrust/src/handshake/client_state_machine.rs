@@ -338,9 +338,8 @@ impl ConnectionState {
                     },
                 });
             }
-            (Ready, _) | (Error, _) => {
-                return Err(invalid_state!("Unexpected drive for Ready or Error state"))
-            }
+            (Ready, _) => return Err(invalid_state!("Unexpected drive for Ready state")),
+            (Error, _) => return Err(invalid_state!("Unexpected drive for Error state")),
             _ => return Err(invalid_state!("Unexpected (state, drive) combination")),
         }
         Ok(())
