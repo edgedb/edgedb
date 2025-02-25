@@ -245,10 +245,14 @@ to it by implementing web search capabilities.
           # then pad it with spaces so that it's offset appropriately for its depth
 
           if comment["text"]:
-              timestamp = datetime.fromisoformat(comment["created_at"].replace("Z", "+00:00"))
+              timestamp = datetime.fromisoformat(
+                  comment["created_at"].replace("Z", "+00:00")
+              )
               author = comment["author"]
               text = html.unescape(comment["text"])
-              formatted_comment = f"[{timestamp.strftime('%Y-%m-%d %H:%M')}] {author}: {text}"
+              formatted_comment = (
+                  f"[{timestamp.strftime('%Y-%m-%d %H:%M')}] {author}: {text}"
+              )
               results.append(("  " * current_depth) + formatted_comment)
 
           # If there're children comments, we are going to extract them too,
@@ -256,7 +260,9 @@ to it by implementing web search capabilities.
 
           if comment.get("children"):
               for child in comment["children"][:max_children]:
-                  child_comments = extract_comment_thread(child, max_depth, current_depth + 1)
+                  child_comments = extract_comment_thread(
+                      child, max_depth, current_depth + 1
+                  )
                   results.extend(child_comments)
 
           return results
@@ -264,9 +270,10 @@ to it by implementing web search capabilities.
 
       def fetch_web_sources(query: str, limit: int = 5) -> list[WebSource]:
           """
-          For a given query perform a full-text search for stories on Hacker News.
-          From each of the matched stories extract the comment thread and format it into a single string.
-          For each story return its title, url and comment thread.
+          For a given query perform a full-text search for stories on Hacker
+          News. From each of the matched stories extract the comment thread and
+          format it into a single string. For each story return its title, url
+          and comment thread.
           """
           search_url = "http://hn.algolia.com/api/v1/search_by_date?numericFilters=num_comments>0"
 
@@ -296,9 +303,7 @@ to it by implementing web search capabilities.
               title = hit["title"]
               comments = extract_comment_thread(item_result)
               text = "\n".join(comments) if len(comments) > 0 else None
-              web_sources.append(
-                  WebSource(url=site_url, title=title, text=text)
-              )
+              web_sources.append(WebSource(url=site_url, title=title, text=text))
 
           return web_sources
 
@@ -310,6 +315,7 @@ to it by implementing web search capabilities.
               print(source.url)
               print(source.title)
               print(source.text)
+
 
 
 .. edb:split-section::
@@ -394,10 +400,15 @@ those results to the LLM to get a nice-looking summary.
       _ = load_dotenv()
 
 
-      def get_llm_completion(system_prompt: str, messages: list[dict[str, str]]) -> str:
+      def get_llm_completion(
+          system_prompt: str, messages: list[dict[str, str]]
+      ) -> str:
           api_key = os.getenv("OPENAI_API_KEY")
           url = "https://api.openai.com/v1/chat/completions"
-          headers = {"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"}
+          headers = {
+              "Content-Type": "application/json",
+              "Authorization": f"Bearer {api_key}",
+          }
 
           response = requests.post(
               url,
@@ -413,6 +424,7 @@ those results to the LLM to get a nice-looking summary.
           response.raise_for_status()
           result = response.json()
           return result["choices"][0]["message"]["content"]
+
 
 
 .. edb:split-section::
@@ -456,8 +468,9 @@ those results to the LLM to get a nice-looking summary.
           system_prompt = (
               "You are a helpful assistant that answers user's questions"
               + " by finding relevant information in Hacker News threads."
-              + " When answering the question, describe conversations that people have around the subject,"
-              + " provided to you as a context, or say i don't know if they are completely irrelevant."
+              + " When answering the question, describe conversations that people"
+              + " have around the subject, provided to you as a context, or say"
+              + " i don't know if they are completely irrelevant."
           )
 
           prompt = f"User search query: {query}\n\nWeb search results:\n"
@@ -817,7 +830,11 @@ basics before proceeding.
       :caption: app/main.py
 
       from edgedb import create_async_client
-      from .queries.get_users_async_edgeql import get_users as get_users_query, GetUsersResult
+      from .queries.get_users_async_edgeql import (
+          get_users as get_users_query,
+          GetUsersResult,
+      )
+
 
 
       gel_client = create_async_client()
@@ -1046,7 +1063,10 @@ basics before proceeding.
       :caption: app/main.py
       :class: collapsible
 
-      from .queries.get_chats_async_edgeql import get_chats as get_chats_query, GetChatsResult
+       from .queries.get_chats_async_edgeql import (
+          get_chats as get_chats_query,
+          GetChatsResult,
+      )
       from .queries.get_chat_by_id_async_edgeql import (
           get_chat_by_id as get_chat_by_id_query,
           GetChatByIdResult,
@@ -1076,7 +1096,9 @@ basics before proceeding.
               if not chat:
                   raise HTTPException(
                       HTTPStatus.NOT_FOUND,
-                      detail={"error": f"Chat {chat_id} for user {username} does not exist."},
+                      detail={
+                          "error": f"Chat {chat_id} for user {username} does not exist."
+                      },
                   )
               return chat
           else:
@@ -1093,7 +1115,9 @@ basics before proceeding.
           username: str = Query(), chat_id: str = Query()
       ) -> list[GetMessagesResult]:
           """Fetch all messages from a chat"""
-          return await get_messages_query(gel_client, username=username, chat_id=chat_id)
+          return await get_messages_query(
+              gel_client, username=username, chat_id=chat_id
+          )
 
 
 .. edb:split-section::
@@ -1168,8 +1192,9 @@ basics before proceeding.
             system_prompt = (
                 "You are a helpful assistant that answers user's questions"
                 + " by finding relevant information in HackerNews threads."
-                + " When answering the question, describe conversations that people have around the subject,"
-                + " provided to you as a context, or say i don't know if they are completely irrelevant."
+                + " When answering the question, describe conversations that"
+                + " people have around the subject, provided to you as a context,"
+                + " or say i don't know if they are completely irrelevant."
             )
 
             prompt = f"User search query: {query}\n\nWeb search results:\n"
@@ -1180,7 +1205,8 @@ basics before proceeding.
 
       -     messages = [{"role": "user", "content": prompt}]
       +     messages = [
-      +         {"role": message.role, "content": message.body} for message in chat_history
+      +         {"role": message.role, "content": message.body}
+      +         for message in chat_history
       +     ]
       +     messages.append({"role": "user", "content": prompt})
 
@@ -1305,8 +1331,10 @@ working on our query rather than rewriting it from scratch every time.
           prompt = f"Chat history: {formatted_history}\n\nUser message: {query} \n\n"
 
           llm_response = get_llm_completion(
-              system_prompt=system_prompt, messages=[{"role": "user", "content": prompt}]
+              system_prompt=system_prompt,
+              messages=[{"role": "user", "content": prompt}],
           )
+
 
           return llm_response
 
@@ -1349,7 +1377,9 @@ working on our query rather than rewriting it from scratch every time.
 
             # 3. Generate a query and perform googling
       -     search_query = search_terms.query
-      +     search_query = await generate_search_query(search_terms.query, chat_history)
+      +     search_query = await generate_search_query(
+      +         search_terms.query, chat_history
+      +     )
       +     web_sources = await search_web(search_query)
 
 
@@ -1360,7 +1390,8 @@ working on our query rather than rewriting it from scratch every time.
                 web_sources,
             )
       +     search_result.search_query = search_query  # add search query to the output
-      +                                                # to see what the bot is searching for
+      +                                                # to see what the bot is
+      +                                                # searching for
             # 6. Add LLM response to Gel
             _ = await add_message_query(
                 gel_client,
@@ -1577,11 +1608,15 @@ schema.
             )
 
             # 3. Generate a query and perform googling
-            search_query = await generate_search_query(search_terms.query, chat_history)
+            search_query = await generate_search_query(
+                search_terms.query, chat_history
+            )
             web_sources = await search_web(search_query)
 
       +     # 4. Fetch similar chats
-      +     db_ai: AsyncEdgeDBAI = await create_async_ai(gel_client, model="gpt-4o-mini")
+      +     db_ai: AsyncEdgeDBAI = await create_async_ai(
+      +         gel_client, model="gpt-4o-mini"
+      +     )
       +     embedding = await db_ai.generate_embeddings(
       +         search_query, model="text-embedding-3-small"
       +     )
@@ -1601,7 +1636,8 @@ schema.
       +         similar_chats,
             )
             search_result.search_query = search_query  # add search query to the output
-                                                       # to see what the bot is searching for
+                                                       # to see what the bot is
+                                                       # searching for
             # 6. Add LLM response to Gel
             _ = await add_message_query(
                 gel_client,
@@ -1633,7 +1669,9 @@ schema.
             system_prompt = (
                 "You are a helpful assistant that answers user's questions"
                 + " by finding relevant information in HackerNews threads."
-                + " When answering the question, describe conversations that people have around the subject, provided to you as a context, or say i don't know if they are completely irrelevant."
+                + " When answering the question, describe conversations that"
+                + " people have around the subject, provided to you as a context,"
+                + " or say i don't know if they are completely irrelevant."
       +         + " You can reference previous conversation with the user that"
       +         + " are provided to you, if they are relevant, by explicitly referring"
       +         + " to them by saying as we discussed in the past."
@@ -1657,7 +1695,8 @@ schema.
       +     prompt += "\n".join(formatted_chats)
 
             messages = [
-                {"role": message.role, "content": message.body} for message in chat_history
+                {"role": message.role, "content": message.body}
+                for message in chat_history
             ]
             messages.append({"role": "user", "content": prompt})
 
