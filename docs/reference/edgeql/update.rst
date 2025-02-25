@@ -1,139 +1,182 @@
-.. _ref_eql_statements_update:
+.. _ref_eql_update:
 
 Update
 ======
 
-:eql-statement:
-:eql-haswith:
+.. index:: update, filter, set
 
-``update`` -- update objects in a database
+The ``update`` command is used to update existing objects.
 
-.. eql:synopsis::
+.. code-block:: edgeql-repl
 
-    [ with <with-item> [, ...] ]
+  db> update Hero
+  ... filter .name = "Hawkeye"
+  ... set { name := "Ronin" };
+  {default::Hero {id: d476b12e-3e7b-11ec-af13-2717f3dc1d8a}}
 
-    update <selector-expr>
+If you omit the ``filter`` clause, all objects will be updated. This is useful
+for updating values across all objects of a given type. The example below
+cleans up all ``Hero.name`` values by trimming whitespace and converting them
+to title case.
 
-    [ filter <filter-expr> ]
+.. code-block:: edgeql-repl
 
-    set <shape> ;
+  db> update Hero
+  ... set { name := str_trim(str_title(.name)) };
+  {default::Hero {id: d476b12e-3e7b-11ec-af13-2717f3dc1d8a}}
 
-``update`` changes the values of the specified links in all objects
-selected by *update-selector-expr* and, optionally, filtered by
-*filter-expr*.
+Syntax
+^^^^^^
 
-:eql:synopsis:`with`
-    Alias declarations.
+The structure of the ``update`` statement (``update...filter...set``) is an
+intentional inversion of SQL's ``UPDATE...SET...WHERE`` syntax. Curiously, in
+SQL, the ``where`` clauses typically occur *last* despite being applied before
+the ``set`` statement. EdgeQL is structured to reflect this; first, a target
+set is specified, then filters are applied, then the data is updated.
 
-    The ``with`` clause allows specifying module aliases as well
-    as expression aliases that can be referenced by the ``update``
-    statement.  See :ref:`ref_eql_statements_with` for more information.
+Updating properties
+-------------------
 
-:eql:synopsis:`update <selector-expr>`
-    An arbitrary expression returning a set of objects to be updated.
+.. index:: unset
 
-:eql:synopsis:`filter <filter-expr>`
-    An expression of type :eql:type:`bool` used to filter the
-    set of updated objects.
-
-    :eql:synopsis:`<filter-expr>` is an expression that has a result
-    of type :eql:type:`bool`.  Only objects that satisfy the filter
-    expression will be updated.  See the description of the
-    ``filter`` clause of the :eql:stmt:`select` statement for more
-    information.
-
-:eql:synopsis:`set <shape>`
-    A shape expression with the
-    new values for the links of the updated object. There are three
-    possible assignment operations permitted within the ``set`` shape:
-
-    .. eql:synopsis::
-
-        set { <field> := <update-expr> [, ...] }
-
-        set { <field> += <update-expr> [, ...] }
-
-        set { <field> -= <update-expr> [, ...] }
-
-    The most basic assignment is the ``:=``, which just sets the
-    :eql:synopsis:`<field>` to the specified
-    :eql:synopsis:`<update-expr>`. The ``+=`` and ``-=`` either add or
-    remove the set of values specified by the
-    :eql:synopsis:`<update-expr>` from the *current* value of the
-    :eql:synopsis:`<field>`.
-
-Output
-~~~~~~
-
-On successful completion, an ``update`` statement returns the
-set of updated objects.
-
-
-Examples
-~~~~~~~~
-
-Here are a couple of examples of the ``update`` statement with simple
-assignments using ``:=``:
+To explicitly unset a property that is not required, set it to an empty set.
 
 .. code-block:: edgeql
 
-    # update the user with the name 'Alice Smith'
-    with module example
-    update User
-    filter .name = 'Alice Smith'
-    set {
-        name := 'Alice J. Smith'
-    };
+   update Person filter .id = <uuid>$id set { middle_name := {} };
 
-    # update all users whose name is 'Bob'
-    with module example
-    update User
-    filter .name like 'Bob%'
-    set {
-        name := User.name ++ '*'
-    };
+Updating links
+--------------
 
-For usage of ``+=`` and ``-=`` consider the following ``Post`` type:
+.. index:: :=, +=, -=
 
-.. code-block:: sdl
+When updating links, the ``:=`` operator will *replace* the set of linked
+values.
 
-    # ... Assume some User type is already defined
-    type Post {
-        required title: str;
-        required body: str;
-        # A "tags" property containing a set of strings
-        multi tags: str;
-        author: User;
+.. code-block:: edgeql-repl
+
+  db> update movie
+  ... filter .title = "Black Widow"
+  ... set {
+  ...  characters := (
+  ...   select Person
+  ...   filter .name in { "Black Widow", "Yelena", "Dreykov" }
+  ...  )
+  ... };
+  {default::Title {id: af706c7c-3e98-11ec-abb3-4bbf3f18a61a}}
+  db> select Movie { num_characters := count(.characters) }
+  ... filter .title = "Black Widow";
+  {default::Movie {num_characters: 3}}
+
+To add additional linked items, use the ``+=`` operator.
+
+.. code-block:: edgeql-repl
+
+  db> update Movie
+  ... filter .title = "Black Widow"
+  ... set {
+  ...  characters += (insert Villain {name := "Taskmaster"})
+  ... };
+  {default::Title {id: af706c7c-3e98-11ec-abb3-4bbf3f18a61a}}
+  db> select Movie { num_characters := count(.characters) }
+  ... filter .title = "Black Widow";
+  {default::Movie {num_characters: 4}}
+
+To remove items, use ``-=``.
+
+.. code-block:: edgeql-repl
+
+  db> update Movie
+  ... filter .title = "Black Widow"
+  ... set {
+  ...  characters -= Villain # remove all villains
+  ... };
+  {default::Title {id: af706c7c-3e98-11ec-abb3-4bbf3f18a61a}}
+  db> select Movie { num_characters := count(.characters) }
+  ... filter .title = "Black Widow";
+  {default::Movie {num_characters: 2}}
+
+Returning data on update
+------------------------
+
+.. index:: update, returning
+
+By default, ``update`` returns only the inserted object's ``id`` as seen in the
+examples above. If you want to get additional data back, you may wrap your
+``update`` with a ``select`` and apply a shape specifying any properties and
+links you want returned:
+
+.. code-block:: edgeql-repl
+
+  db> select (update Hero
+  ...   filter .name = "Hawkeye"
+  ...   set { name := "Ronin" }
+  ... ) {id, name};
+  {
+    default::Hero {
+      id: d476b12e-3e7b-11ec-af13-2717f3dc1d8a,
+      name: "Ronin"
     }
+  }
 
-The following queries add or remove tags from some user's posts:
+With blocks
+-----------
 
-.. code-block:: edgeql
+.. index:: with update
 
-    with module example
-    update Post
-    filter .author.name = 'Alice Smith'
-    set {
-        # add tags
-        tags += {'example', 'edgeql'}
-    };
+All top-level EdgeQL statements (``select``, ``insert``, ``update``, and
+``delete``) can be prefixed with a ``with`` block. This is useful for updating
+the results of a complex query.
 
-    with module example
-    update Post
-    filter .author.name = 'Alice Smith'
-    set {
-        # remove a tag, if it exist
-        tags -= 'todo'
-    };
+.. code-block:: edgeql-repl
+
+  db> with people := (
+  ...     select Person
+  ...     order by .name
+  ...     offset 3
+  ...     limit 3
+  ...   )
+  ... update people
+  ... set { name := str_trim(.name) };
+  {
+    default::Hero {id: d4764c66-3e7b-11ec-af13-df1ba5b91187},
+    default::Hero {id: d7d7e0f6-40ae-11ec-87b1-3f06bed494b9},
+    default::Villain {id: d477a836-3e7b-11ec-af13-4fea611d1c31},
+  }
+
+.. note::
+
+  You can pass any object-type expression into ``update``, including
+  polymorphic ones (as above).
+
+You can also use ``with`` to make returning additional data from an update more
+readable:
+
+.. code-block:: edgeql-repl
+
+  db> with UpdatedHero := (update Hero
+  ...   filter .name = "Hawkeye"
+  ...   set { name := "Ronin" }
+  ... )
+  ... select UpdatedHero {
+  ...   id,
+  ...   name
+  ... };
+  {
+    default::Hero {
+      id: d476b12e-3e7b-11ec-af13-2717f3dc1d8a,
+      name: "Ronin"
+    }
+  }
 
 
-The statement ``for <x> in <expr>`` allows to express certain bulk
-updates more clearly. See
-:ref:`ref_eql_forstatement` for more details.
+See also
+--------
+
+For documentation on performing *upsert* operations, see :ref:`EdgeQL > Insert
+> Upserts <ref_eql_upsert>`.
 
 .. list-table::
-  :class: seealso
 
-  * - **See also**
-  * - :ref:`EdgeQL > Update <ref_eql_update>`
+  * - :ref:`Reference > Commands > Update <ref_eql_statements_update>`
   * - :ref:`Cheatsheets > Updating data <ref_cheatsheet_update>`

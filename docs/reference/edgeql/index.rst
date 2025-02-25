@@ -1,93 +1,20 @@
-.. _ref_eql_statements:
+.. versioned-section::
 
+.. _ref_edgeql:
+
+======
 EdgeQL
-========
-
-Statements in EdgeQL are a kind of an *expression* that has one or
-more ``clauses`` and is used to retrieve or modify data in a database.
-
-Query statements:
-
-* :eql:stmt:`select`
-
-  Retrieve data from a database and compute arbitrary expressions.
-
-* :eql:stmt:`for`
-
-  Compute an expression for every element of an input set and
-  concatenate the results.
-
-* :eql:stmt:`group`
-
-  Group data into subsets by keys.
-
-Data modification statements:
-
-* :eql:stmt:`insert`
-
-  Create new object in a database.
-
-* :eql:stmt:`update`
-
-  Update objects in a database.
-
-* :eql:stmt:`delete`
-
-  Remove objects from a database.
-
-Transaction control statements:
-
-* :eql:stmt:`start transaction`
-
-  Start a transaction.
-
-* :eql:stmt:`commit`
-
-  Commit the current transaction.
-
-* :eql:stmt:`rollback`
-
-  Abort the current transaction.
-
-* :eql:stmt:`declare savepoint`
-
-  Declare a savepoint within the current transaction.
-
-* :eql:stmt:`rollback to savepoint`
-
-  Rollback to a savepoint within the current transaction.
-
-* :eql:stmt:`release savepoint`
-
-  Release a previously declared savepoint.
-
-Session state control statements:
-
-* :eql:stmt:`set` and :eql:stmt:`reset`.
-
-Introspection command:
-
-* :eql:stmt:`describe`.
-
-Performance analysis statement:
-
-* :eql:stmt:`analyze`.
-
+======
 
 .. toctree::
     :maxdepth: 3
     :hidden:
 
-
-    lexical
-    eval
-    shapes
+    literals
+    sets
     paths
-    casts
-    functions
-    cardinality
-    volatility
-
+    types
+    parameters
     select
     insert
     update
@@ -96,15 +23,48 @@ Performance analysis statement:
     group
     with
     analyze
+    path_resolution
+    transactions
 
-    tx_start
-    tx_commit
-    tx_rollback
-    tx_sp_declare
-    tx_sp_release
-    tx_sp_rollback
+EdgeQL is a next-generation query language designed to match SQL in power and
+surpass it in terms of clarity, brevity, and intuitiveness. It's used to query
+the database, insert/update/delete data, modify/introspect the schema, manage
+transactions, and more.
 
-    sess_set_alias
-    sess_reset_alias
+Design goals
+------------
 
-    describe
+EdgeQL is a spiritual successor to SQL designed with a few core principles in
+mind.
+
+**Compatible with modern languages**. A jaw-dropping amount of effort has been
+spent attempting to `bridge the gap <https://en.wikipedia.org/wiki/
+Object%E2%80%93relational_impedance_mismatch>`_ between the *relational*
+paradigm of SQL and the *object-oriented* nature of modern programming
+languages. Gel sidesteps this problem by modeling data in an
+*object-relational* way.
+
+**Strongly typed**. EdgeQL is *inextricably tied* to Gel's rigorous
+object-oriented type system. The type of all expressions is statically
+inferred by Gel.
+
+**Designed for programmers**. EdgeQL prioritizes syntax over keywords; It uses
+``{ curly braces }`` to define scopes/structures and the *assignment
+operator* ``:=`` to set values. The result is a query language that looks more
+like code and less like word soup.
+
+.. All told, EdgeQL syntax contains roughly 180
+.. reserved keywords; by comparison Postgres-flavored SQL contains `469
+.. <https://www.postgresql.org/docs/current/sql-keywords-appendix.html>`_.
+
+.. **Compiles to SQL**. All EdgeQL queries, no matter how complex, compile to a
+.. single PostgreSQL query under the hood. With the exception of ``group by``,
+.. EdgeQL is equivalent to SQL in terms of power and expressivity.
+
+**Easy deep querying**. Gel's object-relational nature makes it painless
+to write deep, performant queries that traverse links, no ``JOINs`` required.
+
+**Composable**. `Unlike SQL
+<https://www.geldata.com/blog/we-can-do-better-than-sql#lack-of-orthogonality>`_,
+EdgeQL's syntax is readily composable; queries can be cleanly nested without
+worrying about Cartesian explosion.

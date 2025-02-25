@@ -14,17 +14,7 @@ Welcome to the |Gel| |version| documentation.
     :includehidden:
 
     intro/index
-    datamodel/index
-    ai/index
-    auth/index
-    edgeql/index
-    guides/index
-    stdlib/index
-    clients/index
-    cli/index
     reference/index
-    cheatsheets/index
-    changelog/index
+    auth/index
+    resources/index
     cloud/index
-    reference-intro
-    resources-intro
