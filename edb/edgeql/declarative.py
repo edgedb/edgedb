@@ -1053,6 +1053,18 @@ def trace_Function(
     # before the function.
     deps: List[Dependency] = []
 
+    # We don't actually care to resolve these, but we do need to check for
+    # tracing errors.
+    for param in node.params:
+        if (
+            isinstance(param.type, qlast.TypeName)
+            and isinstance(param.type.maintype, qlast.PseudoObjectRef)
+        ):
+            # generic types are handled elsewhere
+            continue
+        _resolve_type_expr(param.type, ctx=ctx)
+    _resolve_type_expr(node.returning, ctx=ctx)
+
     deps.extend(TypeDependency(texpr=param.type) for param in node.params)
     deps.append(TypeDependency(texpr=node.returning))
 
