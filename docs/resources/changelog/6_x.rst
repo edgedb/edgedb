@@ -309,7 +309,7 @@ EdgeQL
   change, though we expect the real-world impact to be minor. If you
   need a dynamically generated new ID for free objects, it can be
   added manually, using one of our UUID generation functions.
-  
+
   .. code-block:: edgeql
 
     select {
