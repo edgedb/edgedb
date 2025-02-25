@@ -15,6 +15,5 @@ Welcome to the |Gel| |version| documentation.
 
     intro/index
     reference/index
-    auth/index
     resources/index
     cloud/index

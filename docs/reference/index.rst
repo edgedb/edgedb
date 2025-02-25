@@ -12,6 +12,7 @@ Reference
     clients/index
     cli/index
     ai/index
+    auth/index
     reference/index
 
 Learn three components, and you know |Gel|: how to work with
