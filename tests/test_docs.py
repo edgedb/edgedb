@@ -480,7 +480,7 @@ class TestDocSnippets(unittest.TestCase):
 
         with LintControl() as lc:
             for filename in self.find_rest_files(docspath):
-                if '/docs/changelog/' in filename:
+                if '/docs/resources/changelog/' in filename:
                     # changelog files contain a bunch of historical
                     # text that sometimes can't use the new stuff.
                     continue
