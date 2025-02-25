@@ -1053,7 +1053,8 @@ class TestSQLQuery(tb.SQLQueryTestCase):
 
     async def test_sql_query_54(self):
         with self.assertRaisesRegex(
-            asyncpg.UndefinedParameterError, 'there is no parameter \\$0'
+            asyncpg.UndefinedParameterError, 'param out of bounds: \\$0',
+            hint='query parameters start with 1'
         ):
             await self.scon.fetch(
                 '''
