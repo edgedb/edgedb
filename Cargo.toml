@@ -8,9 +8,7 @@ members = [
     "rust/captive_postgres",
     "rust/conn_pool",
     "rust/db_proto",
-    "rust/gel-auth",
     "rust/gel-jwt",
-    "rust/gel-stream",
     "rust/gel-http",
     "rust/pgrust",
     "rust/pyo3_util",
@@ -23,9 +21,10 @@ tokio = { version = "1", features = ["rt", "rt-multi-thread", "macros", "time", 
 tracing = "0.1.40"
 tracing-subscriber = { version = "0.3.18", features = ["registry", "env-filter"] }
 
-gel-auth = { path = "rust/gel-auth" }
+gel-auth = { version = "0.1" }
+gel-stream = { version = "0.1" }
+
 gel-jwt = { path = "rust/gel-jwt" }
-gel-stream = { path = "rust/gel-stream" }
 db_proto = { path = "rust/db_proto" }
 captive_postgres = { path = "rust/captive_postgres" }
 conn_pool = { path = "rust/conn_pool" }
