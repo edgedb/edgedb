@@ -305,6 +305,11 @@ Additional changes
 EdgeQL
 ------
 
+* Free objects no longer have an ``id`` property. This is a breaking
+  change, though we expect the real-world impact to be minor. If you
+  need a dynamically generated new ID for free objects, it can be
+  added manually.
+
 * Add ``__default__`` keyword to refer to default value.
   (:eql:gh:`#7214`)
 
