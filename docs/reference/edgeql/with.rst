@@ -1,180 +1,142 @@
-.. _ref_eql_statements_with:
+.. _ref_eql_with:
 
-With block
-==========
+With
+====
 
-:index: alias module
+.. index:: composition, composing queries, composable, CTE,
+           common table expressions, subquery, subqueries
 
-.. eql:keyword:: with
+All top-level EdgeQL statements (``select``, ``insert``, ``update``, and
+``delete``) can be prefixed by a ``with`` block. These blocks contain
+declarations of standalone expressions that can be used in your query.
 
-    The ``with`` block in EdgeQL is used to define aliases.
+.. code-block:: edgeql-repl
 
-    The expression aliases are evaluated in the lexical scope they appear in,
-    not the scope where their alias is used. This means that refactoring
-    queries using aliases must be done with care so as not to alter the query
-    semantics.
-
-Specifying a module
-+++++++++++++++++++
-
-.. eql:keyword:: module
-
-    Used inside a ``with`` block to specify module names.
-
-One of the more basic and common uses of the ``with`` block is to
-specify the default module that is used in a query. ``with module
-<name>`` construct indicates that whenever an identifier is used
-without any module specified explicitly, the module will default to
-``<name>`` and then fall back to built-ins from ``std`` module.
-
-The following queries are exactly equivalent:
-
-.. code-block:: edgeql
-
-    with module example
-    select User {
-        name,
-        owned := (select
-            User.<owner[is Issue] {
-                number,
-                body
-            }
-        )
-    }
-    filter User.name like 'Alice%';
-
-    select example::User {
-        name,
-        owned := (select
-            example::User.<owner[is example::Issue] {
-                number,
-                body
-            }
-        )
-    }
-    filter example::User.name like 'Alice%';
+  db> with my_str := "hello world"
+  ... select str_title(my_str);
+  {'Hello World'}
 
 
-It is also possible to define aliased modules in the ``with`` block.
-Consider the following query that needs to compare objects
-corresponding to concepts defined in two different modules.
+The ``with`` clause can contain more than one variable. Earlier variables can
+be referenced by later ones. Taken together, it becomes possible to write
+"script-like" queries that execute several statements in sequence.
 
-.. code-block:: edgeql
+.. code-block:: edgeql-repl
 
-    with
-        module example,
-        f as module foo
-    select User {
-        name
-    }
-    filter .name = f::Foo.name;
+  db> with a := 5,
+  ...   b := 2,
+  ...   c := a ^ b
+  ... select c;
+  {25}
 
-Another use case is for giving short aliases to long module names
-(especially if module names contain ``.``).
+
+Subqueries
+^^^^^^^^^^
+
+There's no limit to the complexity of computed expressions. EdgeQL is fully
+composable; queries can simply be embedded inside each other. The following
+query fetches a list of all movies featuring at least one of the original six
+Avengers.
+
+.. code-block:: edgeql-repl
+
+  db> with avengers := (select Hero filter .name in {
+  ...     'Iron Man',
+  ...     'Black Widow',
+  ...     'Captain America',
+  ...     'Thor',
+  ...     'Hawkeye',
+  ...     'The Hulk'
+  ...   })
+  ... select Movie {title}
+  ... filter avengers in .characters;
+  {
+
+    default::Movie {title: 'Iron Man'},
+    default::Movie {title: 'The Incredible Hulk'},
+    default::Movie {title: 'Iron Man 2'},
+    default::Movie {title: 'Thor'},
+    default::Movie {title: 'Captain America: The First Avenger'},
+    ...
+  }
+
+.. _ref_eql_with_params:
+
+Query parameters
+^^^^^^^^^^^^^^^^
+
+.. index:: with
+
+A common use case for ``with`` clauses is the initialization of :ref:`query
+parameters <ref_eql_params>`.
 
 .. code-block:: edgeql
 
-    with
-        module example,
-        fbz as module foo.bar.baz
-    select User {
-        name
-    }
-    filter .name = fbz::Baz.name;
+  with user_id := <uuid>$user_id
+  select User { name }
+  filter .id = user_id;
+
+For a full reference on using query parameters, see :ref:`EdgeQL > Parameters
+<ref_eql_params>`.
 
 
-Local Expression Aliases
-++++++++++++++++++++++++
+Module alias
+^^^^^^^^^^^^
 
-It is possible to define an alias for an arbitrary expression. The result
-set of an alias expression behaves as a completely independent set of a
-given name. The contents of the set are determined by the expression
-at the point where the alias is defined. In terms of scope, the alias
-expression in the ``with`` block is in a sibling scope to the rest
-of the query.
+.. index:: with, as module
 
-It may be useful to factor out a common sub-expression from a larger
-complex query. This can be done by assigning the sub-expression a new
-symbol in the ``with`` block. However, care must be taken to ensure
-that this refactoring doesn't alter the meaning of the expression due
-to scope change.
-
-All expression aliases defined in a ``with`` block must be referenced in
-the body of the query.
+Another use of ``with`` is to provide aliases for modules. This can be useful
+for long queries which reuse many objects or functions from the same module.
 
 .. code-block:: edgeql
 
-    # Consider a query to get all users that own Issues and the
-    # comments those users made.
-    with module example
-    select Issue.owner {
-        name,
-        comments := Issue.owner.<owner[is Comment]
-    };
+  with http as module std::net::http
+  select http::ScheduledRequest
+  filter .method = http::Method.POST;
 
-    # The above query can be refactored like this:
-    with
-        module example,
-        U := Issue.owner
-    select U {
-        name,
-        comments := U.<owner[is Comment]
-    };
-
-An example of incorrect refactoring would be:
+If the aliased module does not exist at the top level, but does exists as a
+part of the ``std`` module, that will be used automatically.
 
 .. code-block:: edgeql
 
-    # This query gets a set of tuples of
-    # issues and their owners.
-    with
-        module example
-    select (Issue, Issue.owner);
-
-    # This query gets a set of tuples that
-    # result from a cartesian product of all issues
-    # with all owners. This is because ``Issue`` and ``U``
-    # are considered independent sets.
-    with
-        module example,
-        U := Issue.owner
-    select (Issue, U);
+  with http as module net::http # <- omitting std
+  select http::ScheduledRequest
+  filter .method = http::Method.POST;
 
 
-.. _ref_edgeql_with_detached:
+Module selection
+^^^^^^^^^^^^^^^^
 
-Detached
-++++++++
+.. index:: with module, fully-qualified names
 
-.. eql:keyword:: detached
+By default, the *active module* is ``default``, so all schema objects inside
+this module can be referenced by their *short name*, e.g. ``User``,
+``BlogPost``, etc. To reference objects in other modules, we must use
+fully-qualified names (``default::Hero``).
 
-    The ``detached`` keyword marks an expression as not belonging to
-    any scope.
+However, ``with`` clauses also provide a mechanism for changing the *active
+module* on a per-query basis.
 
-A ``detached`` expression allows referring to some set as if it were
-defined in the top-level ``with`` block. Basically, ``detached``
-expressions ignore all current scopes they are nested in and only take
-into account module aliases. The net effect is that it is possible to
-refer to an otherwise related set as if it were unrelated:
+.. code-block:: edgeql-repl
 
-.. code-block:: edgeql
+  db> with module schema
+  ... select ObjectType;
 
-    with module example
-    update User
-    filter .name = 'Dave'
-    set {
-        friends := (select detached User filter .name = 'Alice'),
-        coworkers := (select detached User filter .name = 'Bob')
-    };
+This ``with module`` clause changes the default module to schema, so we can
+refer to ``schema::ObjectType`` (a built-in Gel type) as simply
+``ObjectType``.
 
-Here you can use the ``detached User`` expression, rather than having to
-define ``U := User`` in the ``with`` block just to allow it to be used
-in the body of the ``update``. The goal is to indicate that the
-``User`` in the ``update`` body is not in any way related to the
-``User`` that's being updated.
+As with module aliases, if the active module does not exist at the top level,
+but does exist as part of the ``std`` module, that will be used automatically.
+
+.. code-block:: edgeql-repl
+
+  db> with module math select abs(-1);
+  {1}
+
 
 .. list-table::
   :class: seealso
 
   * - **See also**
-  * - :ref:`EdgeQL > With <ref_eql_with>`
+  * - :ref:`Reference > Commands > With <ref_eql_statements_with>`

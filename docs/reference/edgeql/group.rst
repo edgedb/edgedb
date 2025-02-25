@@ -1,128 +1,21 @@
-.. _ref_eql_statements_group:
+.. _ref_eql_group:
 
 Group
 =====
 
-:eql-statement:
-:eql-haswith:
+.. index:: group by, group using by, key, grouping, elements, analytics,
+           aggregate, rollup, cube, partition
 
-:index: group using by
+EdgeQL supports a top-level ``group`` statement. This is used to partition
+sets into subsets based on some parameters. These subsets then can be
+additionally aggregated to provide some analytics.
 
-``group``--partition a set into subsets based on one or more keys
-
-.. eql:synopsis::
-
-    [ with <with-item> [, ...] ]
-
-    group [<alias> := ] <expr>
-
-    [ using <using-alias> := <expr>, [, ...] ]
-
-    by <grouping-element>, ... ;
-
-    # where a <grouping-element> is one of
-
-      <ref-or-list>
-      { <grouping-element>, ... }
-      ROLLUP( <ref-or-list>, ... )
-      CUBE( <ref-or-list>, ... )
-
-    # where a <ref-or-list> is one of
-
-      ()
-      <grouping-ref>
-      ( <grouping-ref>, ... )
-
-    # where a <grouping-ref> is one of
-
-      <using-alias>
-      .<field-name>
-
-:eql:synopsis:`group <expr>`
-    The ``group`` clause sets up the input set that will be operated on.
-
-    Much like in :eql:stmt:`select` it is possible to define an ad-hoc alias
-    at this stage to make referring to the starting set concisely.
-
-:eql:synopsis:`using <using-alias> := <expr>`
-    The ``using`` clause defines one or more aliases which can then be used as
-    part of the grouping key.
-
-    If the :eql:synopsis:`by` clause only refers to
-    :eql:synopsis:`.<field-name>` the ``using`` clause is optional.
-
-:eql:synopsis:`by <grouping-element>`
-    The ``by`` clause sepecifies which parameters will be used to partition
-    the starting set.
-
-    There are only two basic components for defining
-    :eql:synopsis:`<grouping-element>`: references to
-    :eql:synopsis:`<using-alias>` defined in the :eql:synopsis:`using` clause
-    or by references to the short-path format of
-    :eql:synopsis:`.<field-name>`. The :eql:synopsis:`.<field-name>` has to
-    refer to properties or links immediately present on the type of starting
-    set.
-
-    The basic building blocks can also be combined by using parentheses ``(
-    )`` to indicate that partitioning will happen based on several parameters
-    at once.
-
-    It is also possible to specify *grouping sets*, which are denoted using
-    curly braces ``{ }``. The results will contain different partitioning
-    based on each of the grouping set elements. When there are multiple
-    top-level grouping-elements then the cartesian product of them is taken to
-    determine the grouping set. Thus ``a, {b, c}`` is equivalent to ``{(a, b),
-    (a, c)}`` grouping sets.
-
-    :eql:synopsis:`ROLLUP` and :eql:synopsis:`CUBE` are a shorthand to specify
-    particular grouping sets. :eql:synopsis:`ROLLUP` groups by all prefixes
-    of a list of elements, so ``ROLLUP (a, b, c)`` is equivalent to ``{(),
-    (a), (a, b), (a, b, c)}``. :eql:synopsis:`CUBE` groups by all elements of
-    the power set, so ``CUBE (a, b)`` is equivalent to ``{(), (a), (b), (a,
-    b)}``.
-
-
-Output
-------
-
-The ``group`` statement partitions a starting set into subsets based on some
-specified parameters. The output is organized into a set of :ref:`free objects
-<ref_eql_select_free_objects>` of the following structure:
-
-.. eql:synopsis::
-
-    {
-      "key": { <using-alias> := <value> [, ...] },
-      "grouping": <set of keys used in grouping>,
-      "elements": <the subset matching to the key>,
-    }
-
-:eql:synopsis:`"key"`
-    The :eql:synopsis:`"key"` contains another :ref:`free object
-    <ref_eql_select_free_objects>`, which contains all the aliases or field
-    names used as the key together with the specific values these parameters
-    take for this particular subset.
-
-:eql:synopsis:`"grouping"`
-    The :eql:synopsis:`"grouping"` contains a :eql:type:`str` set of all the
-    names of the parameters used as the key for this particular subset. This
-    is especially useful when using grouping sets and the parameters used in
-    the key are not the same for all partitionings.
-
-:eql:synopsis:`"elements"`
-    The :eql:synopsis:`"elements"` contains the actual subset of values that
-    match the :eql:synopsis:`"key"`.
-
-
-Examples
---------
-
-Here's a simple example without using any aggregation or any further
-processing:
+The most basic format is just using the bare :eql:stmt:`group` to group a set
+of objects by some property:
 
 .. code-block:: edgeql-repl
 
-    db> group Movie {title} by .release_year;
+    db> group Movie by .release_year;
     {
       {
         key: {release_year: 2016},
@@ -158,8 +51,114 @@ processing:
       ...
     }
 
-Or we can group by an expression instead, such as whether the title starts
-with a vowel or not:
+Notice that the result of ``group`` is a set of :ref:`free objects
+<ref_eql_select_free_objects>` with three fields:
+
+* ``key``: another free object containing the specific value of the
+  grouping parameter for a given subset.
+* ``grouping``: set of names of grouping parameters, i.e. the specific
+  names that also appear in the ``key`` free object.
+* ``elements``: the actual subset of values that match the ``key``.
+
+In the ``group`` statement, referring to the property in the ``by`` clause
+**must** be done by using the leading dot shothand ``.release_year``. The
+property name then shows up in ``grouping`` and ``key`` to indicate the
+defining characteristics of the particular result. Alternatively, we can give
+it an alias in an optional ``using`` clause and then that alias can be used in
+the ``by`` clause and will appear in the results:
+
+.. code-block:: edgeql-repl
+
+    db> group Movie {title}
+    ... using year := .release_year by year;
+    {
+      {
+        key: {year: 2016},
+        grouping: {'year'},
+        elements: {
+          default::Movie {title: 'Captain America: Civil War'},
+          default::Movie {title: 'Doctor Strange'},
+        },
+      },
+      {
+        key: {year: 2017},
+        grouping: {'year'},
+        elements: {
+          default::Movie {title: 'Spider-Man: Homecoming'},
+          default::Movie {title: 'Thor: Ragnarok'},
+        },
+      },
+      {
+        key: {year: 2018},
+        grouping: {'year'},
+        elements: {default::Movie {title: 'Ant-Man and the Wasp'}},
+      },
+      {
+        key: {year: 2019},
+        grouping: {'year'},
+        elements: {default::Movie {title: 'Spider-Man: No Way Home'}},
+      },
+      {
+        key: {year: 2021},
+        grouping: {'year'},
+        elements: {default::Movie {title: 'Black Widow'}},
+      },
+      ...
+    }
+
+The ``using`` clause is perfect for defining a more complex expression to
+group things by. For example, instead of grouping by the ``release_year`` we
+can group by the release decade:
+
+.. code-block:: edgeql-repl
+
+    db> group Movie {title}
+    ... using decade := .release_year // 10
+    ... by decade;
+    {
+    {
+      {
+        key: {decade: 200},
+        grouping: {'decade'},
+        elements: {
+          default::Movie {title: 'Spider-Man'},
+          default::Movie {title: 'Spider-Man 2'},
+          default::Movie {title: 'Spider-Man 3'},
+          default::Movie {title: 'Iron Man'},
+          default::Movie {title: 'The Incredible Hulk'},
+        },
+      },
+      {
+        key: {decade: 201},
+        grouping: {'decade'},
+        elements: {
+          default::Movie {title: 'Iron Man 2'},
+          default::Movie {title: 'Thor'},
+          default::Movie {title: 'Captain America: The First Avenger'},
+          default::Movie {title: 'The Avengers'},
+          default::Movie {title: 'Iron Man 3'},
+          default::Movie {title: 'Thor: The Dark World'},
+          default::Movie {title: 'Captain America: The Winter Soldier'},
+          default::Movie {title: 'Ant-Man'},
+          default::Movie {title: 'Captain America: Civil War'},
+          default::Movie {title: 'Doctor Strange'},
+          default::Movie {title: 'Spider-Man: Homecoming'},
+          default::Movie {title: 'Thor: Ragnarok'},
+          default::Movie {title: 'Ant-Man and the Wasp'},
+          default::Movie {title: 'Spider-Man: No Way Home'},
+        },
+      },
+      {
+        key: {decade: 202},
+        grouping: {'decade'},
+        elements: {default::Movie {title: 'Black Widow'}},
+      },
+    }
+
+It's also possible to group by more than one parameter, so we can group by
+whether the movie ``title`` contains a colon *and* the decade it was released.
+Additionally, let's only consider more recent movies, say, released after
+2015, so that we're not overwhelmed by all the combination of results:
 
 .. code-block:: edgeql-repl
 
@@ -167,86 +166,41 @@ with a vowel or not:
     ...   # Apply the group query only to more recent movies
     ...   M := (select Movie filter .release_year > 2015)
     ... group M {title}
-    ... using vowel := re_test('(?i)^[aeiou]', .title)
-    ... by vowel;
+    ... using
+    ...   decade := .release_year // 10,
+    ...   has_colon := .title like '%:%'
+    ... by decade, has_colon;
     {
       {
-        key: {vowel: false},
-        grouping: {'vowel'},
+        key: {decade: 201, has_colon: false},
+        grouping: {'decade', 'has_colon'},
         elements: {
-          default::Movie {title: 'Thor: Ragnarok'},
+          default::Movie {title: 'Ant-Man and the Wasp'},
           default::Movie {title: 'Doctor Strange'},
-          default::Movie {title: 'Spider-Man: Homecoming'},
-          default::Movie {title: 'Captain America: Civil War'},
-          default::Movie {title: 'Black Widow'},
-          default::Movie {title: 'Spider-Man: No Way Home'},
         },
       },
       {
-        key: {vowel: true},
-        grouping: {'vowel'},
-        elements: {default::Movie {title: 'Ant-Man and the Wasp'}},
-      },
-    }
-
-It is also possible to group scalars instead of objects, in which case you
-need to define an ad-hoc alias to refer to the scalar set in order to specify
-how it will be grouped:
-
-.. code-block:: edgeql-repl
-
-    db> with
-    ...   # Apply the group query only to more recent movies
-    ...   M := (select Movie filter .release_year > 2015)
-    ... group T := M.title
-    ... using vowel := re_test('(?i)^[aeiou]', T)
-    ... by vowel;
-    {
-      {
-        key: {vowel: false},
-        grouping: {'vowel'},
+        key: {decade: 201, has_colon: true},
+        grouping: {'decade', 'has_colon'},
         elements: {
-          'Captain America: Civil War',
-          'Doctor Strange',
-          'Spider-Man: Homecoming',
-          'Thor: Ragnarok',
-          'Spider-Man: No Way Home',
-          'Black Widow',
+          default::Movie {title: 'Captain America: Civil War'},
+          default::Movie {title: 'Spider-Man: No Way Home'},
+          default::Movie {title: 'Thor: Ragnarok'},
+          default::Movie {title: 'Spider-Man: Homecoming'},
         },
       },
       {
-        key: {vowel: true},
-        grouping: {'vowel'},
-        elements: {'Ant-Man and the Wasp'}
+        key: {decade: 202, has_colon: false},
+        grouping: {'decade', 'has_colon'},
+        elements: {default::Movie {title: 'Black Widow'}},
       },
     }
 
-Often the results of ``group`` are immediately used in a :eql:stmt:`select`
-statement to provide some kind of analytical results:
-
-.. code-block:: edgeql-repl
-
-    db> with
-    ...   # Apply the group query only to more recent movies
-    ...   M := (select Movie filter .release_year > 2015),
-    ...   groups := (
-    ...     group M {title}
-    ...     using vowel := re_test('(?i)^[aeiou]', .title)
-    ...     by vowel
-    ...   )
-    ... select groups {
-    ...   starts_with_vowel := .key.vowel,
-    ...   count := count(.elements),
-    ...   mean_title_length :=
-    ...     round(math::mean(len(.elements.title)))
-    ... };
-    {
-      {starts_with_vowel: false, count: 6, mean_title_length: 18},
-      {starts_with_vowel: true, count: 1, mean_title_length: 20},
-    }
-
-It's possible to group by more than one parameter. For example, we can add the
-release decade to whether the ``title`` starts with a vowel:
+Once we break a set into partitions, we can also use :ref:`aggregate
+<ref_eql_set_aggregate>` functions to provide some analytics about the data.
+For example, for the above partitioning (by decade and presence of ``:`` in
+the ``title``) we can calculate how many movies are in each subset as well as
+the average number of words in the movie titles:
 
 .. code-block:: edgeql-repl
 
@@ -256,112 +210,31 @@ release decade to whether the ``title`` starts with a vowel:
     ...   groups := (
     ...     group M {title}
     ...     using
-    ...       vowel := re_test('(?i)^[aeiou]', .title),
-    ...       decade := .release_year // 10
-    ...     by vowel, decade
+    ...       decade := .release_year // 10 - 200,
+    ...       has_colon := .title like '%:%'
+    ...     by decade, has_colon
     ...   )
     ... select groups {
-    ...   key := .key {vowel, decade},
+    ...   key := .key {decade, has_colon},
     ...   count := count(.elements),
-    ...   mean_title_length :=
-    ...     math::mean(len(.elements.title))
+    ...   avg_words := math::mean(
+    ...     len(str_split(.elements.title, ' ')))
     ... };
     {
-      {
-        key: {vowel: false, decade: 201},
-        count: 5,
-        mean_title_length: 19.8,
-      },
-      {
-        key: {vowel: false, decade: 202},
-        count: 1,
-        mean_title_length: 11,
-      },
-      {
-        key: {vowel: true, decade: 201},
-        count: 1,
-        mean_title_length: 20
-      },
+      {key: {decade: 1, has_colon: false}, count: 2, avg_words: 3},
+      {key: {decade: 1, has_colon: true}, count: 4, avg_words: 3},
+      {key: {decade: 2, has_colon: false}, count: 1, avg_words: 2},
     }
 
-Having more than one grouping parameter opens up the possibility to using
-*grouping sets* to see the way grouping parameters interact with the analytics
-we're gathering:
+.. note::
 
-.. code-block:: edgeql-repl
-
-    db> with
-    ...   # Apply the group query only to more recent movies
-    ...   M := (select Movie filter .release_year > 2015),
-    ...   groups := (
-    ...     group M {title}
-    ...     using
-    ...       vowel := re_test('(?i)^[aeiou]', .title),
-    ...       decade := .release_year // 10
-    ...     by CUBE(vowel, decade)
-    ...   )
-    ... select groups {
-    ...   key := .key {vowel, decade},
-    ...   grouping,
-    ...   count := count(.elements),
-    ...   mean_title_length :=
-    ...     (math::mean(len(.elements.title)))
-    ... } order by array_agg(.grouping);
-    {
-      {
-        key: {vowel: {}, decade: {}},
-        grouping: {},
-        count: 7,
-        mean_title_length: 18.571428571428573,
-      },
-      {
-        key: {vowel: {}, decade: 202},
-        grouping: {'decade'},
-        count: 1,
-        mean_title_length: 11,
-      },
-      {
-        key: {vowel: {}, decade: 201},
-        grouping: {'decade'},
-        count: 6,
-        mean_title_length: 19.833333333333332,
-      },
-      {
-        key: {vowel: true, decade: {}},
-        grouping: {'vowel'},
-        count: 1,
-        mean_title_length: 20,
-      },
-      {
-        key: {vowel: false, decade: {}},
-        grouping: {'vowel'},
-        count: 6,
-        mean_title_length: 18.333333333333332,
-      },
-      {
-        key: {vowel: false, decade: 201},
-        grouping: {'vowel', 'decade'},
-        count: 5,
-        mean_title_length: 19.8,
-      },
-      {
-        key: {vowel: true, decade: 201},
-        grouping: {'vowel', 'decade'},
-        count: 1,
-        mean_title_length: 20,
-      },
-      {
-        key: {vowel: false, decade: 202},
-        grouping: {'vowel', 'decade'},
-        count: 1,
-        mean_title_length: 11,
-      },
-    }
-
+    It is possible to produce results that are grouped in multiple different
+    ways using :ref:`grouping sets <ref_eql_statements_group>`. This may be
+    useful in more sophisticated analytics.
 
 
 .. list-table::
   :class: seealso
 
   * - **See also**
-  * - :ref:`EdgeQL > Group <ref_eql_group>`
+  * - :ref:`Reference > Commands > Group <ref_eql_statements_group>`
