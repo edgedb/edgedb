@@ -1292,8 +1292,10 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
     async def test_edgeql_select_limit_08(self):
         with self.assertRaisesRegex(
-                edgedb.QueryError,
-                r'could not resolve partial path'):
+            edgedb.QueryError,
+            r'could not resolve partial path',
+            _hint=None
+        ):
 
             await self.con.query("""
                 SELECT
@@ -1303,8 +1305,10 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
     async def test_edgeql_select_limit_09(self):
         with self.assertRaisesRegex(
-                edgedb.QueryError,
-                r'could not resolve partial path'):
+            edgedb.QueryError,
+            r'could not resolve partial path',
+            _hint=None
+        ):
 
             await self.con.query("""
                 SELECT
