@@ -34,12 +34,8 @@ struct HandshakeData {
 
 impl HandshakeData {
     fn from_ssl(ssl: &SslRef) -> Option<MutexGuard<Self>> {
-        let Some(handshake) = ssl.ex_data(get_ssl_ex_data_index()) else {
-            return None;
-        };
-        let Ok(handshake) = handshake.lock() else {
-            return None;
-        };
+        let handshake = ssl.ex_data(get_ssl_ex_data_index())?;
+        let handshake = handshake.lock().ok()?;
         Some(handshake)
     }
 }

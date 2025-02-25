@@ -34,8 +34,13 @@ pub struct RustChannel<RX: for<'py> FromPyObject<'py>, TX: for<'py> IntoPyObject
 
 impl<RX: PythonToRust, TX: RustToPython> RustChannel<RX, TX> {
     pub async fn recv(&self) -> Option<RX> {
-        let msg = self.python_to_rust.borrow_mut().recv().await;
-        msg
+        // Don't hold the lock across the await point
+        poll_fn(|cx| {
+            let pipe = &mut *self.python_to_rust.borrow_mut();
+            let mut this = Pin::new(pipe);
+            this.poll_recv(cx)
+        })
+        .await
     }
 
     pub async fn write(&self, msg: TX) -> Result<(), String> {
@@ -72,15 +77,15 @@ impl<RX: PythonToRust, TX: RustToPython> PythonChannelImpl<RX, TX> {
 }
 
 pub trait PythonChannelProtocol: Send + Sync {
-    fn _write<'py>(&self, py: Python<'py>, msg: Py<PyAny>) -> PyResult<()>;
+    fn _write(&self, py: Python<'_>, msg: Py<PyAny>) -> PyResult<()>;
     fn _read<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>>;
     fn _try_read<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>>;
-    fn _close_pipe(&mut self) -> ();
+    fn _close_pipe(&mut self);
     fn _fd(&self) -> u64;
 }
 
 impl<RX: PythonToRust, TX: RustToPython> PythonChannelProtocol for Arc<PythonChannelImpl<RX, TX>> {
-    fn _write<'py>(&self, py: Python<'py>, msg: Py<PyAny>) -> PyResult<()> {
+    fn _write(&self, py: Python<'_>, msg: Py<PyAny>) -> PyResult<()> {
         let msg = msg.extract(py)?;
         trace!("Python -> Rust: {msg:?}");
         self.python_to_rust
@@ -121,7 +126,7 @@ impl<RX: PythonToRust, TX: RustToPython> PythonChannelProtocol for Arc<PythonCha
             .into_any())
     }
 
-    fn _close_pipe(&mut self) -> () {
+    fn _close_pipe(&mut self) {
         *self
             .rust_to_python
             .try_lock()
@@ -148,7 +153,7 @@ impl PythonChannel {
 
 #[pymethods]
 impl PythonChannel {
-    fn _write<'py>(&self, py: Python<'py>, msg: Py<PyAny>) -> PyResult<()> {
+    fn _write(&self, py: Python<'_>, msg: Py<PyAny>) -> PyResult<()> {
         self._impl._write(py, msg)
     }
 
