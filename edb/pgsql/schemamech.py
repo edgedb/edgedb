@@ -785,6 +785,8 @@ def get_ref_storage_info(
             source_typeref = ref.typeref
             if not irtyputils.is_object(source_typeref):
                 continue
+            if irtyputils.is_free_object(source_typeref):
+                continue
             schema, t = irtyputils.ir_typeref_to_type(schema, ref.typeref)
             assert isinstance(t, s_sources.Source)
             ptr = t.getptr(schema, s_name.UnqualName('id'))

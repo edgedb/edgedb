@@ -2046,6 +2046,28 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             insert T;
         """)
 
+    async def test_edgeql_ddl_default_16(self):
+        await self.con.execute(r"""
+            create type T;
+            insert T;
+            alter type T {
+                create required property y: str {
+                    set default := (with x := { y := "lol" }, select x.y)
+                }
+            };
+            insert T;
+        """)
+
+        await self.assert_query_result(
+            r"""
+                select T { y }
+            """,
+            [
+                {'y': "lol"},
+                {'y': "lol"},
+            ],
+        )
+
     async def test_edgeql_ddl_default_circular(self):
         await self.con.execute(r"""
             CREATE TYPE TestDefaultCircular {

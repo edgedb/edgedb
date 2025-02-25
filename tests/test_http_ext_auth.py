@@ -347,6 +347,15 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
         CONFIGURE CURRENT DATABASE
         INSERT ext::auth::MagicLinkProviderConfig {{}};
+
+        # Pure testing code:
+        CREATE TYPE TestUser;
+        ALTER TYPE TestUser {{
+            CREATE REQUIRED LINK identity: ext::auth::Identity {{
+                SET default := (GLOBAL ext::auth::ClientTokenIdentity)
+            }};
+        }};
+
         """,
     ]
 
