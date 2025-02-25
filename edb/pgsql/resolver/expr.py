@@ -743,8 +743,9 @@ def resolve_ParamRef(
     # external params map one-to-one to internal params
     if expr.number < 1:
         raise errors.QueryError(
-            f'there is no parameter ${expr.number}',
+            f'param out of bounds: ${expr.number}',
             pgext_code=pgerror.ERROR_UNDEFINED_PARAMETER,
+            hint='query parameters start with 1',
         )
 
     param = ctx.query_params[expr.number - 1]
