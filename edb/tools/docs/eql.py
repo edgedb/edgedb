@@ -665,6 +665,26 @@ class EQLReactElement(d_rst.Directive):
         return [node]
 
 
+class EQLIndexBoost(d_rst.Directive):
+
+    has_content = False
+    optional_arguments = 0
+    required_arguments = 1
+
+    def run(self):
+        try:
+            boost = float(self.arguments[0])
+            if boost > 2 or boost <= 0:
+                raise Exception()
+        except Exception:
+            raise shared.DirectiveParseError(
+                self, 'the index boost must be a float between 0 and 2')
+
+        node = d_nodes.container()
+        node['index-boost'] = self.arguments[0]
+        return [node]
+
+
 class EQLSectionIntroPage(d_rst.Directive):
 
     has_content = False
@@ -1077,6 +1097,7 @@ class EdgeQLDomain(s_domains.Domain):
 
         # TODO: Move to edb domain
         'react-element': EQLReactElement,
+        'index-boost': EQLIndexBoost,
         'section-intro-page': EQLSectionIntroPage,
     }
 
