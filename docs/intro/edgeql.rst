@@ -53,7 +53,7 @@ Basic literals can be declared using familiar syntax.
   .. code-tab:: edgeql-repl
 
     db> select "I ❤️ EdgeQL"; # str
-    {'U ❤️ EdgeQL'}
+    {'I ❤️ EdgeQL'}
     db> select false; # bool
     {false}
     db> select 42; # int64
