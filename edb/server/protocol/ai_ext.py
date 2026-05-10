@@ -111,6 +111,7 @@ class BadRequestError(AIExtError):
 class ApiStyle(s_enum.StrEnum):
     OpenAI = 'OpenAI'
     Anthropic = 'Anthropic'
+    VoyageAI = 'VoyageAI'
     Ollama = 'Ollama'
 
 
@@ -1267,6 +1268,10 @@ async def _generate_embeddings(
         result = await _generate_openai_embeddings(
             provider, model_name, inputs, shortening, user, http_client
         )
+    elif provider.api_style == ApiStyle.VoyageAI:
+        return await _generate_voyageai_embeddings(
+            provider, model_name, inputs, shortening, http_client
+        )
     elif provider.api_style == ApiStyle.Ollama:
         result = await _generate_ollama_embeddings(
             provider, model_name, inputs, shortening, http_client
@@ -1333,6 +1338,82 @@ async def _generate_openai_embeddings(
     return EmbeddingsResult(
         data=(error if error else EmbeddingsData(result.bytes())),
         limits=_read_openai_limits(result),
+    )
+
+
+async def _generate_voyageai_embeddings(
+    provider: ProviderConfig,
+    model_name: str,
+    inputs: list[str],
+    shortening: Optional[int],
+    http_client: http.HttpClient,
+) -> EmbeddingsResult:
+
+    headers = {
+        "Authorization": f"Bearer {provider.secret}",
+    }
+    client = http_client.with_context(
+        headers=headers,
+        base_url=provider.api_url,
+    )
+
+    # Check if this is a contextualized embedding model
+    is_contextualized = "context" in model_name
+
+    if is_contextualized:
+        # For contextualized embeddings, treat each input as a single-chunk document
+        params: dict[str, Any] = {
+            "inputs": [[inp] for inp in inputs],
+            "input_type": "document",
+            "model": model_name,
+        }
+        endpoint = "/contextualizedembeddings"
+    else:
+        # Standard embeddings
+        params = {
+            "input": inputs,
+            "model": model_name,
+        }
+        endpoint = "/embeddings"
+
+    # Add output_dimension parameter if shortening is specified
+    if shortening is not None:
+        params["output_dimension"] = shortening
+
+    result = await client.post(
+        endpoint,
+        json=params,
+    )
+
+    error = None
+    if result.status_code >= 400:
+        error = rs.Error(
+            message=(
+                f"API call to generate embeddings failed with status "
+                f"{result.status_code}: {result.text}"
+            ),
+            retry=(
+                # If the request fails with 429 - too many requests, it can be
+                # retried
+                result.status_code == 429
+            ),
+        )
+
+    # For contextualized embeddings, we need to flatten the response
+    if is_contextualized and not error:
+        import json
+        response_data = json.loads(result.bytes())
+        # Flatten the nested structure: data[doc][chunk] -> data[chunk]
+        flattened_data = []
+        for doc_idx, doc in enumerate(response_data.get("data", [])):
+            for chunk in doc.get("data", []):
+                flattened_data.append(chunk)
+        response_data["data"] = flattened_data
+        flattened_bytes = json.dumps(response_data).encode()
+        return EmbeddingsResult(data=EmbeddingsData(flattened_bytes))
+
+    return EmbeddingsResult(
+        data=(error if error else EmbeddingsData(result.bytes())),
     )
 
 

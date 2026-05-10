@@ -29,7 +29,7 @@ CREATE EXTENSION PACKAGE ai VERSION '1.0' {
     create permission ext::ai::perm::chat_prompt_write;
 
     create scalar type ext::ai::ProviderAPIStyle
-        extending enum<OpenAI, Anthropic, Ollama>;
+        extending enum<OpenAI, Anthropic, Ollama, VoyageAI>;
 
     create abstract type ext::ai::ProviderConfig extending cfg::ConfigObject {
         create required property name: std::str {
@@ -139,6 +139,27 @@ CREATE EXTENSION PACKAGE ai VERSION '1.0' {
         alter property api_style {
             set protected := true;
             set default := ext::ai::ProviderAPIStyle.Anthropic;
+        };
+    };
+
+    create type ext::ai::VoyageAIProviderConfig extending ext::ai::ProviderConfig {
+        alter property name {
+            set protected := true;
+            set default := 'builtin::voyageai';
+        };
+
+        alter property display_name {
+            set protected := true;
+            set default := 'VoyageAI';
+        };
+
+        alter property api_url {
+            set default := 'https://api.voyageai.com/v1'
+        };
+
+        alter property api_style {
+            set protected := true;
+            set default := ext::ai::ProviderAPIStyle.VoyageAI;
         };
     };
 
@@ -560,6 +581,232 @@ CREATE EXTENSION PACKAGE ai VERSION '1.0' {
             ext::ai::model_provider := "builtin::anthropic";
         alter annotation
             ext::ai::text_gen_model_context_window := "200000";
+    };
+
+    # VoyageAI models
+    create abstract type ext::ai::Voyage4EmbedModel
+        extending ext::ai::EmbeddingModel
+    {
+        alter annotation
+            ext::ai::model_name := "voyage-4";
+        alter annotation
+            ext::ai::model_provider := "builtin::voyageai";
+        alter annotation
+            ext::ai::embedding_model_max_input_tokens := "32000";
+        alter annotation
+            ext::ai::embedding_model_max_batch_tokens := "320000";
+        alter annotation
+            ext::ai::embedding_model_max_output_dimensions := "1024";
+        alter annotation
+            ext::ai::embedding_model_supports_shortening := "true";
+    };
+
+    create abstract type ext::ai::Voyage4LiteEmbedModel
+        extending ext::ai::EmbeddingModel
+    {
+        alter annotation
+            ext::ai::model_name := "voyage-4-lite";
+        alter annotation
+            ext::ai::model_provider := "builtin::voyageai";
+        alter annotation
+            ext::ai::embedding_model_max_input_tokens := "32000";
+        alter annotation
+            ext::ai::embedding_model_max_batch_tokens := "1000000";
+        alter annotation
+            ext::ai::embedding_model_max_output_dimensions := "1024";
+        alter annotation
+            ext::ai::embedding_model_supports_shortening := "true";
+    };
+
+    create abstract type ext::ai::Voyage4LargeEmbedModel
+        extending ext::ai::EmbeddingModel
+    {
+        alter annotation
+            ext::ai::model_name := "voyage-4-large";
+        alter annotation
+            ext::ai::model_provider := "builtin::voyageai";
+        alter annotation
+            ext::ai::embedding_model_max_input_tokens := "32000";
+        alter annotation
+            ext::ai::embedding_model_max_batch_tokens := "120000";
+        alter annotation
+            ext::ai::embedding_model_max_output_dimensions := "1024";
+        alter annotation
+            ext::ai::embedding_model_supports_shortening := "true";
+    };
+
+    create abstract type ext::ai::Voyage3LargeEmbedModel
+        extending ext::ai::EmbeddingModel
+    {
+        create annotation std::deprecated :=
+        "This model is noted as a legacy model in the VoyageAI docs.";
+        alter annotation
+            ext::ai::model_name := "voyage-3-large";
+        alter annotation
+            ext::ai::model_provider := "builtin::voyageai";
+        alter annotation
+            ext::ai::embedding_model_max_input_tokens := "32000";
+        alter annotation
+            ext::ai::embedding_model_max_batch_tokens := "32000";
+        alter annotation
+            ext::ai::embedding_model_max_output_dimensions := "1024";
+        alter annotation
+            ext::ai::embedding_model_supports_shortening := "true";
+    };
+
+    create abstract type ext::ai::VoyageCode3EmbedModel
+        extending ext::ai::EmbeddingModel
+    {
+        create annotation std::deprecated :=
+        "This model is noted as a legacy model in the VoyageAI docs.";
+        alter annotation
+            ext::ai::model_name := "voyage-code-3";
+        alter annotation
+            ext::ai::model_provider := "builtin::voyageai";
+        alter annotation
+            ext::ai::embedding_model_max_input_tokens := "32000";
+        alter annotation
+            ext::ai::embedding_model_max_batch_tokens := "32000";
+        alter annotation
+            ext::ai::embedding_model_max_output_dimensions := "1024";
+        alter annotation
+            ext::ai::embedding_model_supports_shortening := "true";
+    };
+
+    create abstract type ext::ai::Voyage35EmbedModel
+        extending ext::ai::EmbeddingModel
+    {
+        alter annotation
+            ext::ai::model_name := "voyage-3.5";
+        alter annotation
+            ext::ai::model_provider := "builtin::voyageai";
+        alter annotation
+            ext::ai::embedding_model_max_input_tokens := "32000";
+        alter annotation
+            ext::ai::embedding_model_max_batch_tokens := "32000";
+        alter annotation
+            ext::ai::embedding_model_max_output_dimensions := "1024";
+        alter annotation
+            ext::ai::embedding_model_supports_shortening := "true";
+    };
+
+    create abstract type ext::ai::Voyage35LiteEmbedModel
+        extending ext::ai::EmbeddingModel
+    {
+        alter annotation
+            ext::ai::model_name := "voyage-3.5-lite";
+        alter annotation
+            ext::ai::model_provider := "builtin::voyageai";
+        alter annotation
+            ext::ai::embedding_model_max_input_tokens := "32000";
+        alter annotation
+            ext::ai::embedding_model_max_batch_tokens := "32000";
+        alter annotation
+            ext::ai::embedding_model_max_output_dimensions := "1024";
+        alter annotation
+            ext::ai::embedding_model_supports_shortening := "true";
+    };
+
+    create abstract type ext::ai::Voyage3EmbedModel
+        extending ext::ai::EmbeddingModel
+    {
+        create annotation std::deprecated :=
+            "This model is noted as a legacy model in the VoyageAI docs. Consider using voyage-3.5 instead.";
+        alter annotation
+            ext::ai::model_name := "voyage-3";
+        alter annotation
+            ext::ai::model_provider := "builtin::voyageai";
+        alter annotation
+            ext::ai::embedding_model_max_input_tokens := "32000";
+        alter annotation
+            ext::ai::embedding_model_max_batch_tokens := "32000";
+        alter annotation
+            ext::ai::embedding_model_max_output_dimensions := "1024";
+    };
+
+    create abstract type ext::ai::Voyage3LiteEmbedModel
+        extending ext::ai::EmbeddingModel
+    {
+        create annotation std::deprecated :=
+            "This model is noted as a legacy model in the VoyageAI docs. Consider using voyage-3.5-lite instead.";
+        alter annotation
+            ext::ai::model_name := "voyage-3-lite";
+        alter annotation
+            ext::ai::model_provider := "builtin::voyageai";
+        alter annotation
+            ext::ai::embedding_model_max_input_tokens := "32000";
+        alter annotation
+            ext::ai::embedding_model_max_batch_tokens := "32000";
+        alter annotation
+            ext::ai::embedding_model_max_output_dimensions := "512";
+    };
+
+    create abstract type ext::ai::VoyageFinance2EmbedModel
+        extending ext::ai::EmbeddingModel
+    {
+        create annotation std::deprecated :=
+            "This model is noted as a legacy model in the VoyageAI docs.";
+        alter annotation
+            ext::ai::model_name := "voyage-finance-2";
+        alter annotation
+            ext::ai::model_provider := "builtin::voyageai";
+        alter annotation
+            ext::ai::embedding_model_max_input_tokens := "32000";
+        alter annotation
+            ext::ai::embedding_model_max_batch_tokens := "32000";
+        alter annotation
+            ext::ai::embedding_model_max_output_dimensions := "1024";
+    };
+
+    create abstract type ext::ai::VoyageLaw2EmbedModel
+        extending ext::ai::EmbeddingModel
+    {
+        create annotation std::deprecated :=
+            "This model is noted as a legacy model in the VoyageAI docs.";
+        alter annotation
+            ext::ai::model_name := "voyage-law-2";
+        alter annotation
+            ext::ai::model_provider := "builtin::voyageai";
+        alter annotation
+            ext::ai::embedding_model_max_input_tokens := "16000";
+        alter annotation
+            ext::ai::embedding_model_max_batch_tokens := "16000";
+        alter annotation
+            ext::ai::embedding_model_max_output_dimensions := "1024";
+    };
+
+    create abstract type ext::ai::VoyageCode2EmbedModel
+        extending ext::ai::EmbeddingModel
+    {
+        create annotation std::deprecated :=
+            "This model is noted as a legacy model in the VoyageAI docs. Consider using voyage-code-3 instead.";
+        alter annotation
+            ext::ai::model_name := "voyage-code-2";
+        alter annotation
+            ext::ai::model_provider := "builtin::voyageai";
+        alter annotation
+            ext::ai::embedding_model_max_input_tokens := "16000";
+        alter annotation
+            ext::ai::embedding_model_max_batch_tokens := "16000";
+        alter annotation
+            ext::ai::embedding_model_max_output_dimensions := "1536";
+    };
+
+    create abstract type ext::ai::VoyageContext3EmbedModel
+        extending ext::ai::EmbeddingModel
+    {
+        alter annotation
+            ext::ai::model_name := "voyage-context-3";
+        alter annotation
+            ext::ai::model_provider := "builtin::voyageai";
+        alter annotation
+            ext::ai::embedding_model_max_input_tokens := "32000";
+        alter annotation
+            ext::ai::embedding_model_max_batch_tokens := "320000";
+        alter annotation
+            ext::ai::embedding_model_max_output_dimensions := "2048";
+        alter annotation
+            ext::ai::embedding_model_supports_shortening := "true";
     };
 
     # Ollama embedding models
